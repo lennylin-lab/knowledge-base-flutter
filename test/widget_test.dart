@@ -1,30 +1,55 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:knowledge_base_flutter/main.dart';
+import 'package:knowledge_base_flutter/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  // Compact surface → bottom NavigationBar with visible labels.
+  Future<void> setSize(WidgetTester tester, Size size) async {
+    await tester.binding.setSurfaceSize(size);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpAndSettle();
+  }
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('boots on 文档 and switches between all three destinations', (
+    tester,
+  ) async {
+    await setSize(tester, const Size(480, 800));
+    await tester.pumpWidget(const ProviderScope(child: App()));
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Initial branch.
+    expect(find.text('文档功能开发中'), findsOneWidget);
+    expect(find.text('搜索功能开发中'), findsNothing);
+    expect(find.text('问答功能开发中'), findsNothing);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // '搜索' / '问答' exist only as nav labels at this point, so they are
+    // unambiguous; '文档' also appears as the AppBar title, hence `.last`.
+    await tester.tap(find.text('搜索').last);
+    await tester.pumpAndSettle();
+    expect(find.text('搜索功能开发中'), findsOneWidget);
+
+    await tester.tap(find.text('问答').last);
+    await tester.pumpAndSettle();
+    expect(find.text('问答功能开发中'), findsOneWidget);
+
+    await tester.tap(find.text('文档').last);
+    await tester.pumpAndSettle();
+    expect(find.text('文档功能开发中'), findsOneWidget);
+  });
+
+  testWidgets('wide surface renders the navigation rail shell', (tester) async {
+    await setSize(tester, const Size(1200, 800));
+    await tester.pumpWidget(const ProviderScope(child: App()));
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    // Extended rail shows the destination labels.
+    expect(find.text('文档'), findsWidgets);
+
+    await tester.tap(find.text('问答').last);
+    await tester.pumpAndSettle();
+    expect(find.text('问答功能开发中'), findsOneWidget);
+    expect(find.byType(NavigationRail), findsOneWidget);
   });
 }

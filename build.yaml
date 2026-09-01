@@ -1,0 +1,12 @@
+# Package-wide codegen defaults for the DTO layer (lib/shared/models/).
+#
+# Every backend payload is snake_case on the wire and may nest other DTOs, so
+# the rename and explicit-to-json settings are global instead of being
+# repeated as per-class @JsonSerializable annotations (type-safety spec).
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          field_rename: snake
+          explicit_to_json: true
