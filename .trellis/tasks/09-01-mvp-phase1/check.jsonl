@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "analyze/test gates, forbidden patterns, testing bar"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "verify DTO wire alignment and enum fallbacks"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "verify adaptive layout + domain widget patterns"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "verify unified error handling coverage"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "contract drift checks + smoke verification steps"}

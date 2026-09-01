@@ -25,7 +25,7 @@
 | `DocumentRead` | `DocumentRead` | list item; no `content` |
 | `DocumentReadDetail` | `DocumentReadDetail` | extends read + `content` |
 | `DocumentPage` | `DocumentPage` | `items` + `nextCursor` (nullable = end) |
-| `SearchResponse` / `SearchHit` | same names | `vectorRank` nullable, `esRank` int |
+| `SearchResponse` / `SearchHit` | same names | `esRank` and `vectorRank` both nullable (`int \| None` per backend `SearchHit` — a per-leg rank is absent when that leg missed the chunk) |
 | chat SSE payloads | `RunStarted`, `SourcesEvent`, `AnswerDelta`, `ChatDone`, `ChatErrorEvent` | |
 | error envelope | `ApiErrorEnvelope` / `ApiError` | `code`, `message`, `details` map |
 

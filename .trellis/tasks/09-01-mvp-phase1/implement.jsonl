@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "stack lock-in + key facts (base URLs, platforms, Chinese-first)"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "feature-first lib/ layout and naming rules for all new code"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO <-> backend schema mapping table, JSON/enum rules"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Riverpod patterns + chat SSE state machine"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "provider naming and data-fetching rules"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "widget rules, adaptive shells, index_status/citations patterns"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "error envelope, code table, SSE error terminal event"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "keyset pagination, soft delete, index_status semantics"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "where the backend contract lives + run commands + base URLs"}
