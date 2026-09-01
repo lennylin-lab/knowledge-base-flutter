@@ -1,14 +1,404 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-/// 问答页（Stage 4 实现：SSE 流式答案与引用来源）。
-class ChatPage extends StatelessWidget {
+import '../../shared/models/search.dart';
+import '../../shared/widgets/markdown_content.dart';
+import 'chat_providers.dart';
+
+/// 问答页：单轮 SSE 流式问答。
+///
+/// 输入问题后通过 [ChatNotifier] 订阅 `POST /api/v1/chat` 事件流：
+/// `run_started → sources* → answer_delta* → done | error`。答案增量以
+/// Markdown 渲染（与文档详情页共用 MarkdownContent）；引用来源按到达顺序
+/// 编号展示，答案中的 `[n]` 对应第 n 条来源，点击跳转文档详情
+/// （state-management / component-guidelines spec）。
+class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
 
   @override
+  ConsumerState<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends ConsumerState<ChatPage> {
+  final TextEditingController _inputController = TextEditingController();
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
+
+  void _send() {
+    if (ref.read(chatProvider).isRunning) return;
+    final question = _inputController.text.trim();
+    if (question.isEmpty) return;
+    _inputController.clear();
+    ref.read(chatProvider.notifier).ask(question);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = ref.watch(chatProvider);
+    final notifier = ref.read(chatProvider.notifier);
+
     return Scaffold(
       appBar: AppBar(title: const Text('问答')),
-      body: const Center(child: Text('问答功能开发中')),
+      body: Column(
+        children: [
+          Expanded(
+            child:
+                state.phase == ChatPhase.idle &&
+                    state.answer.isEmpty &&
+                    state.sources.isEmpty
+                ? const _IdleHint()
+                : _AnswerView(state: state, onRetry: notifier.retry),
+          ),
+          _InputBar(
+            controller: _inputController,
+            running: state.isRunning,
+            onSend: _send,
+            onStop: notifier.cancel,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 尚未提问时的引导态。
+class _IdleHint extends StatelessWidget {
+  const _IdleHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline,
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Text('尚未提问', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              '输入问题，AI 将基于知识库检索结果给出带引用的回答',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 问答内容区：问题、流式答案（Markdown）、引用来源、终端状态
+/// （done 元信息 / 内联错误 + 重试）。已渲染的增量与来源在错误后保留。
+class _AnswerView extends StatelessWidget {
+  const _AnswerView({required this.state, required this.onRetry});
+
+  final ChatState state;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final children = <Widget>[
+      if (state.question.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            '问：${state.question}',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      if (state.phase == ChatPhase.running)
+        const _ProgressRow(text: '正在思考…'),
+      if (state.phase == ChatPhase.streaming)
+        const _ProgressRow(text: '正在生成回答…'),
+      if (state.answer.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: MarkdownContent(data: state.answer),
+        ),
+      if (state.sources.isNotEmpty) _SourcesSection(sources: state.sources),
+      if (state.phase == ChatPhase.error)
+        _InlineError(
+          message: '回答失败：${state.errorMessage}',
+          onRetry: onRetry,
+        ),
+      if (state.phase == ChatPhase.done) ...[
+        if (state.answer.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(
+              '未生成回答内容',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Text(
+            _doneSummary(state),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      children: children,
+    );
+  }
+}
+
+/// 运行中的进度行（等待首个事件 / 流式生成中）。
+class _ProgressRow extends StatelessWidget {
+  const _ProgressRow({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 引用来源：答案中 `[n]` 对应列表第 n 项（1 起），点击跳转文档详情。
+class _SourcesSection extends StatelessWidget {
+  const _SourcesSection({required this.sources});
+
+  final List<SearchHit> sources;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 28),
+        Text('参考来源', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 2),
+        Text(
+          '答案中的 [1][2] 对应下方来源序号',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final (index, source) in sources.indexed)
+          _SourceTile(number: index + 1, source: source),
+      ],
+    );
+  }
+}
+
+/// 一条来源：编号 + 标题 + 片段，点击跳转对应文档。
+class _SourceTile extends StatelessWidget {
+  const _SourceTile({required this.number, required this.source});
+
+  final int number;
+  final SearchHit source;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/documents/${source.documentId}'),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: theme.colorScheme.secondaryContainer,
+                child: Text(
+                  '$number',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSecondaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      source.documentTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      source.content,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 终端错误：中文前缀 + 后端 message 原样，附重试入口
+/// （error-handling spec）。已渲染的答案/来源保留在错误上方。
+class _InlineError extends StatelessWidget {
+  const _InlineError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 20,
+            color: theme.colorScheme.onErrorContainer,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('重试')),
+        ],
+      ),
+    );
+  }
+}
+
+/// 「回答完成 · 耗时 2.3s · 工具调用 2 次」— 只展示存在的信息。
+String _doneSummary(ChatState state) {
+  final parts = <String>['回答完成'];
+  final latency = state.latencyMs;
+  if (latency != null) {
+    parts.add('耗时 ${(latency / 1000).toStringAsFixed(1)}s');
+  }
+  final tools = state.toolCalls;
+  if (tools != null && tools > 0) {
+    parts.add('工具调用 $tools 次');
+  }
+  return parts.join(' · ');
+}
+
+/// 底部输入栏：多行输入 + 发送（运行中禁用）+ 运行中的停止按钮。
+class _InputBar extends StatelessWidget {
+  const _InputBar({
+    required this.controller,
+    required this.running,
+    required this.onSend,
+    required this.onStop,
+  });
+
+  final TextEditingController controller;
+  final bool running;
+  final VoidCallback onSend;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSend(),
+                decoration: const InputDecoration(
+                  hintText: '输入问题，基于知识库回答',
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(24)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            if (running)
+              IconButton(
+                tooltip: '停止',
+                icon: const Icon(Icons.stop_circle_outlined),
+                onPressed: onStop,
+              ),
+            IconButton(
+              tooltip: '发送',
+              icon: const Icon(Icons.send),
+              onPressed: running ? null : onSend,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
