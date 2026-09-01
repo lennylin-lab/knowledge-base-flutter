@@ -67,11 +67,12 @@
 
 ## Stage 6 — README + 收尾
 
-- [ ] README：安装、配置（baseUrl 三平台默认与覆盖）、三平台运行命令、
+- [x] README：安装、配置（baseUrl 三平台默认与覆盖）、三平台运行命令、
   后端联调（docker compose + alembic + uvicorn；Web CORS 两条路径）
-- [ ] 全量回归：`flutter analyze && flutter test` + 全功能冒烟
-- [ ] 若确立新约定 → 更新 `.trellis/spec/` 对应文件（Phase 3.3）
-- [ ] commit `docs(stage6): README & final polish`
+- [x] 全量回归：`flutter analyze` 零问题 + `flutter test` 126 全绿
+- [x] 若确立新约定 → 更新 `.trellis/spec/` 对应文件（Phase 3.3：
+  directory-structure 补应用名中文化 + debug cleartext 约定）
+- [x] commit `docs(stage6): README & final polish`
 
 ## 统一验证命令
 

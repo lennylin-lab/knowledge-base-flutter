@@ -81,6 +81,12 @@ Rules:
 - Android id: `dev.lenny.knowledge_base_flutter`.
 - Platform differences (base URL, SSE transport) are resolved inside
   `core/config/` and `core/network/`, never inside widgets.
+- User-visible app metadata is Chinese (product name 知识库): Android
+  `android:label`, web `<title>`/manifest name, Windows window title.
+  Windows titles use UTF-8 BOM in `main.cpp` so MSVC decodes the wide
+  literal correctly; `Runner.rc` stays ASCII (codepage 1252).
+- Android debug builds allow cleartext HTTP (dev-only, debug overlay);
+  release must never set `usesCleartextTraffic`.
 
 ---
 
