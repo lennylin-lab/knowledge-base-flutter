@@ -11,6 +11,13 @@ pluginManagement {
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
+        // Aliyun mirrors first: the upstream routes (google / central /
+        // gradle-plugin-portal) are unreliable behind some CN egress
+        // proxies (TLS handshakes get terminated mid-download); the mirrors
+        // mirror the same artifacts 1:1. Upstream repos stay as fallback.
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/central")
+        maven("https://maven.aliyun.com/repository/gradle-plugin")
         google()
         mavenCentral()
         gradlePluginPortal()

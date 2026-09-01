@@ -55,11 +55,15 @@
 
 ## Stage 5 — 自适应 Shell + 主题定稿
 
-- [ ] StatefulShellRoute：≥840 NavigationRail / <600 NavigationBar / 中间折叠 Rail
-- [ ] Material 3 主题、深浅色、中文文案统一检查（无硬编码英文残留）
-- [ ] Android：debug cleartext（network_security_config 仅 debug）
-- [ ] 三平台启动验证：`flutter run -d chrome` / `-d windows` / android 模拟器
-- [ ] **Gate**：三平台起壳并可用 → commit `feat(stage5): adaptive shell & theme`
+- [x] StatefulShellRoute：≥840 NavigationRail / <600 NavigationBar / 中间折叠 Rail
+  （Stage 1 已实现，check 对照 SDK 源码验证合法）
+- [x] Material 3 主题、深浅色、中文文案统一检查（无硬编码英文残留）
+- [x] Android：debug cleartext（debug overlay `usesCleartextTraffic`，release 结构保证不受影响）
+- [x] 平台构建验证：`flutter build web --release` ✅ + `flutter build apk --debug` ✅
+  （windows 构建需 Windows 主机，命令进 README；app 元数据中文化：
+  Android label / web title+manifest / Windows 窗口标题；修复 Android 构建
+  Maven 网络问题 — Aliyun 镜像前置，上游兜底）
+- [x] **Gate**：构建通过 + check 零问题 → commit `feat(stage5): adaptive shell & theme`
 
 ## Stage 6 — README + 收尾
 

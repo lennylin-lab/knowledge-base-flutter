@@ -4,4 +4,12 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Debug-only: allow cleartext HTTP so the app can reach the local dev
+         backend (http://10.0.2.2:8000 from the emulator, LAN IP on a device).
+         Android 9+ blocks cleartext by default; this overlay merges the
+         attribute into the main <application> element for debug builds ONLY —
+         the release manifest keeps the platform default (cleartext blocked),
+         since HTTP to a dev-only host is never a release concern.
+    -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

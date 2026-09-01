@@ -1,5 +1,8 @@
 allprojects {
     repositories {
+        // Aliyun mirrors first (same rationale as settings.gradle.kts).
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/central")
         google()
         mavenCentral()
     }
