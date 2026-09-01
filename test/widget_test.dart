@@ -41,14 +41,15 @@ void main() {
 
     // Initial branch: documents list (empty state) is showing.
     expect(find.text('暂无文档'), findsOneWidget);
-    expect(find.text('搜索功能开发中'), findsNothing);
+    expect(find.text('输入关键词开始搜索'), findsNothing);
     expect(find.text('问答功能开发中'), findsNothing);
 
     // '搜索' / '问答' exist only as nav labels at this point, so they are
     // unambiguous; '文档' also appears as the AppBar title, hence `.last`.
     await tester.tap(find.text('搜索').last);
     await tester.pumpAndSettle();
-    expect(find.text('搜索功能开发中'), findsOneWidget);
+    // Search page pre-search state (nothing fetched until a query is sent).
+    expect(find.text('输入关键词开始搜索'), findsOneWidget);
 
     await tester.tap(find.text('问答').last);
     await tester.pumpAndSettle();

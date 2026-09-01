@@ -1,14 +1,373 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-/// 搜索页（Stage 3 实现：混合检索结果与标签过滤）。
-class SearchPage extends StatelessWidget {
+import '../../core/network/api_client.dart';
+import '../../shared/models/search.dart';
+import 'search_providers.dart';
+
+/// 搜索页：混合检索（BM25 + 向量）结果列表，支持服务端标签过滤。
+///
+/// 提交关键词后展示 SearchHit 卡片（标题 / 片段 / 标签 / 得分与双路排名），
+/// 点击跳转文档详情。渲染全部结果态：未搜索 / 加载中 / 失败（重试）/
+/// 空结果 / 结果列表（component-guidelines spec）。
+class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
   @override
+  ConsumerState<SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends ConsumerState<SearchPage> {
+  late final TextEditingController _queryController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Restore the last submitted query on a fresh mount (tab switches keep
+    // the branch alive via indexedStack, but the controller must survive
+    // rebuilds of the route itself).
+    _queryController = TextEditingController(
+      text: ref.read(searchQueryProvider).query,
+    );
+  }
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    ref.read(searchResultsProvider.notifier).search(_queryController.text);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final results = ref.watch(searchResultsProvider);
+    final selectedTag = ref.watch(searchQueryProvider).tag;
+    final availableTags = _collectTags(results.value, selectedTag);
+
     return Scaffold(
       appBar: AppBar(title: const Text('搜索')),
-      body: const Center(child: Text('搜索功能开发中')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: TextField(
+              controller: _queryController,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _submit(),
+              decoration: InputDecoration(
+                hintText: '搜索知识库',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  tooltip: '搜索',
+                  icon: const Icon(Icons.arrow_forward),
+                  onPressed: _submit,
+                ),
+              ),
+            ),
+          ),
+          if (availableTags.isNotEmpty)
+            _TagFilterBar(
+              tags: availableTags,
+              selectedTag: selectedTag,
+              onSelect: (tag) =>
+                  ref.read(searchResultsProvider.notifier).setTag(tag),
+            ),
+          Expanded(child: _ResultsView(results: results)),
+        ],
+      ),
+    );
+  }
+
+  /// Tag chips derived from the loaded hits (plus the active filter, which
+  /// may come from hits no longer loaded). Filtering itself always goes to
+  /// the server; this is only the affordance list.
+  static List<String> _collectTags(SearchResponse? response, String? selected) {
+    return <String>{
+      ?selected,
+      for (final hit in response?.items ?? const <SearchHit>[]) ...hit.documentTags,
+    }.toList()
+      ..sort();
+  }
+}
+
+/// The four result states: pre-search hint, loading, error with retry, and
+/// the results list (empty results render their own hint).
+class _ResultsView extends ConsumerWidget {
+  const _ResultsView({required this.results});
+
+  final AsyncValue<SearchResponse?> results;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return results.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _ErrorPane(
+        message: '搜索失败：${toApiException(error).message}',
+        onRetry: () => ref.read(searchResultsProvider.notifier).retry(),
+      ),
+      data: (response) {
+        if (response == null) {
+          return const _HintPane(
+            icon: Icons.manage_search,
+            title: '输入关键词开始搜索',
+            subtitle: '支持 BM25 全文与向量语义混合检索',
+          );
+        }
+        if (response.items.isEmpty) {
+          return const _HintPane(
+            icon: Icons.search_off,
+            title: '无匹配结果',
+            subtitle: '换个关键词或调整标签筛选试试',
+          );
+        }
+        return _ResultsList(response: response);
+      },
+    );
+  }
+}
+
+/// Result header (count + mode) above the hit cards.
+class _ResultsList extends StatelessWidget {
+  const _ResultsList({required this.response});
+
+  final SearchResponse response;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final modeText = response.mode == SearchMode.hybrid ? '混合检索' : 'BM25 检索';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Text(
+            '共 ${response.items.length} 条结果 · $modeText',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 16),
+            itemCount: response.items.length,
+            itemBuilder: (context, index) {
+              final hit = response.items[index];
+              return _SearchHitCard(
+                hit: hit,
+                onTap: () => context.push('/documents/${hit.documentId}'),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One fused chunk hit: title + fused score, snippet, tags, per-leg ranks.
+class _SearchHitCard extends StatelessWidget {
+  const _SearchHitCard({required this.hit, required this.onTap});
+
+  final SearchHit hit;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Per-leg ranks are nullable on the wire: a leg that missed the chunk
+    // contributes no rank (type-safety spec).
+    final rankText = [
+      if (hit.esRank != null) 'ES #${hit.esRank}',
+      if (hit.vectorRank != null) '向量 #${hit.vectorRank}',
+    ].join(' · ');
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      hit.documentTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '得分 ${hit.score.toStringAsFixed(3)}',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                hit.content,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+              if (hit.documentTags.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final tag in hit.documentTags)
+                      Text(
+                        '#$tag',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              if (rankText.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  rankText,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Horizontal tag chips; 全部 clears the filter (documents-page pattern).
+class _TagFilterBar extends StatelessWidget {
+  const _TagFilterBar({
+    required this.tags,
+    required this.selectedTag,
+    required this.onSelect,
+  });
+
+  final List<String> tags;
+  final String? selectedTag;
+  final ValueChanged<String?> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: const Text('全部'),
+              selected: selectedTag == null,
+              onSelected: (_) => onSelect(null),
+            ),
+          ),
+          for (final tag in tags)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(tag),
+                selected: selectedTag == tag,
+                onSelected: (_) => onSelect(tag),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pre-search / empty-result hint.
+class _HintPane extends StatelessWidget {
+  const _HintPane({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(height: 12),
+            Text(title, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-area error state with a retry affordance.
+class _ErrorPane extends StatelessWidget {
+  const _ErrorPane({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
+          ],
+        ),
+      ),
     );
   }
 }
