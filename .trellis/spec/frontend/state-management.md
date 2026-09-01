@@ -10,6 +10,13 @@
 project brief and applied everywhere. No mixing with bloc or setState-based
 global state. (`setState` is fine for purely local, ephemeral widget state.)
 
+**Riverpod ≥3.3 auto-retry is DISABLED** (`ProviderScope(retry: noAutomaticRetry)`
+from `lib/core/retry_policy.dart`): Riverpod retries failed providers up to
+10× with backoff by default, silently re-firing requests — that would hammer
+a rate-limited backend and bypass the error-handling spec. Every test scope
+must also pass `retry: noAutomaticRetry`. Note: `AsyncValue.valueOrNull` is
+gone in Riverpod 3 — use `.value`.
+
 ---
 
 ## State Categories

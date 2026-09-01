@@ -1,14 +1,338 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-/// 文档列表页（Stage 2 实现：keyset 分页、标签过滤、index_status 三态）。
-class DocumentsPage extends StatelessWidget {
+import '../../core/network/api_client.dart';
+import '../../shared/models/document.dart';
+import '../../shared/widgets/format.dart';
+import '../../shared/widgets/index_status_chip.dart';
+import 'documents_providers.dart';
+
+/// 文档列表页: keyset-paginated (infinite scroll), server-side tag filter
+/// and per-row `index_status` (三态). All loading / empty / error branches
+/// of the list state render (component-guidelines spec).
+class DocumentsPage extends ConsumerWidget {
   const DocumentsPage({super.key});
+
+  /// Start fetching the next page once the viewport comes this close to
+  /// the end of the loaded items.
+  static const double _loadMoreThreshold = 320;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final listState = ref.watch(documentsProvider);
+    final selectedTag = ref.watch(selectedTagProvider);
+    final availableTags = _collectTags(listState.value, selectedTag);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(selectedTag == null ? '文档' : '文档 · $selectedTag'),
+        actions: [
+          IconButton(
+            tooltip: '刷新',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(documentsProvider.notifier).refresh(),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: '新建文档',
+        onPressed: () => context.push('/documents/new'),
+        child: const Icon(Icons.add),
+      ),
+      body: Column(
+        children: [
+          if (availableTags.isNotEmpty)
+            _TagFilterBar(
+              tags: availableTags,
+              selectedTag: selectedTag,
+              onSelect: (tag) =>
+                  ref.read(selectedTagProvider.notifier).select(tag),
+            ),
+          Expanded(
+            child: listState.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => _ErrorPane(
+                message: '加载失败：${toApiException(error).message}',
+                onRetry: () =>
+                    ref.read(documentsProvider.notifier).refresh(),
+              ),
+              data: (state) => _DocumentsListView(state: state),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tag chips derived from the loaded items (plus the active filter, which
+  /// may come from items no longer loaded). Filtering itself always goes to
+  /// the server; this is only the affordance list.
+  static List<String> _collectTags(DocumentsListState? state, String? selected) {
+    return <String>{
+      ?selected,
+      for (final item in state?.items ?? const <DocumentRead>[]) ...item.tags,
+    }.toList()
+      ..sort();
+  }
+}
+
+/// Infinite-scrolling list with pull-to-refresh and a footer for the
+/// load-more lifecycle (loading / failed-with-retry / end of list).
+class _DocumentsListView extends ConsumerWidget {
+  const _DocumentsListView({required this.state});
+
+  final DocumentsListState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (state.items.isEmpty) {
+      // Still pull-to-refresh-able when empty.
+      return RefreshIndicator(
+        onRefresh: () => ref.read(documentsProvider.notifier).refresh(),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            const SizedBox(height: 120),
+            Icon(
+              Icons.description_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                ref.watch(selectedTagProvider) == null ? '暂无文档' : '该标签下暂无文档',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Center(
+              child: Text(
+                '点击右下角按钮创建第一篇文档',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.extentAfter <
+            DocumentsPage._loadMoreThreshold) {
+          // No-ops at end of list / while a fetch is already in flight.
+          ref.read(documentsProvider.notifier).loadNext();
+        }
+        return false;
+      },
+      child: RefreshIndicator(
+        onRefresh: () => ref.read(documentsProvider.notifier).refresh(),
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: state.items.length + 1, // + footer slot
+          itemBuilder: (context, index) {
+            if (index < state.items.length) {
+              final document = state.items[index];
+              return _DocumentTile(
+                document: document,
+                onTap: () => context.push('/documents/${document.id}'),
+                // failed → re-save affordance deep-links to the editor.
+                onRetryIndex: () =>
+                    context.push('/documents/${document.id}/edit'),
+              );
+            }
+            return _ListFooter(state: state);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _DocumentTile extends StatelessWidget {
+  const _DocumentTile({required this.document, this.onTap, this.onRetryIndex});
+
+  final DocumentRead document;
+  final VoidCallback? onTap;
+  final VoidCallback? onRetryIndex;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('文档')),
-      body: const Center(child: Text('文档功能开发中')),
+    final theme = Theme.of(context);
+    final tagsText = document.tags.map((tag) => '#$tag').join('  ');
+    return ListTile(
+      onTap: onTap,
+      title: Text(
+        document.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (tagsText.isNotEmpty)
+            Text(
+              tagsText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          Text(
+            '更新于 ${formatIsoTimestamp(document.updatedAt)}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      trailing: IndexStatusChip(
+        status: document.indexStatus,
+        onRetry: onRetryIndex,
+      ),
+    );
+  }
+}
+
+/// Footer slot: loading spinner while fetching the next page, a retry row
+/// on failure, and an end-of-list hint.
+class _ListFooter extends ConsumerWidget {
+  const _ListFooter({required this.state});
+
+  final DocumentsListState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    if (state.loadMoreError != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: Text(
+                '加载失败：${state.loadMoreError}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => ref.read(documentsProvider.notifier).loadNext(),
+              child: const Text('重试'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (state.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (!state.hasMore) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            '没有更多了',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+}
+
+/// Horizontal tag chips; 全部 clears the filter.
+class _TagFilterBar extends StatelessWidget {
+  const _TagFilterBar({
+    required this.tags,
+    required this.selectedTag,
+    required this.onSelect,
+  });
+
+  final List<String> tags;
+  final String? selectedTag;
+  final ValueChanged<String?> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: const Text('全部'),
+              selected: selectedTag == null,
+              onSelected: (_) => onSelect(null),
+            ),
+          ),
+          for (final tag in tags)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(tag),
+                selected: selectedTag == tag,
+                onSelected: (_) => onSelect(tag),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Full-list error state with a retry affordance.
+class _ErrorPane extends StatelessWidget {
+  const _ErrorPane({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
+          ],
+        ),
+      ),
     );
   }
 }

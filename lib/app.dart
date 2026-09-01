@@ -3,14 +3,25 @@ import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/chat/chat_page.dart';
+import 'features/documents/document_detail_page.dart';
+import 'features/documents/document_editor_page.dart';
 import 'features/documents/documents_page.dart';
 import 'features/search/search_page.dart';
 
 /// Root widget: Material 3 app, system light/dark, three-branch shell.
+///
+/// The router is a per-instance value (not a static) so every `App()` —
+/// including each widget test — gets an isolated navigation state; pass a
+/// custom router to drive deep links directly.
 class App extends StatelessWidget {
-  const App({super.key});
+  App({super.key, GoRouter? router}) : router = router ?? buildRouter();
 
-  static final GoRouter router = GoRouter(
+  final GoRouter router;
+
+  /// Route table. Detail/editor live inside the documents branch, so the
+  /// three-tab state is kept while they are shown. Static segments
+  /// (`new`) are declared before the dynamic one (`:id`).
+  static GoRouter buildRouter() => GoRouter(
     initialLocation: '/documents',
     routes: [
       StatefulShellRoute.indexedStack(
@@ -23,6 +34,29 @@ class App extends StatelessWidget {
                 path: '/documents',
                 name: 'documents',
                 builder: (context, state) => const DocumentsPage(),
+                routes: [
+                  GoRoute(
+                    path: 'new',
+                    name: 'document-create',
+                    builder: (context, state) => const DocumentEditorPage(),
+                  ),
+                  GoRoute(
+                    path: ':id',
+                    name: 'document-detail',
+                    builder: (context, state) => DocumentDetailPage(
+                      documentId: state.pathParameters['id']!,
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'edit',
+                        name: 'document-edit',
+                        builder: (context, state) => DocumentEditorPage(
+                          documentId: state.pathParameters['id'],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),

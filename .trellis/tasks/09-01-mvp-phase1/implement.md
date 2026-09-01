@@ -5,33 +5,34 @@
 
 ## Stage 0 — 依赖与工程配置
 
-- [ ] pubspec.yaml 加入锁定选型（见 design.md §2；dev: build_runner/freezed/json_serializable）
-- [ ] 建立 lib 目录骨架：core/{config,network,theme}、features/{documents,search,chat}、shared/{models,widgets}
-- [ ] 验证：`flutter pub get && dart run build_runner build --delete-conflicting-outputs && flutter analyze`
-- [ ] **Gate**：analyze 零问题 → commit `feat(stage0): deps & skeleton`
+- [x] pubspec.yaml 加入锁定选型（见 design.md §2；dev: build_runner/freezed/json_serializable）
+- [x] 建立 lib 目录骨架：core/{config,network,theme}、features/{documents,search,chat}、shared/{models,widgets}
+- [x] 验证：`flutter pub get && dart run build_runner build --delete-conflicting-outputs && flutter analyze`
+- [x] **Gate**：analyze 零问题 → commit `feat(stage0): deps & skeleton`（92b2158）
 
 ## Stage 1 — core 层 + DTO + 单测（先于一切 UI）
 
-- [ ] `core/config/app_config.dart`：平台默认 baseUrl + shared_preferences 覆盖
-- [ ] `shared/models/`：全部 DTO + ApiErrorEnvelope（freezed，`fieldRename: snake`，enum 兜底）
-- [ ] `core/network/api_exception.dart` + `api_client.dart`（dio + 错误信封拦截器）
-- [ ] `core/network/sse_client.dart`：双传输 + 纯函数 parser（design.md §5）
-- [ ] 最小 bootstrap：main.dart/app.dart + go_router 三占位页（替换计数器示例与 widget_test）
-- [ ] 单测：sse parser、信封解码、DTO round-trip（fixtures 与后端 `/docs` 核对）
-- [ ] 验证：`flutter analyze && flutter test`；`flutter run -d chrome` 能起壳
-- [ ] **Gate**：测试全绿 → commit `feat(stage1): core network/models + bootstrap`
+- [x] `core/config/app_config.dart`：平台默认 baseUrl + shared_preferences 覆盖
+- [x] `shared/models/`：全部 DTO + ApiErrorEnvelope（freezed，`fieldRename: snake`，enum 兜底）
+- [x] `core/network/api_exception.dart` + `api_client.dart`（dio + 错误信封拦截器）
+- [x] `core/network/sse_client.dart`：双传输 + 纯函数 parser（design.md §5）
+- [x] 最小 bootstrap：main.dart/app.dart + go_router 三占位页（替换计数器示例与 widget_test）
+- [x] 单测：sse parser、信封解码、DTO round-trip（fixtures 与后端 `/docs` 核对）+ sse_client 补测
+- [x] 验证：`flutter analyze && flutter test`（63 绿）+ `flutter build web`
+- [x] **Gate**：测试全绿 → commit `feat(stage1): core network/models + bootstrap`（7b45c6a）
 
 ## Stage 2 — documents feature
 
-- [ ] repository：list(cursor,limit,tag) / get / create / update / delete
-- [ ] providers：AsyncNotifier（列表+loadNext）+ FutureProvider.family（详情）
-- [ ] 列表页：分页滚动加载、tag 过滤（Chip + query param）、index_status 三态
-- [ ] 详情页：flutter_markdown_plus 渲染 + 编辑/删除入口；404 → 返回列表
-- [ ] 编辑页：TextField 全文编辑（含 front matter）、创建/更新；422/409 呈现
-- [ ] 手工冒烟（后端 `docker compose up -d` + uvicorn）：
+- [x] repository：list(cursor,limit,tag) / get / create / update / delete
+- [x] providers：AsyncNotifier（列表+loadNext）+ FutureProvider.family（详情）
+- [x] 列表页：分页滚动加载、tag 过滤（Chip + query param）、index_status 三态
+- [x] 详情页：flutter_markdown_plus 渲染 + 编辑/删除入口；404 → 返回列表
+- [x] 编辑页：TextField 全文编辑（含 front matter）、创建/更新；422/409 呈现
+- [x] 手工冒烟（后端 `docker compose up -d` + uvicorn）：
   创建→列表 pending→详情 title/tags 解析→编辑→删除→404
-- [ ] 验证：`flutter analyze && flutter test`
-- [ ] **Gate**：冒烟通过 → commit `feat(stage2): documents feature`
+  （通过 curl 对运行中后端完成，契约全通过；UI 层行为由 widget tests 覆盖）
+- [x] 验证：`flutter analyze && flutter test`（87 绿）
+- [x] **Gate**：冒烟通过 → commit `feat(stage2): documents feature`
 
 ## Stage 3 — search feature
 

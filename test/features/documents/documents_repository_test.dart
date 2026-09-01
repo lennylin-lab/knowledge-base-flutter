@@ -1,0 +1,320 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:knowledge_base_flutter/core/network/api_client.dart';
+import 'package:knowledge_base_flutter/core/network/api_exception.dart';
+import 'package:knowledge_base_flutter/features/documents/documents_repository.dart';
+import 'package:knowledge_base_flutter/shared/models/document.dart';
+
+/// One canned HTTP response drained from the adapter queue per request.
+class _CannedResponse {
+  const _CannedResponse(this.statusCode, this.body);
+
+  final int statusCode;
+  final String body;
+}
+
+/// A request as seen on the wire (method / path / query / decoded body).
+class _RecordedRequest {
+  const _RecordedRequest({
+    required this.method,
+    required this.path,
+    required this.queryParameters,
+    required this.body,
+  });
+
+  final String method;
+  final String path;
+  final Map<String, dynamic> queryParameters;
+  final Object? body;
+
+  @override
+  String toString() => '$method $path $queryParameters ${body ?? ''}';
+}
+
+/// Queue-based adapter: records every request (reading the actual encoded
+/// body stream) and answers with the next canned response — the same
+/// pattern as test/core/network/api_error_test.dart, extended to capture
+/// requests.
+class _RecordingAdapter implements HttpClientAdapter {
+  _RecordingAdapter(List<_CannedResponse> responses)
+    : _responses = List<_CannedResponse>.of(responses);
+
+  final List<_CannedResponse> _responses;
+  final List<_RecordedRequest> requests = [];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    Object? body;
+    if (requestStream != null) {
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in requestStream) {
+        builder.add(chunk);
+      }
+      final text = utf8.decode(builder.takeBytes());
+      if (text.isNotEmpty) body = jsonDecode(text);
+    }
+    requests.add(
+      _RecordedRequest(
+        method: options.method,
+        path: options.path,
+        queryParameters: Map<String, dynamic>.from(options.queryParameters),
+        body: body,
+      ),
+    );
+    if (_responses.isEmpty) {
+      throw StateError('no canned response left for ${options.uri}');
+    }
+    final next = _responses.removeAt(0);
+    return ResponseBody(
+      Stream.fromIterable([utf8.encode(next.body)]),
+      next.statusCode,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// Wire-shaped fixtures aligned with the backend OpenAPI schema.
+const documentReadJson = {
+  'id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+  'title': '知识库设计笔记',
+  'tags': ['flutter', 'backend'],
+  'index_status': 'pending',
+  'created_at': '2026-08-31T10:00:00Z',
+  'updated_at': '2026-08-31T12:30:00Z',
+};
+
+// Non-const: the spread re-assigns `index_status`, which a const map
+// literal rejects as duplicate keys.
+final documentDetailJson = {
+  ...documentReadJson,
+  'index_status': 'done',
+  'content': '---\ntitle: 知识库设计笔记\n---\n\n## 内容',
+};
+
+(DocumentsRepository, _RecordingAdapter) _makeRepo(
+  List<_CannedResponse> responses,
+) {
+  final adapter = _RecordingAdapter(responses);
+  final dio = Dio()..httpClientAdapter = adapter;
+  final client = ApiClient(baseUrl: 'http://localhost:8000', dio: dio);
+  return (DocumentsRepository(client), adapter);
+}
+
+void main() {
+  group('list', () {
+    test('sends cursor/limit/tag exactly and parses the page', () async {
+      final (repo, adapter) = _makeRepo([
+        _CannedResponse(
+          200,
+          jsonEncode({
+            'items': [documentReadJson],
+            'next_cursor': 'cursor-2',
+          }),
+        ),
+      ]);
+
+      final page = await repo.list(cursor: 'cursor-1', limit: 5, tag: 'flutter');
+
+      expect(page.items, hasLength(1));
+      expect(page.items.single.title, '知识库设计笔记');
+      expect(page.items.single.indexStatus, IndexStatus.pending);
+      expect(page.items.single.tags, ['flutter', 'backend']);
+      expect(page.nextCursor, 'cursor-2');
+
+      final request = adapter.requests.single;
+      expect(request.method, 'GET');
+      expect(request.path, '/api/v1/documents');
+      expect(request.queryParameters, {
+        'cursor': 'cursor-1',
+        'limit': 5,
+        'tag': 'flutter',
+      });
+    });
+
+    test('first page omits cursor and tag; default limit is 20', () async {
+      final (repo, adapter) = _makeRepo([
+        const _CannedResponse(200, '{"items": [], "next_cursor": null}'),
+      ]);
+
+      final page = await repo.list();
+
+      expect(page.items, isEmpty);
+      expect(page.nextCursor, isNull); // end of list, not an error
+      expect(
+        adapter.requests.single.queryParameters,
+        {'limit': 20},
+        reason: 'cursor/tag must be absent (not sent as null/empty)',
+      );
+    });
+
+    test('clamps limit into the 1–100 API range', () async {
+      final (repo, adapter) = _makeRepo([
+        const _CannedResponse(200, '{"items": [], "next_cursor": null}'),
+        const _CannedResponse(200, '{"items": [], "next_cursor": null}'),
+      ]);
+
+      await repo.list(limit: 0);
+      await repo.list(limit: 500);
+
+      expect(adapter.requests[0].queryParameters['limit'], 1);
+      expect(adapter.requests[1].queryParameters['limit'], 100);
+    });
+  });
+
+  group('get', () {
+    test('fetches /documents/{id} and parses the detail incl. content', () async {
+      final (repo, adapter) = _makeRepo([
+        _CannedResponse(200, jsonEncode(documentDetailJson)),
+      ]);
+
+      final detail = await repo.get('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+
+      expect(detail.content, startsWith('---'));
+      expect(detail.indexStatus, IndexStatus.done);
+      expect(detail.toDocumentRead().id, detail.id);
+
+      final request = adapter.requests.single;
+      expect(request.method, 'GET');
+      expect(
+        request.path,
+        '/api/v1/documents/0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+      );
+    });
+  });
+
+  group('create', () {
+    test('posts the full markdown payload and parses the created item', () async {
+      final (repo, adapter) = _makeRepo([
+        _CannedResponse(200, jsonEncode(documentReadJson)),
+      ]);
+
+      final created = await repo.create(
+        const DocumentCreate(content: '---\ntitle: 新笔记\n---\n\n正文'),
+      );
+
+      expect(created.id, documentReadJson['id']);
+      expect(created.indexStatus, IndexStatus.pending);
+
+      final request = adapter.requests.single;
+      expect(request.method, 'POST');
+      expect(request.path, '/api/v1/documents');
+      // Generated `toJson` keeps an explicit `title: null` — equivalent to
+      // "unset" for the backend's Optional fields.
+      expect(request.body, {
+        'content': '---\ntitle: 新笔记\n---\n\n正文',
+        'title': null,
+      });
+    });
+  });
+
+  group('update', () {
+    test('patches with the minimal body (only content set)', () async {
+      final (repo, adapter) = _makeRepo([
+        _CannedResponse(200, jsonEncode(documentReadJson)),
+      ]);
+
+      await repo.update(
+        '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        const DocumentUpdate(content: '更新后的正文'),
+      );
+
+      final request = adapter.requests.single;
+      expect(request.method, 'PATCH');
+      expect(
+        request.path,
+        '/api/v1/documents/0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+      );
+      expect(request.body, {
+        'content': '更新后的正文',
+        'title': null,
+      });
+    });
+
+    test('sends the title override when given', () async {
+      final (repo, adapter) = _makeRepo([
+        _CannedResponse(200, jsonEncode(documentReadJson)),
+      ]);
+
+      await repo.update(
+        '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        const DocumentUpdate(title: '显式标题'),
+      );
+
+      expect(adapter.requests.single.body, {
+        'content': null,
+        'title': '显式标题',
+      });
+    });
+  });
+
+  group('delete', () {
+    test('issues DELETE and accepts the 204 empty body', () async {
+      final (repo, adapter) = _makeRepo([const _CannedResponse(204, '')]);
+
+      await expectLater(
+        repo.delete('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01'),
+        completes,
+      );
+
+      final request = adapter.requests.single;
+      expect(request.method, 'DELETE');
+      expect(
+        request.path,
+        '/api/v1/documents/0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+      );
+      expect(request.body, isNull);
+    });
+  });
+
+  group('error normalization', () {
+    test('422 envelope surfaces as ApiException(validation_failed)', () async {
+      final (repo, _) = _makeRepo([
+        const _CannedResponse(
+          422,
+          '{"error": {"code": "validation_failed", "message": "Request validation failed", '
+              '"details": {"errors": [{"loc": ["body", "content"], "msg": "String should have at least 1 character"}]}}}',
+        ),
+      ]);
+
+      await expectLater(
+        repo.create(const DocumentCreate(content: '')),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', 'validation_failed')
+              .having((e) => e.statusCode, 'statusCode', 422),
+        ),
+      );
+    });
+
+    test('404 envelope surfaces as ApiException(not_found)', () async {
+      final (repo, _) = _makeRepo([
+        const _CannedResponse(
+          404,
+          '{"error": {"code": "not_found", "message": "Document x not found", "details": {}}}',
+        ),
+      ]);
+
+      await expectLater(
+        repo.get('missing'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', 'not_found')
+              .having((e) => e.isNotFound, 'isNotFound', true),
+        ),
+      );
+    });
+  });
+}

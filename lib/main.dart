@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/config/app_config.dart';
+import 'core/retry_policy.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,7 +11,8 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [appConfigProvider.overrideWithValue(config)],
-      child: const App(),
+      retry: noAutomaticRetry,
+      child: App(),
     ),
   );
 }
