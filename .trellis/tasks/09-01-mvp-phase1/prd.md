@@ -51,12 +51,15 @@
 
 ## Acceptance Criteria
 
-- [ ] `flutter analyze` 无 error/warning；`flutter test` 全绿
-- [ ] 单元测试覆盖：SSE parser（事件序、多 sources、终端 error、分片缓冲）、
+- [x] `flutter analyze` 无 error/warning；`flutter test` 全绿（126）
+- [x] 单元测试覆盖：SSE parser（事件序、多 sources、终端 error、分片缓冲）、
       错误信封解码（404/409/422/429/502/503 + 非信封体）、DTO round-trip
-- [ ] 三平台可启动并连上后端完成冒烟：创建→列表（pending→done）→详情→
-      编辑→删除→404；搜索（含 tag 过滤）；问答流式 + 引用点击跳转
-- [ ] Web 端 CORS 联调路径在 README 中有明确说明（代理或后端加 CORSMiddleware）
-- [ ] AndroidManifest 已配置开发期 cleartext 许可
-- [ ] README 含三平台运行命令与后端启动步骤
-- [ ] `.trellis/spec/` 若实现中确立新约定，同步更新对应规范文件
+- [~] 三平台冒烟：创建→列表→详情→编辑→删除→404 ✅（真实后端 curl）；
+      pending→done / 搜索正常路径 / 问答流式 ⏸ **受后端环境阻塞**
+      （`OPENAI_API_KEY` 未配置 → embedding 不可用 → 索引失败 →
+      search/chat 返回 502；前端错误路径已验证。配置凭据并运行
+      `uv run python -m app.cli reindex` 后补验）
+- [x] Web 端 CORS 联调路径在 README 中有明确说明（代理或后端加 CORSMiddleware）
+- [x] AndroidManifest 已配置开发期 cleartext 许可（仅 debug，release 不受影响）
+- [x] README 含三平台运行命令与后端启动步骤
+- [x] `.trellis/spec/` 若实现中确立新约定，同步更新对应规范文件
