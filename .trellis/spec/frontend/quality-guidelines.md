@@ -67,6 +67,5 @@ Repository tests may fake `Dio` via a mock adapter rather than a live server.
 - [ ] New network code went through repository + DTO (no ad-hoc HTTP)
 - [ ] Loading / empty / error branches all render
 - [ ] Wide and compact layouts both checked
-- [ ] Any backend contract change is reflected in DTOs and this spec's backend
-      section
-- [ ] No user document content in logs (see backend/logging-guidelines.md)
+- [ ] Any backend contract change is reflected in DTOs and the type-safety spec
+- [ ] No user document content in logs

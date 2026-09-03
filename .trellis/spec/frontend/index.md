@@ -28,7 +28,7 @@ flutter_markdown_plus for rendering (**flutter_markdown is discontinued**).
   `http://localhost:8000`, Android emulator `http://10.0.2.2:8000`.
 - UI copy is Chinese-first; LLM answers render verbatim.
 - MVP platforms only: web, windows, android — no ios/macos/linux dirs.
-- Backend contract reference: [../backend/index.md](../backend/index.md).
+- Backend contract lives in the backend repo: `knowledge-base-server/.trellis/spec/backend/`.
 
 ---
 
