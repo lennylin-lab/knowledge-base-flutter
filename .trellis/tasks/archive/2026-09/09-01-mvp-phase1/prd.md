@@ -54,11 +54,17 @@
 - [x] `flutter analyze` 无 error/warning；`flutter test` 全绿（126）
 - [x] 单元测试覆盖：SSE parser（事件序、多 sources、终端 error、分片缓冲）、
       错误信封解码（404/409/422/429/502/503 + 非信封体）、DTO round-trip
-- [~] 三平台冒烟：创建→列表→详情→编辑→删除→404 ✅（真实后端 curl）；
-      pending→done / 搜索正常路径 / 问答流式 ⏸ **受后端环境阻塞**
-      （`OPENAI_API_KEY` 未配置 → embedding 不可用 → 索引失败 →
-      search/chat 返回 502；前端错误路径已验证。配置凭据并运行
-      `uv run python -m app.cli reindex` 后补验）
+- [x] 冒烟全链路（2026-09-03 后端配置 LLM 后补验，全部通过）：
+      - 索引流转：新建 → pending → 3s → done（后台 worker）
+      - 搜索：hybrid 5 命中（es/vector rank 双列、腿缺失为 null）、
+        tag 过滤（server-side）、空结果语义（向量腿兜底）
+      - Chat SSE：run_started → sources → answer_delta×N → done
+        （outcome/tool_calls/latency）；答案带 [1] 引用
+      - Web UI 全流程（Chrome + CORS dev proxy + dart-define）：
+        列表渲染/标签过滤/详情 Markdown/搜索→详情/问答流式
+        +done 元数据/来源点击→详情，全部通过
+      - 修复：AppConfig 补 `--dart-define=API_BASE_URL`（README 已
+        承诺但未实现）+3 回归测试（129 总绿）
 - [x] Web 端 CORS 联调路径在 README 中有明确说明（代理或后端加 CORSMiddleware）
 - [x] AndroidManifest 已配置开发期 cleartext 许可（仅 debug，release 不受影响）
 - [x] README 含三平台运行命令与后端启动步骤
