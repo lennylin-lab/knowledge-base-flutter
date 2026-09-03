@@ -9,7 +9,7 @@ import '../../shared/models/chat.dart';
 ///
 /// **Single-turn semantics**: there is no session history API. Each
 /// [chat] call is one independent stateless QA run; the UI must not build
-/// multi-turn conversation state on top of it (tmp.md / state-management
+/// multi-turn conversation state on top of it (state-management
 /// spec).
 class ChatRepository {
   ChatRepository(this._sseClient);
@@ -33,10 +33,7 @@ class ChatRepository {
   /// consumers append to the accumulated list. The stream ends right after
   /// the terminal event; a stream that ends without one yields a
   /// `network_error` [ChatErrorEvent].
-  Stream<ChatEvent> chat({
-    required String question,
-    int limit = defaultLimit,
-  }) {
+  Stream<ChatEvent> chat({required String question, int limit = defaultLimit}) {
     return _sseClient.chatStream(
       ChatRequest(question: question, limit: clampLimit(limit)),
     );

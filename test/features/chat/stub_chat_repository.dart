@@ -28,7 +28,7 @@ class StubChatRepository implements ChatRepository {
   }
 }
 
-// --- Chat SSE event fixtures (wire contract of tmp.md / shared/models) ---
+// --- Chat SSE event fixtures  ---
 
 RunStarted runStarted({
   String runId = 'run-1',
