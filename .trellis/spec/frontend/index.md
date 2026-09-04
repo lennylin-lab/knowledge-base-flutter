@@ -26,6 +26,9 @@ flutter_markdown_plus for rendering (**flutter_markdown is discontinued**).
 
 - API base URL is platform-aware (`AppConfig`): web/windows
   `http://localhost:8000`, Android emulator `http://10.0.2.2:8000`.
+- Web dev requires backend CORS: set `KB_CORS_ORIGINS` in the server `.env`
+  (e.g. `["*"]` or explicit `http://localhost:<port>` origins). No CORS
+  logic lives in this client.
 - UI copy is Chinese-first; LLM answers render verbatim.
 - MVP platforms only: web, windows, android — no ios/macos/linux dirs.
 - Backend contract lives in the backend repo: `knowledge-base-server/.trellis/spec/backend/`.
