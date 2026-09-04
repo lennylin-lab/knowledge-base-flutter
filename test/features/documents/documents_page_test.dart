@@ -27,7 +27,7 @@ void main() {
   ) async {
     final repo =
         StubDocumentsRepository()
-          ..listHandler = (cursor, limit, tag) async => DocumentPage(
+          ..listHandler = (cursor, limit, tags) async => DocumentPage(
             items: [
               documentRead(
                 id: 'a',
@@ -68,7 +68,7 @@ void main() {
     );
     final repo =
         StubDocumentsRepository()
-          ..listHandler = (cursor, limit, tag) async {
+          ..listHandler = (cursor, limit, tags) async {
             if (cursor == null) {
               return DocumentPage(items: pageOne, nextCursor: 'cursor-1');
             }
@@ -93,7 +93,7 @@ void main() {
     // The append used the opaque next_cursor — never a page-1 re-fetch.
     final last = repo.listCalls.last;
     expect(last.cursor, 'cursor-1');
-    expect(last.tag, isNull);
+    expect(last.tags, isEmpty);
     expect(repo.listCalls.length, greaterThanOrEqualTo(2));
 
     // End of list (next_cursor null) → hint, no error, no further fetch.
@@ -114,7 +114,7 @@ void main() {
     final repo =
         StubDocumentsRepository()
           ..listHandler =
-              (cursor, limit, tag) async => throw const ApiException(
+              (cursor, limit, tags) async => throw const ApiException(
                 code: 'network_error',
                 message: '网络连接异常，请检查网络后重试',
               );
@@ -131,12 +131,12 @@ void main() {
     expect(repo.listCalls, hasLength(2));
   });
 
-  testWidgets('tag filter resets to page 1 with the server-side tag param', (
+  testWidgets('tag filter multi-selects and ANDs tags server-side', (
     tester,
   ) async {
     final repo =
         StubDocumentsRepository()
-          ..listHandler = (cursor, limit, tag) async => DocumentPage(
+          ..listHandler = (cursor, limit, tags) async => DocumentPage(
             items: [
               documentRead(id: 'a', title: '甲文档', tags: ['flutter']),
               documentRead(id: 'b', title: '乙文档', tags: ['dart']),
@@ -146,20 +146,35 @@ void main() {
 
     await pumpApp(tester, repo);
     await tester.pumpAndSettle();
-    expect(repo.listCalls.single.tag, isNull);
+    expect(repo.listCalls.single.tags, isEmpty);
 
     await tester.tap(find.text('flutter'));
     await tester.pumpAndSettle();
 
-    final filtered = repo.listCalls.last;
-    expect(filtered.cursor, isNull, reason: 'tag change must reset to page 1');
-    expect(filtered.tag, 'flutter');
+    final single = repo.listCalls.last;
+    expect(single.cursor, isNull, reason: 'tag change must reset to page 1');
+    expect(single.tags, ['flutter']);
     expect(find.text('文档 · flutter'), findsOneWidget);
 
-    // 全部 clears the filter again.
+    // A second tag joins the selection instead of replacing it.
+    await tester.tap(find.text('dart'));
+    await tester.pumpAndSettle();
+
+    final filtered = repo.listCalls.last;
+    expect(filtered.cursor, isNull, reason: 'tag change must reset to page 1');
+    expect(filtered.tags, ['flutter', 'dart']);
+    expect(find.text('文档 · flutter + dart'), findsOneWidget);
+
+    // Tapping a selected tag toggles it back off.
+    await tester.tap(find.text('flutter'));
+    await tester.pumpAndSettle();
+    expect(repo.listCalls.last.tags, ['dart']);
+
+    // 全部 clears the multi-select again.
     await tester.tap(find.text('全部'));
     await tester.pumpAndSettle();
-    expect(repo.listCalls.last.tag, isNull);
+    expect(repo.listCalls.last.tags, isEmpty);
+    expect(find.widgetWithText(AppBar, '文档'), findsOneWidget);
   });
 
   testWidgets('renders the empty state for an empty first page', (
@@ -168,7 +183,7 @@ void main() {
     final repo =
         StubDocumentsRepository()
           ..listHandler =
-              (cursor, limit, tag) async =>
+              (cursor, limit, tags) async =>
                   const DocumentPage(items: [], nextCursor: null);
 
     await pumpApp(tester, repo);

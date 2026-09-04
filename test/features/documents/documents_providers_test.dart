@@ -15,7 +15,7 @@ void main() {
     final repo = StubDocumentsRepository();
     final stalePage = Completer<DocumentPage>();
     var calls = 0;
-    repo.listHandler = (cursor, limit, tag) async {
+    repo.listHandler = (cursor, limit, tags) async {
       calls++;
       switch (calls) {
         case 1: // initial page 1
@@ -64,7 +64,7 @@ void main() {
     final repo = StubDocumentsRepository();
     final reload = Completer<DocumentPage>();
     var calls = 0;
-    repo.listHandler = (cursor, limit, tag) async {
+    repo.listHandler = (cursor, limit, tags) async {
       calls++;
       if (calls == 1) {
         return DocumentPage(items: [documentRead(id: 'a')], nextCursor: 'c1');
@@ -97,5 +97,61 @@ void main() {
     expect(container.read(documentsProvider).value?.items.map((d) => d.id), [
       'a2',
     ]);
+  });
+
+  test('selectedTags toggles membership and clear empties the selection', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(selectedTagsProvider.notifier);
+
+    expect(container.read(selectedTagsProvider), isEmpty);
+
+    notifier.toggle('flutter');
+    notifier.toggle('dart');
+    expect(container.read(selectedTagsProvider), {'flutter', 'dart'});
+
+    notifier.toggle('flutter');
+    expect(container.read(selectedTagsProvider), {'dart'});
+
+    notifier.clear();
+    expect(container.read(selectedTagsProvider), isEmpty);
+  });
+
+  test('toggling tags rebuilds page 1 carrying the selected tags', () async {
+    final repo = StubDocumentsRepository();
+    repo.listHandler = (cursor, limit, tags) async {
+      assert(cursor == null, 'a selection change must reset to page 1');
+      return DocumentPage(
+        items: [documentRead(id: tags.isEmpty ? 'all' : tags.join('+'))],
+        nextCursor: null,
+      );
+    };
+
+    final container = ProviderContainer(
+      overrides: [documentsRepositoryProvider.overrideWithValue(repo)],
+      retry: noAutomaticRetry,
+    );
+    addTearDown(container.dispose);
+    container.listen(documentsProvider, (_, _) {});
+
+    await container.read(documentsProvider.future);
+    expect(container.read(documentsProvider).value?.items.single.id, 'all');
+
+    final notifier = container.read(selectedTagsProvider.notifier);
+    notifier.toggle('flutter');
+    await container.read(documentsProvider.future);
+    notifier.toggle('dart');
+    await container.read(documentsProvider.future);
+
+    expect(repo.listCalls, hasLength(3));
+    expect(repo.listCalls.last.tags, ['flutter', 'dart']);
+    expect(
+      container.read(documentsProvider).value?.items.single.id,
+      'flutter+dart',
+    );
+
+    notifier.clear();
+    await container.read(documentsProvider.future);
+    expect(repo.listCalls.last.tags, isEmpty);
   });
 }

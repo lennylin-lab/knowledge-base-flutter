@@ -13,7 +13,7 @@ class StubDocumentsRepository implements DocumentsRepository {
     this.deleteHandler,
   });
 
-  Future<DocumentPage> Function(String? cursor, int limit, String? tag)?
+  Future<DocumentPage> Function(String? cursor, int limit, List<String> tags)?
   listHandler;
   Future<DocumentReadDetail> Function(String id)? getHandler;
   Future<DocumentRead> Function(DocumentCreate payload)? createHandler;
@@ -21,7 +21,7 @@ class StubDocumentsRepository implements DocumentsRepository {
   updateHandler;
   Future<void> Function(String id)? deleteHandler;
 
-  final List<({String? cursor, int limit, String? tag})> listCalls = [];
+  final List<({String? cursor, int limit, List<String> tags})> listCalls = [];
   final List<String> getCalls = [];
   final List<DocumentCreate> createCalls = [];
   final List<({String id, DocumentUpdate payload})> updateCalls = [];
@@ -31,14 +31,14 @@ class StubDocumentsRepository implements DocumentsRepository {
   Future<DocumentPage> list({
     String? cursor,
     int limit = DocumentsRepository.defaultLimit,
-    String? tag,
+    List<String> tags = const [],
   }) async {
-    listCalls.add((cursor: cursor, limit: limit, tag: tag));
+    listCalls.add((cursor: cursor, limit: limit, tags: tags));
     final handler = listHandler;
     if (handler == null) {
       throw StateError('DocumentsRepository.list called without a handler');
     }
-    return handler(cursor, limit, tag);
+    return handler(cursor, limit, tags);
   }
 
   @override

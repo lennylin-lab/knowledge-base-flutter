@@ -24,7 +24,7 @@ void main() {
       documentsRepositoryProvider.overrideWithValue(
         StubDocumentsRepository()
           ..listHandler =
-              (cursor, limit, tag) async =>
+              (cursor, limit, tags) async =>
                   const DocumentPage(items: [], nextCursor: null),
       ),
     ],

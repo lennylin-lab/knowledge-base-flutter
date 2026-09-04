@@ -22,12 +22,16 @@ class _RecordedRequest {
   const _RecordedRequest({
     required this.method,
     required this.path,
+    required this.url,
     required this.queryParameters,
     required this.body,
   });
 
   final String method;
   final String path;
+
+  /// Fully encoded URL — pins the wire format (e.g. repeated `tag=` keys).
+  final String url;
   final Map<String, dynamic> queryParameters;
   final Object? body;
 
@@ -65,6 +69,7 @@ class _RecordingAdapter implements HttpClientAdapter {
       _RecordedRequest(
         method: options.method,
         path: options.path,
+        url: options.uri.toString(),
         queryParameters: Map<String, dynamic>.from(options.queryParameters),
         body: body,
       ),
@@ -126,7 +131,11 @@ void main() {
         ),
       ]);
 
-      final page = await repo.list(cursor: 'cursor-1', limit: 5, tag: 'flutter');
+      final page = await repo.list(
+        cursor: 'cursor-1',
+        limit: 5,
+        tags: ['flutter'],
+      );
 
       expect(page.items, hasLength(1));
       expect(page.items.single.title, '知识库设计笔记');
@@ -140,8 +149,28 @@ void main() {
       expect(request.queryParameters, {
         'cursor': 'cursor-1',
         'limit': 5,
-        'tag': 'flutter',
+        'tag': ['flutter'],
       });
+    });
+
+    test('sends several tags as repeated tag params (backend ANDs them)', () async {
+      final (repo, adapter) = _makeRepo([
+        const _CannedResponse(200, '{"items": [], "next_cursor": null}'),
+      ]);
+
+      await repo.list(tags: ['flutter', 'dart']);
+
+      final request = adapter.requests.single;
+      expect(request.queryParameters, {
+        'limit': 20,
+        'tag': ['flutter', 'dart'],
+      });
+      // Wire format: one `tag=` key per selected tag (FastAPI list[str]).
+      // baseUrl is merged later in the dio pipeline — uri stays path-only.
+      expect(
+        request.url,
+        '/api/v1/documents?limit=20&tag=flutter&tag=dart',
+      );
     });
 
     test('first page omits cursor and tag; default limit is 20', () async {
@@ -156,7 +185,7 @@ void main() {
       expect(
         adapter.requests.single.queryParameters,
         {'limit': 20},
-        reason: 'cursor/tag must be absent (not sent as null/empty)',
+        reason: 'cursor/tags must be absent (not sent as null/empty)',
       );
     });
 

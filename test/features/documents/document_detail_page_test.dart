@@ -34,7 +34,8 @@ void main() {
           ..getHandler =
               (id) async => documentReadDetail(
                 document,
-                content: '# 设计笔记\n\n混合检索正文',
+                content:
+                    '---\ntitle: 设计笔记\ntags: [flutter]\n---\n\n# 设计笔记\n\n混合检索正文',
               );
 
     await pumpApp(tester, repo);
@@ -45,6 +46,9 @@ void main() {
 
     expect(find.text('设计笔记'), findsWidgets); // app bar title + markdown heading
     expect(find.text('#flutter'), findsOneWidget);
+    // Front matter is stripped from the rendered body.
+    expect(find.text('title: 设计笔记'), findsNothing);
+    expect(find.text('tags: [flutter]'), findsNothing);
     // Markdown is rendered: body text exists as selectable text widgets.
     expect(find.text('混合检索正文'), findsOneWidget);
   });

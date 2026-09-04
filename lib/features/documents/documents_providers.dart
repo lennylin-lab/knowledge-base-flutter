@@ -11,18 +11,27 @@ final documentsRepositoryProvider = Provider<DocumentsRepository>(
   (ref) => DocumentsRepository(ref.watch(apiClientProvider)),
 );
 
-/// Selected tag filter; null means "all documents". The actual filtering is
-/// server-side via the `tag` query param — never filter a fetched page
-/// locally (database-guidelines spec).
-class SelectedTagNotifier extends Notifier<String?> {
+/// Selected tag filters; empty set means "all documents". The actual
+/// filtering is server-side via repeated `tag` query params, combined as an
+/// AND (documents must carry every selected tag) — never filter a fetched
+/// page locally (database-guidelines spec).
+class SelectedTagsNotifier extends Notifier<Set<String>> {
   @override
-  String? build() => null;
+  Set<String> build() => const {};
 
-  void select(String? tag) => state = tag == state ? state : tag;
+  void toggle(String tag) {
+    final next = {...state};
+    if (!next.add(tag)) next.remove(tag);
+    state = next;
+  }
+
+  void clear() => state = const {};
 }
 
-final selectedTagProvider =
-    NotifierProvider<SelectedTagNotifier, String?>(SelectedTagNotifier.new);
+final selectedTagsProvider =
+    NotifierProvider<SelectedTagsNotifier, Set<String>>(
+      SelectedTagsNotifier.new,
+    );
 
 /// Documents list UI state: keyset pages accumulated under the current tag
 /// filter.
@@ -64,8 +73,8 @@ class DocumentsNotifier extends AsyncNotifier<DocumentsListState> {
     // generation is stale by the time it resolves and must not append.
     _buildGeneration++;
     _loadNextInFlight = false;
-    final tag = ref.watch(selectedTagProvider);
-    final page = await _repository.list(tag: tag);
+    final tags = ref.watch(selectedTagsProvider);
+    final page = await _repository.list(tags: tags.toList());
     return DocumentsListState(items: page.items, nextCursor: page.nextCursor);
   }
 
@@ -84,7 +93,7 @@ class DocumentsNotifier extends AsyncNotifier<DocumentsListState> {
     if (cursor == null) return; // end of list
 
     final generation = _buildGeneration;
-    final tag = ref.read(selectedTagProvider);
+    final tags = ref.read(selectedTagsProvider).toList();
     _loadNextInFlight = true;
     state = AsyncData(
       DocumentsListState(
@@ -94,7 +103,7 @@ class DocumentsNotifier extends AsyncNotifier<DocumentsListState> {
       ),
     );
     try {
-      final page = await _repository.list(cursor: cursor, tag: tag);
+      final page = await _repository.list(cursor: cursor, tags: tags);
       // The provider rebuilt while the fetch was in flight (tag change or
       // refresh): build() has already reset to page 1 under the current
       // filter — the stale page must not be appended.

@@ -67,13 +67,23 @@ OpenAPI 文档：`http://localhost:8000/docs`。
 
 ### Web 端 CORS
 
-后端**尚未配置 CORS**。Web 开发期二选一：
+后端已通过 `KB_CORS_ORIGINS` 配置 CORS（空列表 = 不启用，生产默认）。
+本地开发在 `knowledge-base-server/.env` 中设置：
 
-1. **后端加 CORSMiddleware**（推荐，见后端仓库的运维流程），允许
-   `http://localhost:<flutter端口>`；或
-2. **dev 代理**：以 `flutter run -d chrome --web-port=8080` 启动后，把请求
-   经代理转发到 `localhost:8000`（如 `flutter run` 自带 host 能力或独立
-   代理脚本）。
+```bash
+KB_CORS_ORIGINS=["*"]   # 允许任意来源（本地最省事）
+# 或显式允许 Flutter dev server 来源，例如：
+# KB_CORS_ORIGINS=["http://localhost:8080"]
+```
+
+配置后 Web 端可直接联调：
+
+```bash
+flutter run -d chrome   # 默认请求 http://localhost:8000
+```
+
+> 备选：若后端未开 CORS，仍可用 dev 代理（`--dart-define=API_BASE_URL=...`
+> 指向代理地址）或 `--web-port` 固定端口后在 `KB_CORS_ORIGINS` 中显式列出。
 
 ## 测试
 

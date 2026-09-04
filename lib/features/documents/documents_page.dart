@@ -21,12 +21,16 @@ class DocumentsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listState = ref.watch(documentsProvider);
-    final selectedTag = ref.watch(selectedTagProvider);
-    final availableTags = _collectTags(listState.value, selectedTag);
+    final selectedTags = ref.watch(selectedTagsProvider);
+    final availableTags = _collectTags(listState.value, selectedTags);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(selectedTag == null ? '文档' : '文档 · $selectedTag'),
+        title: Text(
+          selectedTags.isEmpty ? '文档' : '文档 · ${selectedTags.join(' + ')}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
             tooltip: '刷新',
@@ -45,9 +49,11 @@ class DocumentsPage extends ConsumerWidget {
           if (availableTags.isNotEmpty)
             _TagFilterBar(
               tags: availableTags,
-              selectedTag: selectedTag,
-              onSelect: (tag) =>
-                  ref.read(selectedTagProvider.notifier).select(tag),
+              selectedTags: selectedTags,
+              onToggle: (tag) =>
+                  ref.read(selectedTagsProvider.notifier).toggle(tag),
+              onClearAll: () =>
+                  ref.read(selectedTagsProvider.notifier).clear(),
             ),
           Expanded(
             child: listState.when(
@@ -65,12 +71,15 @@ class DocumentsPage extends ConsumerWidget {
     );
   }
 
-  /// Tag chips derived from the loaded items (plus the active filter, which
+  /// Tag chips derived from the loaded items (plus the active filters, which
   /// may come from items no longer loaded). Filtering itself always goes to
   /// the server; this is only the affordance list.
-  static List<String> _collectTags(DocumentsListState? state, String? selected) {
+  static List<String> _collectTags(
+    DocumentsListState? state,
+    Set<String> selected,
+  ) {
     return <String>{
-      ?selected,
+      ...selected,
       for (final item in state?.items ?? const <DocumentRead>[]) ...item.tags,
     }.toList()
       ..sort();
@@ -102,7 +111,9 @@ class _DocumentsListView extends ConsumerWidget {
             const SizedBox(height: 12),
             Center(
               child: Text(
-                ref.watch(selectedTagProvider) == null ? '暂无文档' : '该标签下暂无文档',
+                ref.watch(selectedTagsProvider).isEmpty
+                    ? '暂无文档'
+                    : '所选标签下暂无文档',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -262,17 +273,20 @@ class _ListFooter extends ConsumerWidget {
   }
 }
 
-/// Horizontal tag chips; 全部 clears the filter.
+/// Horizontal tag chips with multi-select; 全部 clears the selection. The
+/// server ANDs the selected tags (documents must carry every one of them).
 class _TagFilterBar extends StatelessWidget {
   const _TagFilterBar({
     required this.tags,
-    required this.selectedTag,
-    required this.onSelect,
+    required this.selectedTags,
+    required this.onToggle,
+    required this.onClearAll,
   });
 
   final List<String> tags;
-  final String? selectedTag;
-  final ValueChanged<String?> onSelect;
+  final Set<String> selectedTags;
+  final ValueChanged<String> onToggle;
+  final VoidCallback onClearAll;
 
   @override
   Widget build(BuildContext context) {
@@ -286,8 +300,9 @@ class _TagFilterBar extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
               label: const Text('全部'),
-              selected: selectedTag == null,
-              onSelected: (_) => onSelect(null),
+              selected: selectedTags.isEmpty,
+              showCheckmark: false,
+              onSelected: (_) => onClearAll(),
             ),
           ),
           for (final tag in tags)
@@ -295,8 +310,9 @@ class _TagFilterBar extends StatelessWidget {
               padding: const EdgeInsets.only(right: 8),
               child: FilterChip(
                 label: Text(tag),
-                selected: selectedTag == tag,
-                onSelected: (_) => onSelect(tag),
+                selected: selectedTags.contains(tag),
+                showCheckmark: false,
+                onSelected: (_) => onToggle(tag),
               ),
             ),
         ],

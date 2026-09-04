@@ -24,11 +24,13 @@ class DocumentsRepository {
   /// Keyset-paginated list. [cursor] is the opaque `next_cursor` of the
   /// previous page (null = first page) — never parsed or constructed
   /// client-side. A `null` [DocumentPage.nextCursor] in the result means
-  /// end of list, not an error. [tag] filters server-side.
+  /// end of list, not an error. [tags] filters server-side: each tag is a
+  /// repeated `tag` query param and the backend ANDs them (a document must
+  /// carry every tag).
   Future<DocumentPage> list({
     String? cursor,
     int limit = defaultLimit,
-    String? tag,
+    List<String> tags = const [],
   }) async {
     try {
       final response = await _client.dio.get<Map<String, dynamic>>(
@@ -36,7 +38,7 @@ class DocumentsRepository {
         queryParameters: <String, dynamic>{
           if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
           'limit': clampLimit(limit),
-          if (tag != null && tag.isNotEmpty) 'tag': tag,
+          if (tags.isNotEmpty) 'tag': tags,
         },
       );
       return DocumentPage.fromJson(response.data!);

@@ -4,12 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_client.dart';
 import '../../shared/models/document.dart';
-import '../../shared/widgets/format.dart';
+import '../../shared/utils/markdown_front_matter.dart';
+import '../../shared/widgets/expandable_tag_wrap.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/markdown_content.dart';
 import 'documents_providers.dart';
 
-/// 文档详情页: renders the full Markdown with edit / delete actions.
+/// 文档详情页: renders Markdown body (front matter stripped) with edit / delete.
 ///
 /// A 404 (deleted elsewhere) toasts 文档不存在或已删除 and pops back to the
 /// list (error-handling / database-guidelines spec).
@@ -176,29 +177,10 @@ class _DetailBody extends StatelessWidget {
           if (document.tags.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  for (final tag in document.tags)
-                    Text(
-                      '#$tag',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                ],
-              ),
+              child: ExpandableTagWrap(tags: document.tags),
             ),
-          Text(
-            '创建于 ${formatIsoTimestamp(document.createdAt)}'
-            ' · 更新于 ${formatIsoTimestamp(document.updatedAt)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
           const Divider(height: 32),
-          MarkdownContent(data: document.content),
+          MarkdownContent(data: stripYamlFrontMatter(document.content)),
         ],
       ),
     );
