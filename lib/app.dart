@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/theme/app_sizes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/chat/chat_page.dart';
 import 'features/documents/document_detail_page.dart';
@@ -85,13 +86,20 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: '知识库',
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
-      routerConfig: router,
-      debugShowCheckedModeBanner: false,
+    // One window-level scale drives every size in the app: the theme (text,
+    // default icons) and the AppSizes tokens (`context.sizes`) derive from it.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = AppSizes.scaleForWidth(constraints.maxWidth);
+        return MaterialApp.router(
+          title: '知识库',
+          theme: AppTheme.light(scale),
+          darkTheme: AppTheme.dark(scale),
+          themeMode: ThemeMode.system,
+          routerConfig: router,
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }
@@ -149,6 +157,9 @@ class _AdaptiveShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // NavigationRail/NavigationBar resolve icon size from their own theme
+    // data, not the global iconTheme — set it explicitly via the tokens.
+    final iconSize = context.sizes.iconLg;
     return LayoutBuilder(
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= 600;
@@ -167,8 +178,8 @@ class _AdaptiveShell extends StatelessWidget {
                   destinations: [
                     for (final d in _destinations)
                       NavigationRailDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
+                        icon: Icon(d.icon, size: iconSize),
+                        selectedIcon: Icon(d.selectedIcon, size: iconSize),
                         label: Text(d.label),
                       ),
                   ],
@@ -187,8 +198,8 @@ class _AdaptiveShell extends StatelessWidget {
             destinations: [
               for (final d in _destinations)
                 NavigationDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
+                  icon: Icon(d.icon, size: iconSize),
+                  selectedIcon: Icon(d.selectedIcon, size: iconSize),
                   label: d.label,
                 ),
             ],
