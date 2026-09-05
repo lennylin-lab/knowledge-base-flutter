@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_sizes.dart';
+
 /// Result of laying out tags within a fixed width and line budget.
 typedef TagLayoutResult = ({List<String> visibleTags, bool hasMore});
 
@@ -173,6 +175,7 @@ class _TagToggleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     final label = expanded ? '收起' : '展开';
 
     return Semantics(
@@ -184,11 +187,11 @@ class _TagToggleButton extends StatelessWidget {
           onPressed: onTap,
           icon: Icon(
             expanded ? Icons.expand_less : Icons.expand_more,
-            size: 18,
+            size: sizes.iconSm,
           ),
           label: Text(label),
           style: TextButton.styleFrom(
-            padding: const EdgeInsets.fromLTRB(0, 0, 4, 0),
+            padding: EdgeInsets.fromLTRB(0, 0, sizes.space4, 0),
             minimumSize: const Size(48, 32),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/theme/app_sizes.dart';
 import '../../shared/models/search.dart';
 import 'search_providers.dart';
 
@@ -44,6 +45,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = context.sizes;
     final results = ref.watch(searchResultsProvider);
     final selectedTag = ref.watch(searchQueryProvider).tag;
     final availableTags = _collectTags(results.value, selectedTag);
@@ -53,7 +55,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: EdgeInsets.fromLTRB(
+              sizes.pagePadH,
+              sizes.space12,
+              sizes.pagePadH,
+              sizes.space4,
+            ),
             child: TextField(
               controller: _queryController,
               textInputAction: TextInputAction.search,
@@ -139,12 +146,18 @@ class _ResultsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     final modeText = response.mode == SearchMode.hybrid ? '混合检索' : 'BM25 检索';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          padding: EdgeInsets.fromLTRB(
+            sizes.pagePadH,
+            sizes.space8,
+            sizes.pagePadH,
+            sizes.space4,
+          ),
           child: Text(
             '共 ${response.items.length} 条结果 · $modeText',
             style: theme.textTheme.labelMedium?.copyWith(
@@ -154,7 +167,7 @@ class _ResultsList extends StatelessWidget {
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 16),
+            padding: EdgeInsets.only(bottom: sizes.space16),
             itemCount: response.items.length,
             itemBuilder: (context, index) {
               final hit = response.items[index];
@@ -180,6 +193,7 @@ class _SearchHitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     // Per-leg ranks are nullable on the wire: a leg that missed the chunk
     // contributes no rank (type-safety spec).
     final rankText = [
@@ -187,12 +201,15 @@ class _SearchHitCard extends StatelessWidget {
       if (hit.vectorRank != null) '向量 #${hit.vectorRank}',
     ].join(' · ');
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: EdgeInsets.symmetric(
+        horizontal: sizes.pagePadH,
+        vertical: sizes.cardGapV,
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(sizes.space12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -209,7 +226,7 @@ class _SearchHitCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: sizes.space8),
                   Text(
                     '得分 ${hit.score.toStringAsFixed(3)}',
                     style: theme.textTheme.labelMedium?.copyWith(
@@ -218,7 +235,7 @@ class _SearchHitCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: sizes.space4),
               Text(
                 hit.content,
                 maxLines: 2,
@@ -226,10 +243,10 @@ class _SearchHitCard extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               if (hit.documentTags.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                SizedBox(height: sizes.space6),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
+                  spacing: sizes.space8,
+                  runSpacing: sizes.space4,
                   children: [
                     for (final tag in hit.documentTags)
                       Text(
@@ -242,7 +259,7 @@ class _SearchHitCard extends StatelessWidget {
                 ),
               ],
               if (rankText.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                SizedBox(height: sizes.space6),
                 Text(
                   rankText,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -272,14 +289,18 @@ class _TagFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = context.sizes;
     return SizedBox(
-      height: 56,
+      height: sizes.chipBarHeight,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: sizes.pagePadHCompact,
+          vertical: sizes.space8,
+        ),
         children: [
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: EdgeInsets.only(right: sizes.space8),
             child: FilterChip(
               label: const Text('全部'),
               selected: selectedTag == null,
@@ -288,7 +309,7 @@ class _TagFilterBar extends StatelessWidget {
           ),
           for (final tag in tags)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: EdgeInsets.only(right: sizes.space8),
               child: FilterChip(
                 label: Text(tag),
                 selected: selectedTag == tag,
@@ -316,16 +337,17 @@ class _HintPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(sizes.space24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 12),
+            Icon(icon, size: sizes.iconHero, color: theme.colorScheme.onSurfaceVariant),
+            SizedBox(height: sizes.space12),
             Text(title, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            SizedBox(height: sizes.space4),
             Text(
               subtitle,
               textAlign: TextAlign.center,
@@ -350,20 +372,21 @@ class _ErrorPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(sizes.space24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.cloud_off_outlined,
-              size: 48,
+              size: sizes.iconHero,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
           ],
         ),

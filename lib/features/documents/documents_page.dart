@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import 'documents_providers.dart';
@@ -101,6 +102,7 @@ class _DocumentsListView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sizes = context.sizes;
     if (state.items.isEmpty) {
       // Still pull-to-refresh-able when empty.
       return RefreshIndicator(
@@ -108,20 +110,20 @@ class _DocumentsListView extends ConsumerWidget {
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            const SizedBox(height: 120),
+            SizedBox(height: sizes.space120),
             Icon(
               Icons.description_outlined,
-              size: 48,
+              size: sizes.iconHero,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             Center(
               child: Text(
                 ref.watch(selectedTagsProvider).isEmpty ? '暂无文档' : '所选标签下暂无文档',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: sizes.space4),
             Center(
               child: Text(
                 '点击右下角按钮创建第一篇文档',
@@ -155,7 +157,10 @@ class _DocumentsListView extends ConsumerWidget {
               return Card.outlined(
                 // Margin doubles as the gap between neighbouring cards,
                 // so each document reads as its own bordered block.
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                margin: EdgeInsets.symmetric(
+                  horizontal: sizes.pagePadHCompact,
+                  vertical: sizes.cardGapVWide,
+                ),
                 child: _DocumentTile(
                   document: document,
                   onTap: () => context.push('/documents/${document.id}'),
@@ -220,9 +225,10 @@ class _ListFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     if (state.loadMoreError != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: EdgeInsets.symmetric(vertical: sizes.space8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -245,20 +251,20 @@ class _ListFooter extends ConsumerWidget {
       );
     }
     if (state.isLoadingMore) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: sizes.space12),
         child: Center(
           child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
+            width: sizes.spinnerMd,
+            height: sizes.spinnerMd,
+            child: const CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
       );
     }
     if (!state.hasMore) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: EdgeInsets.symmetric(vertical: sizes.space16),
         child: Center(
           child: Text(
             '没有更多了',
@@ -290,14 +296,18 @@ class _TagFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = context.sizes;
     return SizedBox(
-      height: 56,
+      height: sizes.chipBarHeight,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: sizes.pagePadHCompact,
+          vertical: sizes.space8,
+        ),
         children: [
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: EdgeInsets.only(right: sizes.space8),
             child: FilterChip(
               label: const Text('全部'),
               selected: selectedTags.isEmpty,
@@ -307,7 +317,7 @@ class _TagFilterBar extends StatelessWidget {
           ),
           for (final tag in tags)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: EdgeInsets.only(right: sizes.space8),
               child: FilterChip(
                 label: Text(tag),
                 selected: selectedTags.contains(tag),
@@ -331,20 +341,21 @@ class _ErrorPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(sizes.space24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.cloud_off_outlined,
-              size: 48,
+              size: sizes.iconHero,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
           ],
         ),

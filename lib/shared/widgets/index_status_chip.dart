@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_sizes.dart';
 import '../models/document.dart';
 
 /// `index_status` indicator (component-guidelines spec):
@@ -30,15 +31,16 @@ class IndexStatusChip extends StatelessWidget {
 
   Widget _pending(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(
-          width: 12,
-          height: 12,
-          child: CircularProgressIndicator(strokeWidth: 2),
+        SizedBox(
+          width: sizes.spinnerXs,
+          height: sizes.spinnerXs,
+          child: const CircularProgressIndicator(strokeWidth: 2),
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: sizes.space6),
         Text(
           '索引中',
           style: theme.textTheme.labelSmall?.copyWith(
@@ -51,16 +53,24 @@ class IndexStatusChip extends StatelessWidget {
 
   Widget _failed(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     // Generous padding grows the tap area; the decorated box sizes itself
     // to its content (never Center — inside a ListTile trailing an
     // unbounded Center swallows the whole tile width).
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: sizes.space8,
+        vertical: sizes.space6,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, size: 14, color: theme.colorScheme.onErrorContainer),
-          const SizedBox(width: 4),
+          Icon(
+            Icons.error_outline,
+            size: sizes.iconXs,
+            color: theme.colorScheme.onErrorContainer,
+          ),
+          SizedBox(width: sizes.space4),
           Text(
             '索引失败',
             style: theme.textTheme.labelSmall?.copyWith(
@@ -68,8 +78,12 @@ class IndexStatusChip extends StatelessWidget {
             ),
           ),
           if (onRetry != null) ...[
-            const SizedBox(width: 4),
-            Icon(Icons.refresh, size: 14, color: theme.colorScheme.onErrorContainer),
+            SizedBox(width: sizes.space4),
+            Icon(
+              Icons.refresh,
+              size: sizes.iconXs,
+              color: theme.colorScheme.onErrorContainer,
+            ),
           ],
         ],
       ),
@@ -78,13 +92,13 @@ class IndexStatusChip extends StatelessWidget {
     final chip = DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(sizes.radiusSm),
       ),
       child: onRetry == null
           ? content
           : InkWell(
               onTap: onRetry,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(sizes.radiusSm),
               child: content,
             ),
     );

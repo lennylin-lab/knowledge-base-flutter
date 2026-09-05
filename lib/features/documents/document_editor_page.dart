@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
 import 'documents_providers.dart';
 
@@ -158,17 +159,18 @@ class _DocumentEditorPageState extends ConsumerState<DocumentEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = context.sizes;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.isCreate ? '新建文档' : '编辑文档'),
         actions: [
           if (_saving)
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Padding(
+              padding: EdgeInsets.all(sizes.space16),
               child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                width: sizes.spinnerSm,
+                height: sizes.spinnerSm,
+                child: const CircularProgressIndicator(strokeWidth: 2),
               ),
             )
           else
@@ -188,7 +190,12 @@ class _DocumentEditorPageState extends ConsumerState<DocumentEditorPage> {
               : Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      padding: EdgeInsets.fromLTRB(
+                        sizes.pagePadH,
+                        sizes.space12,
+                        sizes.pagePadH,
+                        sizes.space4,
+                      ),
                       child: TextField(
                         controller: _titleController,
                         decoration: const InputDecoration(
@@ -199,7 +206,12 @@ class _DocumentEditorPageState extends ConsumerState<DocumentEditorPage> {
                     ),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                        padding: EdgeInsets.fromLTRB(
+                          sizes.pagePadH,
+                          sizes.space4,
+                          sizes.pagePadH,
+                          sizes.space16,
+                        ),
                         child: TextField(
                           controller: _contentController,
                           maxLines: null,
@@ -231,14 +243,15 @@ class _EditorLoadErrorPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = context.sizes;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(sizes.space24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('加载失败：$message', textAlign: TextAlign.center),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
           ],
         ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
 import '../../shared/utils/markdown_front_matter.dart';
 import '../../shared/widgets/expandable_tag_wrap.dart';
@@ -150,8 +151,14 @@ class _DetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
+      padding: EdgeInsets.fromLTRB(
+        sizes.pagePadH,
+        sizes.space16,
+        sizes.pagePadH,
+        sizes.space48,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -166,20 +173,24 @@ class _DetailBody extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: sizes.space8),
               IndexStatusChip(
                 status: document.indexStatus,
                 onRetry: () => context.push('/documents/${document.id}/edit'),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: sizes.space8),
           if (document.tags.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: ExpandableTagWrap(tags: document.tags),
+              padding: EdgeInsets.only(bottom: sizes.space4),
+              child: ExpandableTagWrap(
+                tags: document.tags,
+                spacing: sizes.space8,
+                runSpacing: sizes.space4,
+              ),
             ),
-          const Divider(height: 32),
+          Divider(height: sizes.space32),
           MarkdownContent(data: stripYamlFrontMatter(document.content)),
         ],
       ),
@@ -203,6 +214,7 @@ class _DetailErrorPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     if (isNotFound) {
       return Center(
         child: Column(
@@ -210,10 +222,10 @@ class _DetailErrorPane extends StatelessWidget {
           children: [
             Icon(
               Icons.search_off,
-              size: 48,
+              size: sizes.iconHero,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             const Text('文档不存在或已删除'),
           ],
         ),
@@ -221,18 +233,18 @@ class _DetailErrorPane extends StatelessWidget {
     }
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(sizes.space24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.cloud_off_outlined,
-              size: 48,
+              size: sizes.iconHero,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
           ],
         ),

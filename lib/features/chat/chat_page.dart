@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_sizes.dart';
 import '../../shared/models/search.dart';
 import '../../shared/widgets/markdown_content.dart';
 import 'chat_providers.dart';
@@ -73,20 +74,21 @@ class _IdleHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(sizes.space24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.chat_bubble_outline,
-              size: 48,
+              size: sizes.iconHero,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: sizes.space12),
             Text('尚未提问', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            SizedBox(height: sizes.space4),
             Text(
               '输入问题，AI 将基于知识库检索结果给出带引用的回答',
               textAlign: TextAlign.center,
@@ -112,10 +114,11 @@ class _AnswerView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     final children = <Widget>[
       if (state.question.isNotEmpty)
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: EdgeInsets.only(bottom: sizes.space8),
           child: Text(
             '问：${state.question}',
             style: theme.textTheme.labelLarge?.copyWith(
@@ -129,7 +132,7 @@ class _AnswerView extends StatelessWidget {
         const _ProgressRow(text: '正在生成回答…'),
       if (state.answer.isNotEmpty)
         Padding(
-          padding: const EdgeInsets.only(top: 8),
+          padding: EdgeInsets.only(top: sizes.space8),
           child: MarkdownContent(data: state.answer),
         ),
       if (state.sources.isNotEmpty) _SourcesSection(sources: state.sources),
@@ -141,7 +144,7 @@ class _AnswerView extends StatelessWidget {
       if (state.phase == ChatPhase.done) ...[
         if (state.answer.isEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 12),
+            padding: EdgeInsets.only(top: sizes.space12),
             child: Text(
               '未生成回答内容',
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -150,7 +153,7 @@ class _AnswerView extends StatelessWidget {
             ),
           ),
         Padding(
-          padding: const EdgeInsets.only(top: 12),
+          padding: EdgeInsets.only(top: sizes.space12),
           child: Text(
             _doneSummary(state),
             style: theme.textTheme.labelSmall?.copyWith(
@@ -162,7 +165,12 @@ class _AnswerView extends StatelessWidget {
     ];
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: EdgeInsets.fromLTRB(
+        sizes.pagePadH,
+        sizes.space12,
+        sizes.pagePadH,
+        sizes.space16,
+      ),
       children: children,
     );
   }
@@ -177,16 +185,17 @@ class _ProgressRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: sizes.space8),
       child: Row(
         children: [
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
+          SizedBox(
+            width: sizes.spinnerSm,
+            height: sizes.spinnerSm,
+            child: const CircularProgressIndicator(strokeWidth: 2),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: sizes.space10),
           Text(
             text,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -208,19 +217,20 @@ class _SourcesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(height: 28),
+        Divider(height: sizes.space28),
         Text('参考来源', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 2),
+        SizedBox(height: sizes.space2),
         Text(
           '答案中的 [1][2] 对应下方来源序号',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: sizes.space8),
         for (final (index, source) in sources.indexed)
           _SourceTile(number: index + 1, source: source),
       ],
@@ -238,18 +248,19 @@ class _SourceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
+      margin: EdgeInsets.symmetric(vertical: sizes.cardGapV),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => context.push('/documents/${source.documentId}'),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(sizes.space12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                radius: 12,
+                radius: sizes.avatarRadius,
                 backgroundColor: theme.colorScheme.secondaryContainer,
                 child: Text(
                   '$number',
@@ -259,7 +270,7 @@ class _SourceTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: sizes.space12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +283,7 @@ class _SourceTile extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: sizes.space2),
                     Text(
                       source.content,
                       maxLines: 2,
@@ -301,21 +312,27 @@ class _InlineError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sizes = context.sizes;
     return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      margin: EdgeInsets.only(top: sizes.space12),
+      padding: EdgeInsets.fromLTRB(
+        sizes.space12,
+        sizes.space4,
+        sizes.space4,
+        sizes.space4,
+      ),
       decoration: BoxDecoration(
         color: theme.colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(sizes.radiusMd),
       ),
       child: Row(
         children: [
           Icon(
             Icons.error_outline,
-            size: 20,
+            size: sizes.iconMd,
             color: theme.colorScheme.onErrorContainer,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: sizes.space8),
           Expanded(
             child: Text(
               message,
@@ -361,10 +378,16 @@ class _InputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = context.sizes;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+        padding: EdgeInsets.fromLTRB(
+          sizes.pagePadHCompact,
+          sizes.space4,
+          sizes.pagePadHCompact,
+          sizes.space8,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -375,16 +398,16 @@ class _InputBar extends StatelessWidget {
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: '输入问题，基于知识库回答',
                   isDense: true,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(24)),
+                    borderRadius: BorderRadius.circular(sizes.radiusLg),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: sizes.space4),
             if (running)
               IconButton(
                 tooltip: '停止',
