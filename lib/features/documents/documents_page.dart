@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_client.dart';
 import '../../shared/models/document.dart';
-import '../../shared/widgets/format.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import 'documents_providers.dart';
 
@@ -17,6 +16,8 @@ class DocumentsPage extends ConsumerWidget {
   /// Start fetching the next page once the viewport comes this close to
   /// the end of the loaded items.
   static const double _loadMoreThreshold = 320;
+
+  static const double _contentMaxWidth = 720;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,29 +45,35 @@ class DocumentsPage extends ConsumerWidget {
         onPressed: () => context.push('/documents/new'),
         child: const Icon(Icons.add),
       ),
-      body: Column(
-        children: [
-          if (availableTags.isNotEmpty)
-            _TagFilterBar(
-              tags: availableTags,
-              selectedTags: selectedTags,
-              onToggle: (tag) =>
-                  ref.read(selectedTagsProvider.notifier).toggle(tag),
-              onClearAll: () =>
-                  ref.read(selectedTagsProvider.notifier).clear(),
-            ),
-          Expanded(
-            child: listState.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _ErrorPane(
-                message: '加载失败：${toApiException(error).message}',
-                onRetry: () =>
-                    ref.read(documentsProvider.notifier).refresh(),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+          child: Column(
+            children: [
+              if (availableTags.isNotEmpty)
+                _TagFilterBar(
+                  tags: availableTags,
+                  selectedTags: selectedTags,
+                  onToggle: (tag) =>
+                      ref.read(selectedTagsProvider.notifier).toggle(tag),
+                  onClearAll: () =>
+                      ref.read(selectedTagsProvider.notifier).clear(),
+                ),
+              Expanded(
+                child: listState.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, _) => _ErrorPane(
+                    message: '加载失败：${toApiException(error).message}',
+                    onRetry: () =>
+                        ref.read(documentsProvider.notifier).refresh(),
+                  ),
+                  data: (state) => _DocumentsListView(state: state),
+                ),
               ),
-              data: (state) => _DocumentsListView(state: state),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -81,8 +88,7 @@ class DocumentsPage extends ConsumerWidget {
     return <String>{
       ...selected,
       for (final item in state?.items ?? const <DocumentRead>[]) ...item.tags,
-    }.toList()
-      ..sort();
+    }.toList()..sort();
   }
 }
 
@@ -111,9 +117,7 @@ class _DocumentsListView extends ConsumerWidget {
             const SizedBox(height: 12),
             Center(
               child: Text(
-                ref.watch(selectedTagsProvider).isEmpty
-                    ? '暂无文档'
-                    : '所选标签下暂无文档',
+                ref.watch(selectedTagsProvider).isEmpty ? '暂无文档' : '所选标签下暂无文档',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -148,12 +152,17 @@ class _DocumentsListView extends ConsumerWidget {
           itemBuilder: (context, index) {
             if (index < state.items.length) {
               final document = state.items[index];
-              return _DocumentTile(
-                document: document,
-                onTap: () => context.push('/documents/${document.id}'),
-                // failed → re-save affordance deep-links to the editor.
-                onRetryIndex: () =>
-                    context.push('/documents/${document.id}/edit'),
+              return Card.outlined(
+                // Margin doubles as the gap between neighbouring cards,
+                // so each document reads as its own bordered block.
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: _DocumentTile(
+                  document: document,
+                  onTap: () => context.push('/documents/${document.id}'),
+                  // failed → re-save affordance deep-links to the editor.
+                  onRetryIndex: () =>
+                      context.push('/documents/${document.id}/edit'),
+                ),
               );
             }
             return _ListFooter(state: state);
@@ -177,35 +186,26 @@ class _DocumentTile extends StatelessWidget {
     final tagsText = document.tags.map((tag) => '#$tag').join('  ');
     return ListTile(
       onTap: onTap,
-      title: Text(
-        document.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      // 无行数上限：文本自然铺满卡片宽度、在边界处换行，不截断。
+      title: Text(document.title),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (tagsText.isNotEmpty)
             Text(
               tagsText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.primary,
               ),
             ),
-          Text(
-            '更新于 ${formatIsoTimestamp(document.updatedAt)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
         ],
       ),
-      trailing: IndexStatusChip(
-        status: document.indexStatus,
-        onRetry: onRetryIndex,
-      ),
+      trailing: document.indexStatus == IndexStatus.done
+          ? null
+          : IndexStatusChip(
+              status: document.indexStatus,
+              onRetry: onRetryIndex,
+            ),
     );
   }
 }
