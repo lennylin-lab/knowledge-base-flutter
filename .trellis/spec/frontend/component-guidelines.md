@@ -61,6 +61,48 @@ One codebase, two shells, decided by width via `LayoutBuilder` /
 
 ---
 
+## Responsive Sizing (required)
+
+One window-level scale factor ([`AppSizes.scaleForWidth`](../../../lib/core/theme/app_sizes.dart)):
+1.0 below 600px, linear 1.0 → 1.2 across 600–1600, clamped (quantized to
+0.01). Text and default icons scale through the theme; every other size —
+spacing, explicit icon sizes, component metrics — must come from the
+`AppSizes` tokens via `context.sizes`.
+
+- **New UI must not introduce hardcoded sizes** (`size: N`, `EdgeInsets`,
+  `SizedBox` magic numbers). Use `context.sizes.*`; a missing value means
+  adding a token, not inlining a number.
+- Exceptions (layout constraints, not visual sizes): reading-width caps
+  (e.g. `_contentMaxWidth`), scroll thresholds, 48dp touch-target floors.
+
+```dart
+// Good
+final sizes = context.sizes;
+Padding(padding: EdgeInsets.all(sizes.space24), child: …)
+Icon(Icons.cloud_off_outlined, size: sizes.iconHero)
+
+// Bad — frozen at every window size
+Padding(padding: const EdgeInsets.all(24), child: …)
+Icon(Icons.cloud_off_outlined, size: 48)
+```
+
+> **Warning (Flutter 3.41 M3 typography)**: `ThemeData.textTheme` carries
+> **no font sizes** — geometry merges at `Theme.of()` resolution time via
+> `ThemeData.localize(typography.geometryThemeFor(category))`. Therefore
+> `textTheme.apply(fontSizeFactor: …)` asserts (null fontSize) and scales
+> nothing. The only working hook to scale all text is pre-scaled typography
+> geometry: `Typography.material2021(englishLike/dense/tall: …2021.apply(fontSizeFactor: s))`
+> (see `AppTheme._build`).
+
+> **Warning (nav shells)**: `NavigationRail` / `NavigationBar` resolve icon
+> size from their own theme data, not the global `iconTheme`. Shell icons
+> must pass an explicit `Icon(…, size: sizes.iconLg)`.
+
+**Related**: task `09-06-responsive-fluid-sizing` (design.md has the full
+trade-off record).
+
+---
+
 ## Domain-Specific Patterns
 
 - **`index_status` chip** (`pending` / `done` / `failed`):

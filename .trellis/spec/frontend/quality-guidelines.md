@@ -25,6 +25,7 @@ flutter test      # all green
 | Swallowing `ApiException` with empty catch | every backend error surfaces to the user in Chinese |
 | Adding ios/macos/linux platform dirs | MVP scope is web/windows/android only |
 | `flutter_markdown` | discontinued — use `flutter_markdown_plus` |
+| Hardcoded UI sizes (`size: N`, magic `EdgeInsets`/`SizedBox`) | sizes must follow the viewport via `AppSizes` tokens (`context.sizes`) — see component-guidelines.md |
 | Business logic inside `onPressed` callbacks | move to notifier/repository; callbacks only call methods |
 
 ---
