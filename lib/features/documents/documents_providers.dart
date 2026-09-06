@@ -33,6 +33,25 @@ final selectedTagsProvider =
       SelectedTagsNotifier.new,
     );
 
+/// Two-pane selection state (documents page wide layout only): which
+/// document the embedded detail pane shows. Ephemeral UI state — never in
+/// the URL: `/documents/:id` deep links keep rendering the full-page detail
+/// (task 09-06-documents-master-detail, PRD 方案 A). Narrow layouts never
+/// read or write it (taps navigate instead).
+class SelectedDocumentIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void select(String id) => state = id;
+
+  void clear() => state = null;
+}
+
+final selectedDocumentIdProvider =
+    NotifierProvider<SelectedDocumentIdNotifier, String?>(
+      SelectedDocumentIdNotifier.new,
+    );
+
 /// Documents list UI state: keyset pages accumulated under the current tag
 /// filter.
 @immutable

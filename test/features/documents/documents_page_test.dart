@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/app.dart';
 import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
+import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
@@ -191,5 +192,100 @@ void main() {
 
     expect(find.text('暂无文档'), findsOneWidget);
     expect(find.text('点击右下角按钮创建第一篇文档'), findsOneWidget);
+  });
+
+  group('two-pane (master-detail) wide layout', () {
+    // 1400 window − extended rail ≈ 1143 content ≥ the two-pane threshold.
+    Future<void> pumpWide(
+      WidgetTester tester,
+      StubDocumentsRepository repo,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await pumpApp(tester, repo);
+      await tester.pumpAndSettle();
+    }
+
+    StubDocumentsRepository repoWithDetail() {
+      final repo =
+          StubDocumentsRepository()
+            ..listHandler = (cursor, limit, tags) async => DocumentPage(
+              items: [documentRead(id: 'a', title: '甲文档')],
+              nextCursor: null,
+            );
+      // Separate statement: a trailing `..getHandler` cascade would bind to
+      // the DocumentPage inside the listHandler closure, not the repo.
+      repo.getHandler =
+          (id) async => documentReadDetail(
+            documentRead(id: id, title: '甲文档'),
+            content: '正文片段甲内容',
+          );
+      return repo;
+    }
+
+    testWidgets('selects in place: pane renders the detail without routing', (
+      tester,
+    ) async {
+      final repo = repoWithDetail();
+      await pumpWide(tester, repo);
+
+      // Nothing selected yet — placeholder guides the first pick.
+      expect(find.text('在左侧选择一个文档查看详情'), findsOneWidget);
+
+      await tester.tap(find.text('甲文档'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DocumentDetailPage), findsNothing);
+      expect(find.text('正文片段甲内容'), findsOneWidget);
+      expect(find.text('在左侧选择一个文档查看详情'), findsNothing);
+      expect(repo.getCalls, ['a']);
+    });
+
+    testWidgets('deleting from the pane returns to the placeholder', (
+      tester,
+    ) async {
+      final repo =
+          repoWithDetail()
+            ..deleteHandler = (id) async {};
+      await pumpWide(tester, repo);
+
+      await tester.tap(find.text('甲文档'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('删除'));
+      await tester.pumpAndSettle();
+      expect(find.text('删除文档'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, '删除'));
+      await tester.pumpAndSettle();
+
+      expect(repo.deleteCalls, ['a']);
+      // The delete refreshed the list (keyset refetch) and the pane is gone.
+      expect(repo.listCalls, hasLength(2));
+      expect(find.text('在左侧选择一个文档查看详情'), findsOneWidget);
+    });
+
+    testWidgets('layout follows the breakpoint, selection survives', (
+      tester,
+    ) async {
+      final repo = repoWithDetail();
+      await pumpWide(tester, repo);
+
+      await tester.tap(find.text('甲文档'));
+      await tester.pumpAndSettle();
+      expect(find.text('正文片段甲内容'), findsOneWidget);
+
+      // Collapse to a single-column width: the pane unmounts (the detail
+      // page still owns narrow navigation), the selection state persists.
+      await tester.binding.setSurfaceSize(const Size(700, 800));
+      await tester.pumpAndSettle();
+      expect(find.byType(DocumentDetailPane), findsNothing);
+      expect(find.text('正文片段甲内容'), findsNothing);
+
+      // Widen again — the same document is selected in the pane.
+      await tester.binding.setSurfaceSize(const Size(1400, 800));
+      await tester.pumpAndSettle();
+      expect(find.byType(DocumentDetailPane), findsOneWidget);
+      expect(find.text('正文片段甲内容'), findsOneWidget);
+    });
   });
 }

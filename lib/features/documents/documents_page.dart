@@ -6,6 +6,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
 import '../../shared/widgets/index_status_chip.dart';
+import 'document_detail_page.dart';
 import 'documents_providers.dart';
 
 /// 文档列表页: keyset-paginated (infinite scroll), server-side tag filter
@@ -20,11 +21,30 @@ class DocumentsPage extends ConsumerWidget {
 
   static const double _contentMaxWidth = 720;
 
+  /// Two-pane (master-detail) layout: content-area width at which the list
+  /// is joined by the embedded detail pane, and the fixed list-pane width.
+  /// Layout constraints — exempt from the AppSizes scaling tokens
+  /// (component-guidelines spec), like `_contentMaxWidth`.
+  static const double _twoPaneMinWidth = 1100;
+  static const double _listPaneWidth = 340;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listState = ref.watch(documentsProvider);
     final selectedTags = ref.watch(selectedTagsProvider);
     final availableTags = _collectTags(listState.value, selectedTags);
+
+    // The pane selection only stays valid while the list still contains the
+    // document (deleted, filtered out, or dropped by a refresh).
+    ref.listen(documentsProvider, (_, next) {
+      final selected = ref.read(selectedDocumentIdProvider);
+      if (selected == null) return;
+      final items = next.value?.items;
+      if (items == null || items.isEmpty) return;
+      if (!items.any((document) => document.id == selected)) {
+        ref.read(selectedDocumentIdProvider.notifier).clear();
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -46,10 +66,13 @@ class DocumentsPage extends ConsumerWidget {
         onPressed: () => context.push('/documents/new'),
         child: const Icon(Icons.add),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
-          child: Column(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Two-pane is decided on the content area (the rail already took
+          // its share — window width ≠ content width).
+          final twoPane = constraints.maxWidth >= _twoPaneMinWidth;
+          final selectedId = ref.watch(selectedDocumentIdProvider);
+          final listColumn = Column(
             children: [
               if (availableTags.isNotEmpty)
                 _TagFilterBar(
@@ -69,12 +92,44 @@ class DocumentsPage extends ConsumerWidget {
                     onRetry: () =>
                         ref.read(documentsProvider.notifier).refresh(),
                   ),
-                  data: (state) => _DocumentsListView(state: state),
+                  data: (state) => _DocumentsListView(
+                    state: state,
+                    selectedId: twoPane ? selectedId : null,
+                    onOpenDocument: (documentId) {
+                      if (twoPane) {
+                        ref
+                            .read(selectedDocumentIdProvider.notifier)
+                            .select(documentId);
+                      } else {
+                        context.push('/documents/$documentId');
+                      }
+                    },
+                  ),
                 ),
               ),
             ],
-          ),
-        ),
+          );
+          if (!twoPane) {
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+                child: listColumn,
+              ),
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: _listPaneWidth, child: listColumn),
+              const VerticalDivider(thickness: 1, width: 1),
+              Expanded(
+                child: selectedId == null
+                    ? const _DetailPlaceholder()
+                    : DocumentDetailPane(documentId: selectedId),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -94,11 +149,19 @@ class DocumentsPage extends ConsumerWidget {
 }
 
 /// Infinite-scrolling list with pull-to-refresh and a footer for the
-/// load-more lifecycle (loading / failed-with-retry / end of list).
+/// load-more lifecycle (loading / failed-with-retry / end of list). Taps go
+/// through [onOpenDocument]: the two-pane layout selects the document for
+/// the embedded pane, the narrow layout navigates to the detail page.
 class _DocumentsListView extends ConsumerWidget {
-  const _DocumentsListView({required this.state});
+  const _DocumentsListView({
+    required this.state,
+    required this.onOpenDocument,
+    this.selectedId,
+  });
 
   final DocumentsListState state;
+  final void Function(String documentId) onOpenDocument;
+  final String? selectedId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -163,7 +226,8 @@ class _DocumentsListView extends ConsumerWidget {
                 ),
                 child: _DocumentTile(
                   document: document,
-                  onTap: () => context.push('/documents/${document.id}'),
+                  selected: document.id == selectedId,
+                  onTap: () => onOpenDocument(document.id),
                   // failed → re-save affordance deep-links to the editor.
                   onRetryIndex: () =>
                       context.push('/documents/${document.id}/edit'),
@@ -179,11 +243,17 @@ class _DocumentsListView extends ConsumerWidget {
 }
 
 class _DocumentTile extends StatelessWidget {
-  const _DocumentTile({required this.document, this.onTap, this.onRetryIndex});
+  const _DocumentTile({
+    required this.document,
+    this.onTap,
+    this.onRetryIndex,
+    this.selected = false,
+  });
 
   final DocumentRead document;
   final VoidCallback? onTap;
   final VoidCallback? onRetryIndex;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -191,6 +261,7 @@ class _DocumentTile extends StatelessWidget {
     final tagsText = document.tags.map((tag) => '#$tag').join('  ');
     return ListTile(
       onTap: onTap,
+      selected: selected,
       // 无行数上限：文本自然铺满卡片宽度、在边界处换行，不截断。
       title: Text(document.title),
       subtitle: Column(
@@ -359,6 +430,39 @@ class _ErrorPane extends StatelessWidget {
             FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Two-pane right pane before any document is selected.
+class _DetailPlaceholder extends StatelessWidget {
+  const _DetailPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.description_outlined,
+            size: sizes.iconHero,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          SizedBox(height: sizes.space12),
+          Text('在左侧选择一个文档查看详情', style: theme.textTheme.titleMedium),
+          SizedBox(height: sizes.space4),
+          Text(
+            '点击列表项即可在此阅读全文',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

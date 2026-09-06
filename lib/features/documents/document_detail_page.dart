@@ -274,3 +274,98 @@ class _DetailErrorPane extends StatelessWidget {
     );
   }
 }
+
+/// Two-pane right pane (documents page wide layout): the embedded detail for
+/// the ephemeral selection. Deep links keep rendering the full page above —
+/// this pane never participates in routing (PRD 方案 A). Deleting here, or
+/// the document vanishing elsewhere (404), falls back to the placeholder.
+class DocumentDetailPane extends ConsumerWidget {
+  const DocumentDetailPane({super.key, required this.documentId});
+
+  final String documentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final detailAsync = ref.watch(documentDetailProvider(documentId));
+    return detailAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) {
+        if (toApiException(error).isNotFound) {
+          // Deleted elsewhere while selected — back to the placeholder on
+          // the next frame (side effects stay out of the build pass).
+          Future.microtask(
+            () => ref.read(selectedDocumentIdProvider.notifier).clear(),
+          );
+          return const _DetailErrorPane(
+            isNotFound: true,
+            message: '文档不存在或已删除',
+            onRetry: _noRetry,
+          );
+        }
+        return _DetailErrorPane(
+          isNotFound: false,
+          message: '加载失败：${toApiException(error).message}',
+          onRetry: () => ref.invalidate(documentDetailProvider(documentId)),
+        );
+      },
+      data: (document) {
+        return DocumentDetailBody(
+          document: document,
+          titleTrailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IndexStatusChip(
+                status: document.indexStatus,
+                onRetry: () => context.push('/documents/${document.id}/edit'),
+              ),
+              IconButton(
+                tooltip: '编辑',
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => context.push('/documents/${document.id}/edit'),
+              ),
+              IconButton(
+                tooltip: '删除',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => _confirmDelete(context, ref),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final document = ref.read(documentDetailProvider(documentId)).value;
+    if (!context.mounted) return;
+    final confirmed = await showDeleteConfirmDialog(
+      context,
+      document?.title ?? '',
+    );
+    if (!confirmed || !context.mounted) return;
+    try {
+      await ref
+          .read(documentsProvider.notifier)
+          .deleteDocument(documentId);
+      if (!context.mounted) return;
+      _showToast(context, '已删除');
+      ref.read(selectedDocumentIdProvider.notifier).clear();
+    } catch (error) {
+      if (!context.mounted) return;
+      final api = toApiException(error);
+      if (api.isNotFound) {
+        // Deleted elsewhere in the meantime — same end state.
+        ref
+          ..invalidate(documentDetailProvider(documentId))
+          ..invalidate(documentsProvider);
+        _showToast(context, '文档不存在或已删除');
+        ref.read(selectedDocumentIdProvider.notifier).clear();
+        return;
+      }
+      _showToast(context, '删除失败：${api.message}');
+    }
+  }
+}
+
+/// The pane's 404 branch offers no retry affordance.
+void _noRetry() {}
