@@ -20,12 +20,12 @@ void main() {
       expect(AppSizes.scaleForWidth(600), 1.0);
     });
 
-    test('grows linearly across 600–1600 and clamps at 1.2', () {
-      expect(AppSizes.scaleForWidth(800), 1.04);
-      expect(AppSizes.scaleForWidth(1100), 1.1);
-      expect(AppSizes.scaleForWidth(1599.9), 1.2);
-      expect(AppSizes.scaleForWidth(1600), 1.2);
-      expect(AppSizes.scaleForWidth(5000), 1.2);
+    test('grows linearly across 600–1600 and clamps at 1.4', () {
+      expect(AppSizes.scaleForWidth(800), 1.08);
+      expect(AppSizes.scaleForWidth(1100), 1.2);
+      expect(AppSizes.scaleForWidth(1599.9), 1.4);
+      expect(AppSizes.scaleForWidth(1600), 1.4);
+      expect(AppSizes.scaleForWidth(5000), 1.4);
     });
 
     test('is monotonic across the whole range', () {
@@ -145,14 +145,14 @@ void main() {
       await setSize(tester, const Size(1200, 800));
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
-      // 600 → 1600 maps to 1.0 → 1.2, so 1200 is exactly halfway.
-      expect(scaleAtSurface(tester), closeTo(1.12, 1e-9));
+      // 1200 sits 60% of the way through 600 → 1600: 1.0 + 0.4 × 0.6.
+      expect(scaleAtSurface(tester), closeTo(1.24, 1e-9));
 
       // End to end: resolved textTheme sizes follow the same factor.
       final context = tester.element(find.byType(Scaffold).first);
       expect(
         Theme.of(context).textTheme.bodyMedium!.fontSize,
-        closeTo(14 * 1.12, 1e-9),
+        closeTo(14 * 1.24, 1e-9),
       );
     });
   });

@@ -52,13 +52,13 @@ class AppSizes extends ThemeExtension<AppSizes> {
   double get pagePadHCompact => 12 * scale;
 
   static const double _minScale = 1.0;
-  static const double _maxScale = 1.2;
+  static const double _maxScale = 1.4;
   static const double _startWidth = 600;
   static const double _endWidth = 1600;
 
   /// Window width → scale: 1.0 at the compact baseline (< 600), linear
-  /// 1.0 → 1.2 across 600–1600, clamped above. Quantized to 0.01 so a
-  /// window drag rebuilds the theme ~20 times instead of per pixel (a
+  /// 1.0 → 1.4 across 600–1600, clamped above. Quantized to 0.01 so a
+  /// window drag rebuilds the theme ~40 times instead of per pixel (a
   /// 16px font then steps by ≤ 0.16px — imperceptible).
   static double scaleForWidth(double width) {
     if (width <= _startWidth) return _minScale;

@@ -64,7 +64,7 @@ One codebase, two shells, decided by width via `LayoutBuilder` /
 ## Responsive Sizing (required)
 
 One window-level scale factor ([`AppSizes.scaleForWidth`](../../../lib/core/theme/app_sizes.dart)):
-1.0 below 600px, linear 1.0 → 1.2 across 600–1600, clamped (quantized to
+1.0 below 600px, linear 1.0 → 1.4 across 600–1600, clamped (quantized to
 0.01). Text and default icons scale through the theme; every other size —
 spacing, explicit icon sizes, component metrics — must come from the
 `AppSizes` tokens via `context.sizes`.
