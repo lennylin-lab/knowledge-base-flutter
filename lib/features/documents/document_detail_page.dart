@@ -76,7 +76,7 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
           onRetry: () =>
               ref.invalidate(documentDetailProvider(widget.documentId)),
         ),
-        data: (document) => _DetailBody(document: document),
+        data: (document) => DocumentDetailBody(document: document),
       ),
     );
   }
@@ -85,28 +85,11 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
     final document = ref
         .read(documentDetailProvider(widget.documentId))
         .value;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('删除文档'),
-        content: Text('确定要删除「${document?.title ?? ''}」吗？删除后将无法恢复。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmDialog(
+      context,
+      document?.title ?? '',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     setState(() => _deleting = true);
     try {
@@ -137,16 +120,52 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
   }
 }
 
+/// 删除确认弹窗（全页详情与双栏右栏共用）；返回是否确认删除。
+Future<bool> showDeleteConfirmDialog(BuildContext context, String title) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('删除文档'),
+      content: Text('确定要删除「$title」吗？删除后将无法恢复。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+          ),
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('删除'),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
 void _showToast(BuildContext context, String message) {
   ScaffoldMessenger.maybeOf(context)?.showSnackBar(
     SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
   );
 }
 
-class _DetailBody extends StatelessWidget {
-  const _DetailBody({required this.document});
+/// The detail content without page chrome — the full-page detail and the
+/// two-pane detail pane (documents page wide layout) render the same body.
+/// [titleTrailing] replaces the default index-status chip at the end of the
+/// title row (the pane appends its edit/delete actions there).
+class DocumentDetailBody extends StatelessWidget {
+  const DocumentDetailBody({
+    super.key,
+    required this.document,
+    this.titleTrailing,
+  });
 
   final DocumentReadDetail document;
+
+  final Widget? titleTrailing;
 
   @override
   Widget build(BuildContext context) {
@@ -174,10 +193,13 @@ class _DetailBody extends StatelessWidget {
                 ),
               ),
               SizedBox(width: sizes.space8),
-              IndexStatusChip(
-                status: document.indexStatus,
-                onRetry: () => context.push('/documents/${document.id}/edit'),
-              ),
+              if (titleTrailing != null)
+                titleTrailing!
+              else
+                IndexStatusChip(
+                  status: document.indexStatus,
+                  onRetry: () => context.push('/documents/${document.id}/edit'),
+                ),
             ],
           ),
           SizedBox(height: sizes.space8),
