@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates and forbidden patterns for the check phase"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify single-shared-renderer rule held; markdown contract updated"}
+{"file": ".trellis/tasks/09-11-markdown-code-callout/implement.md", "reason": "Validation commands, risky files, rollback point"}
