@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
-- **Last Active**: 2026-09-10
+- **Total Sessions**: 5
+- **Last Active**: 2026-09-11
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~104 | Active |
+| `journal-1.md` | ~128 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-09-11 | Markdown 代码高亮与 Callout 完整交付 | `842f6a9`, `bba0809`, `c6171a3`, `695e5ea` | `main` |
 | 4 | 2026-09-10 | Markdown paragraph spacing fix | `5286bae` | `main` |
 | 3 | 2026-09-10 | 标签栏桌面/web 滚动适配 | `5a1f012` | `main` |
 | 2 | 2026-09-10 | Trellis 入职引导完成 | - | `main` |

@@ -102,3 +102,27 @@ Diagnosed why rendered markdown paragraphs showed no visible blank line: flutter
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: Markdown 代码高亮与 Callout 完整交付
+
+**Date**: 2026-09-11
+**Task**: Markdown 代码高亮与 Callout 完整交付
+**Branch**: `main`
+
+### Summary
+
+激活并完成 09-11-markdown-code-callout：trellis-implement 实现 re_highlight 0.0.3 代码高亮（探针测试否决 builders['code'] 方案——行内代码同为 code 元素，改用 pre 拦截回退方案 A）与 Obsidian 式 Callout（自定义 CalloutBlockSyntax，13 类型+别名，可折叠卡片；块级 builder 子元素不可达，callout 正文以属性携带原始 markdown 经嵌套 MarkdownContent 渲染）；新增 17 个 widget 测试。trellis-check 全项 PASS：analyze 零问题、174/174 测试全绿、AC1-AC5 核实。发现 flutter_markdown_plus 块级 builder 结果置于无界高度 Wrap 的陷阱（禁 stretch Row），已沉淀至 component-guidelines.md 并修正 blockSpacing 12→14 spec 漂移。会话开头将三个遗留脏文件按归属分三笔单独提交。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `842f6a9` | (see git log) |
+| `bba0809` | (see git log) |
+| `c6171a3` | (see git log) |
+| `695e5ea` | (see git log) |
+
+### Status
+
+[OK] **Completed**
