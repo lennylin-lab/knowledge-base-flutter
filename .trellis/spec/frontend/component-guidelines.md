@@ -123,7 +123,11 @@ trade-off record).
 - **Markdown rendering:** use `flutter_markdown_plus`
   (**NOT `flutter_markdown` — that package is discontinued**). Keep the renderer
   configuration in one shared widget so detail page and chat answers render
-  identically.
+  identically. The shared widget overrides the package's default block spacing
+  (`pPadding` vertical 2 + `blockSpacing` 12) because the defaults
+  (zero + 8) sit within ~2px of the body line gap and paragraphs visually
+  merge; the two values stack (gap = prev padding + blockSpacing + next
+  padding), so don't reset them to defaults.
 - **Empty / loading / error states:** every list-like surface must handle all
   three `AsyncValue` branches; error copy shows the backend `message` plus a
   Chinese fallback.

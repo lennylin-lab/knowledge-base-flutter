@@ -14,6 +14,17 @@ class MarkdownContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Default extension set is GitHub-flavored Markdown.
-    return md.MarkdownBody(data: data, selectable: selectable);
+    final baseStyle = md.MarkdownStyleSheet.fromTheme(Theme.of(context));
+    return md.MarkdownBody(
+      data: data,
+      selectable: selectable,
+      styleSheet: baseStyle.copyWith(
+        // Package defaults (pPadding zero + blockSpacing 8) leave consecutive
+        // paragraphs only ~2px apart beyond the body line gap, so text reads
+        // as one wall. pPadding stacks on top of blockSpacing: 2 + 12 + 2.
+        pPadding: const EdgeInsets.symmetric(vertical: 2),
+        blockSpacing: 12,
+      ),
+    );
   }
 }
