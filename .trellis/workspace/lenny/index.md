@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
+- **Total Sessions**: 4
 - **Last Active**: 2026-09-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~83 | Active |
+| `journal-1.md` | ~104 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-09-10 | Markdown paragraph spacing fix | `5286bae` | `main` |
 | 3 | 2026-09-10 | 标签栏桌面/web 滚动适配 | `5a1f012` | `main` |
 | 2 | 2026-09-10 | Trellis 入职引导完成 | - | `main` |
 | 1 | 2026-09-06 | 响应式视口缩放尺寸体系 | `6c4bfc6`, `76abc02` | `main` |

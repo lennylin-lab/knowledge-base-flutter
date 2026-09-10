@@ -81,3 +81,24 @@ Built the viewport-fluid sizing system: AppSizes ThemeExtension tokens (spacing/
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: Markdown paragraph spacing fix
+
+**Date**: 2026-09-10
+**Task**: Markdown paragraph spacing fix
+**Branch**: `main`
+
+### Summary
+
+Diagnosed why rendered markdown paragraphs showed no visible blank line: flutter_markdown_plus defaults give pPadding zero + blockSpacing 8, only ~2px beyond the bodyMedium line gap (14px font / ~20px line height); code blocks only looked separated due to their background decoration. MarkdownContent now passes a theme-derived style sheet (pPadding vertical 2 + blockSpacing 12, they stack to ~16px). Analyze clean, 157 tests green. Spec: spacing contract recorded in component-guidelines. Also hit a ZCode session deadlock: a cd into .trellis/tasks/<task> made Trellis's relative-path pre-shell hook unresolvable, blocking every Bash call; escaped by Write-ing a temporary hook copy at the stuck path, cd-ing back to repo root, then removing the copy.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5286bae` | (see git log) |
+
+### Status
+
+[OK] **Completed**
