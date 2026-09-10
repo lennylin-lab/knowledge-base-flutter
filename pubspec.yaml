@@ -43,6 +43,8 @@ dependencies:
   shared_preferences: ^2.5.5
   intl: ^0.20.3
   web: ^1.1.1
+  re_highlight: ^0.0.3
+  markdown: ^7.3.1
 
 dev_dependencies:
   flutter_test:

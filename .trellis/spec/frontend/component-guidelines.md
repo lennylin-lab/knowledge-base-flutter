@@ -124,10 +124,30 @@ trade-off record).
   (**NOT `flutter_markdown` — that package is discontinued**). Keep the renderer
   configuration in one shared widget so detail page and chat answers render
   identically. The shared widget overrides the package's default block spacing
-  (`pPadding` vertical 2 + `blockSpacing` 12) because the defaults
+  (`pPadding` vertical 2 + `blockSpacing` 14) because the defaults
   (zero + 8) sit within ~2px of the body line gap and paragraphs visually
   merge; the two values stack (gap = prev padding + blockSpacing + next
   padding), so don't reset them to defaults.
+- **Fenced code highlighting & Obsidian callouts** (both configured inside the
+  shared `MarkdownContent`, in `lib/shared/widgets/markdown/`):
+  - Code blocks go through a **`pre` builder** (`HighlightedCodeBlockBuilder`
+    + `re_highlight`, GitHub Light/Dark token palettes selected by
+    `Theme.brightness`, monochrome fallback for missing/unknown languages).
+    Intercept `pre`, **not** `code`: inline code spans are also `code`
+    elements, so a `code` builder (with `isBlockElement()`) lifts them out of
+    paragraph flow.
+  - Callouts (`> [!type]`, `> [!type]-` collapsed, `> [!type]+` expanded) are
+    a custom `CalloutBlockSyntax` registered in `blockSyntaxes` (custom
+    syntaxes run before the built-in blockquote syntax, so plain quotes are
+    unaffected) + a `callout` builder. All Obsidian canonical types +
+    aliases, Chinese default titles; the quoted body travels as raw markdown
+    and is rendered by a nested `MarkdownContent` (the element-builder API
+    cannot reach a block element's already-built children).
+  - Widget layout hazard: block-builder results are placed inside a `Wrap`
+    that passes **unbounded height**, so `Row(crossAxisAlignment: stretch)`
+    inside a builder widget throws; size via `Stack`/`Positioned.fill` or
+    intrinsic sizing instead.
+  - `markdown` is declared as a direct dependency (BlockSyntax API surface).
 - **Empty / loading / error states:** every list-like surface must handle all
   three `AsyncValue` branches; error copy shows the backend `message` plus a
   Chinese fallback.
