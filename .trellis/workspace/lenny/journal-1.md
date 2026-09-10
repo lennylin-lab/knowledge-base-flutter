@@ -41,3 +41,22 @@ Built the viewport-fluid sizing system: AppSizes ThemeExtension tokens (spacing/
 ### Status
 
 [OK] **Completed**
+
+
+## Session 2: Trellis 入职引导完成
+
+**Date**: 2026-09-10
+**Task**: Trellis 入职引导完成
+**Branch**: `main`
+
+### Summary
+
+完成 00-join-lenny 入职任务：了解 Trellis 三阶段工作流、SessionStart 注入机制、项目 frontend spec 约定与归档节奏；任务已 finish + archive。
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
