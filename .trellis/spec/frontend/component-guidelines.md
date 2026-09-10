@@ -105,6 +105,13 @@ trade-off record).
 
 ## Domain-Specific Patterns
 
+- **Horizontal scrollables (chip bars):** Flutter's default `dragDevices`
+  exclude the mouse, and `MaterialScrollBehavior` auto-attaches scrollbars to
+  **vertical** axes only — a raw horizontal `ListView` is effectively
+  touch-only (the desktop/web defect in the tag filter bars). Use the shared
+  [`HorizontalChipBar`](../../../lib/shared/widgets/horizontal_chip_bar.dart)
+  (mouse drag + wheel + persistent desktop thumb, transient on touch) for any
+  horizontal chip row instead of a bare `ListView`.
 - **`index_status` chip** (`pending` / `done` / `failed`):
   - `pending` → small progress indicator ("索引中")
   - `done` → neutral chip or nothing

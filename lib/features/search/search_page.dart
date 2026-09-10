@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/search.dart';
+import '../../shared/widgets/horizontal_chip_bar.dart';
 import 'search_providers.dart';
 
 /// 搜索页：混合检索（BM25 + 向量）结果列表，支持服务端标签过滤。
@@ -276,6 +277,7 @@ class _SearchHitCard extends StatelessWidget {
 }
 
 /// Horizontal tag chips; 全部 clears the filter (documents-page pattern).
+/// [HorizontalChipBar] carries the desktop / web scroll adaptations.
 class _TagFilterBar extends StatelessWidget {
   const _TagFilterBar({
     required this.tags,
@@ -290,34 +292,26 @@ class _TagFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sizes = context.sizes;
-    return SizedBox(
-      height: sizes.chipBarHeight,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(
-          horizontal: sizes.pagePadHCompact,
-          vertical: sizes.space8,
+    return HorizontalChipBar(
+      children: [
+        Padding(
+          padding: EdgeInsets.only(right: sizes.space8),
+          child: FilterChip(
+            label: const Text('全部'),
+            selected: selectedTag == null,
+            onSelected: (_) => onSelect(null),
+          ),
         ),
-        children: [
+        for (final tag in tags)
           Padding(
             padding: EdgeInsets.only(right: sizes.space8),
             child: FilterChip(
-              label: const Text('全部'),
-              selected: selectedTag == null,
-              onSelected: (_) => onSelect(null),
+              label: Text(tag),
+              selected: selectedTag == tag,
+              onSelected: (_) => onSelect(tag),
             ),
           ),
-          for (final tag in tags)
-            Padding(
-              padding: EdgeInsets.only(right: sizes.space8),
-              child: FilterChip(
-                label: Text(tag),
-                selected: selectedTag == tag,
-                onSelected: (_) => onSelect(tag),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }

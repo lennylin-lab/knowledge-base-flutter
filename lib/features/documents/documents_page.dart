@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
+import '../../shared/widgets/horizontal_chip_bar.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import 'document_detail_page.dart';
 import 'documents_providers.dart';
@@ -350,8 +351,9 @@ class _ListFooter extends ConsumerWidget {
   }
 }
 
-/// Horizontal tag chips with multi-select; 全部 clears the selection. The
+/// Tag chips with multi-select; 全部 clears the selection. The
 /// server ANDs the selected tags (documents must carry every one of them).
+/// [HorizontalChipBar] carries the desktop / web scroll adaptations.
 class _TagFilterBar extends StatelessWidget {
   const _TagFilterBar({
     required this.tags,
@@ -368,36 +370,28 @@ class _TagFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sizes = context.sizes;
-    return SizedBox(
-      height: sizes.chipBarHeight,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(
-          horizontal: sizes.pagePadHCompact,
-          vertical: sizes.space8,
+    return HorizontalChipBar(
+      children: [
+        Padding(
+          padding: EdgeInsets.only(right: sizes.space8),
+          child: FilterChip(
+            label: const Text('全部'),
+            selected: selectedTags.isEmpty,
+            showCheckmark: false,
+            onSelected: (_) => onClearAll(),
+          ),
         ),
-        children: [
+        for (final tag in tags)
           Padding(
             padding: EdgeInsets.only(right: sizes.space8),
             child: FilterChip(
-              label: const Text('全部'),
-              selected: selectedTags.isEmpty,
+              label: Text(tag),
+              selected: selectedTags.contains(tag),
               showCheckmark: false,
-              onSelected: (_) => onClearAll(),
+              onSelected: (_) => onToggle(tag),
             ),
           ),
-          for (final tag in tags)
-            Padding(
-              padding: EdgeInsets.only(right: sizes.space8),
-              child: FilterChip(
-                label: Text(tag),
-                selected: selectedTags.contains(tag),
-                showCheckmark: false,
-                onSelected: (_) => onToggle(tag),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
