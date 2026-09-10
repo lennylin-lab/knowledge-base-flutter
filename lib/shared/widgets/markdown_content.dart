@@ -23,7 +23,7 @@ class MarkdownContent extends StatelessWidget {
         // paragraphs only ~2px apart beyond the body line gap, so text reads
         // as one wall. pPadding stacks on top of blockSpacing: 2 + 12 + 2.
         pPadding: const EdgeInsets.symmetric(vertical: 2),
-        blockSpacing: 12,
+        blockSpacing: 14,
       ),
     );
   }
