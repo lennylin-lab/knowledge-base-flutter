@@ -60,3 +60,24 @@ Built the viewport-fluid sizing system: AppSizes ThemeExtension tokens (spacing/
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: 标签栏桌面/web 滚动适配
+
+**Date**: 2026-09-10
+**Task**: 标签栏桌面/web 滚动适配
+**Branch**: `main`
+
+### Summary
+
+修复文档列表页标签栏仅触摸可滑动的桌面/web 缺陷：根因是 Flutter 默认 dragDevices 不含鼠标且横向轴无自动滚动条。新增共享组件 HorizontalChipBar（鼠标拖动 + 滚轮 + 指针平台常驻滚动条、触屏瞬态），documents/search 两处 _TagFilterBar 一并接入；新增 4 个 widget 用例，经验沉淀至 component-guidelines。analyze + 157 测试全绿。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5a1f012` | (see git log) |
+
+### Status
+
+[OK] **Completed**
