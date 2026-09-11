@@ -42,6 +42,7 @@ class AppSizes extends ThemeExtension<AppSizes> {
   double get spinnerXs => 12 * scale;
   double get spinnerSm => 16 * scale;
   double get spinnerMd => 20 * scale;
+  double get codeMetaFontSize => 12 * scale;
   double get avatarRadius => 12 * scale;
   double get radiusSm => 8 * scale;
   double get radiusMd => 12 * scale;

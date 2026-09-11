@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:re_highlight/languages/all.dart';
 import 'package:re_highlight/re_highlight.dart';
 import 'package:re_highlight/styles/github-dark.dart';
 import 'package:re_highlight/styles/github.dart';
+
+import '../../../core/theme/app_sizes.dart';
 
 /// Element builder for fenced code blocks, registered under the `pre` tag.
 ///
@@ -22,7 +25,6 @@ class HighlightedCodeBlockBuilder extends MarkdownElementBuilder {
   HighlightedCodeBlockBuilder({
     required this.brightness,
     this.selectable = true,
-    this.padding = EdgeInsets.zero,
   });
 
   /// Theme brightness selecting the token palette (AC4: follows
@@ -31,10 +33,6 @@ class HighlightedCodeBlockBuilder extends MarkdownElementBuilder {
 
   /// Mirrors `MarkdownBody.selectable` so code stays text-selectable there.
   final bool selectable;
-
-  /// Horizontal scroll padding inside the code block; pass
-  /// `styleSheet.codeblockPadding` to keep the package's default look.
-  final EdgeInsetsGeometry padding;
 
   String? _language;
 
@@ -74,12 +72,14 @@ class HighlightedCodeBlockBuilder extends MarkdownElementBuilder {
       baseStyle: preferredStyle,
       brightness: brightness,
       selectable: selectable,
-      padding: padding,
     );
   }
 }
 
-/// Highlighted code content: horizontally scrollable selectable rich text.
+/// Highlighted code content: a card distinct from the article body
+/// (`surfaceContainerHighest` + hairline outline, rounded), with an optional
+/// header row carrying the language label and a copy button, and the code
+/// itself horizontally scrollable and selectable.
 class _HighlightedCodeView extends StatefulWidget {
   const _HighlightedCodeView({
     required this.source,
@@ -87,7 +87,6 @@ class _HighlightedCodeView extends StatefulWidget {
     required this.baseStyle,
     required this.brightness,
     required this.selectable,
-    required this.padding,
   });
 
   final String source;
@@ -95,7 +94,6 @@ class _HighlightedCodeView extends StatefulWidget {
   final TextStyle? baseStyle;
   final Brightness brightness;
   final bool selectable;
-  final EdgeInsetsGeometry padding;
 
   @override
   State<_HighlightedCodeView> createState() => _HighlightedCodeViewState();
@@ -103,6 +101,7 @@ class _HighlightedCodeView extends StatefulWidget {
 
 class _HighlightedCodeViewState extends State<_HighlightedCodeView> {
   final ScrollController _scrollController = ScrollController();
+  bool _copied = false;
 
   @override
   void dispose() {
@@ -110,8 +109,20 @@ class _HighlightedCodeViewState extends State<_HighlightedCodeView> {
     super.dispose();
   }
 
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.source));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    // Revert the checkmark so the button reads as "copy" again on re-use.
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final sizes = context.sizes;
+    final colorScheme = Theme.of(context).colorScheme;
     final TextSpan span = highlightCodeSpan(
       source: widget.source,
       language: widget.language,
@@ -121,15 +132,70 @@ class _HighlightedCodeViewState extends State<_HighlightedCodeView> {
     final Widget content = widget.selectable
         ? SelectableText.rich(span)
         : Text.rich(span);
-    // Horizontal scroll (with thumb on desktop) mirrors the package's own
-    // `pre` handling so long lines overflow instead of soft-wrapping.
-    return Scrollbar(
-      controller: _scrollController,
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        scrollDirection: Axis.horizontal,
-        padding: widget.padding,
-        child: content,
+
+    final headerStyle = (widget.baseStyle ?? const TextStyle()).copyWith(
+      color: colorScheme.onSurfaceVariant,
+      fontSize: sizes.codeMetaFontSize,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.5,
+    );
+
+    return Container(
+      // Distinct-from-body surface: M3 roles only, works in both themes
+      // (`surfaceContainerHighest` sits one step above the reading surface).
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(sizes.radiusMd),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              sizes.space12,
+              sizes.space6,
+              sizes.space6,
+              sizes.space6,
+            ),
+            child: Row(
+              children: [
+                if (widget.language != null && widget.language!.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(left: sizes.space4),
+                    child: Text(
+                      widget.language!.toLowerCase(),
+                      style: headerStyle,
+                    ),
+                  ),
+                const Spacer(),
+                IconButton(
+                  tooltip: _copied ? '已复制' : '复制代码',
+                  icon: Icon(
+                    _copied ? Icons.check : Icons.copy_outlined,
+                    size: sizes.iconSm,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  onPressed: _copy,
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
+          // Horizontal scroll (with thumb on desktop) mirrors the package's
+          // own `pre` handling so long lines overflow instead of soft-wrapping.
+          Scrollbar(
+            controller: _scrollController,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.all(sizes.space12),
+              child: content,
+            ),
+          ),
+        ],
       ),
     );
   }
