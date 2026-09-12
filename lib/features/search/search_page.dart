@@ -6,6 +6,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/search.dart';
 import '../../shared/widgets/horizontal_chip_bar.dart';
+import '../../shared/widgets/theme_mode_menu.dart';
 import 'search_providers.dart';
 
 /// 搜索页：混合检索（BM25 + 向量）结果列表，支持服务端标签过滤。
@@ -52,7 +53,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final availableTags = _collectTags(results.value, selectedTag);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('搜索')),
+      appBar: AppBar(
+        title: const Text('搜索'),
+        actions: [const ThemeModeMenu()],
+      ),
       body: Column(
         children: [
           Padding(

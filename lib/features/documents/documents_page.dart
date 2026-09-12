@@ -9,6 +9,7 @@ import '../../shared/models/document.dart';
 import '../../shared/widgets/horizontal_chip_bar.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/resizable_pane.dart';
+import '../../shared/widgets/theme_mode_menu.dart';
 import 'document_detail_page.dart';
 import 'documents_providers.dart';
 
@@ -71,6 +72,7 @@ class DocumentsPage extends ConsumerWidget {
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(documentsProvider.notifier).refresh(),
           ),
+          const ThemeModeMenu(),
         ],
       ),
       floatingActionButton: FloatingActionButton(

@@ -6,6 +6,7 @@ import '../../core/theme/app_sizes.dart';
 import '../../shared/models/search.dart';
 import '../../shared/models/session.dart';
 import '../../shared/widgets/markdown_content.dart';
+import '../../shared/widgets/theme_mode_menu.dart';
 import 'chat_providers.dart';
 
 /// 问答页：多轮会话式流式问答。
@@ -65,6 +66,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             icon: const Icon(Icons.history),
             onPressed: () => context.push('/chat/sessions'),
           ),
+          const ThemeModeMenu(),
         ],
       ),
       body: Column(

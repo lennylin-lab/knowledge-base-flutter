@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/layout/layout_preferences.dart';
 import 'core/theme/app_sizes.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_preferences.dart';
 import 'features/chat/chat_page.dart';
 import 'features/chat/sessions_page.dart';
 import 'features/documents/document_detail_page.dart';
@@ -13,12 +14,15 @@ import 'features/documents/documents_page.dart';
 import 'features/search/search_page.dart';
 import 'shared/widgets/resizable_pane.dart';
 
-/// Root widget: Material 3 app, system light/dark, three-branch shell.
+/// Root widget: Material 3 app, three-branch shell.
+///
+/// Brightness follows [themeModeProvider] — system until the user picks
+/// light/dark in the app-bar 主题 menu (persisted via `theme_preferences`).
 ///
 /// The router is a per-instance value (not a static) so every `App()` —
 /// including each widget test — gets an isolated navigation state; pass a
 /// custom router to drive deep links directly.
-class App extends StatelessWidget {
+class App extends ConsumerWidget {
   App({super.key, GoRouter? router}) : router = router ?? buildRouter();
 
   final GoRouter router;
@@ -96,7 +100,7 @@ class App extends StatelessWidget {
   );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // One window-level scale drives every size in the app: the theme (text,
     // default icons) and the AppSizes tokens (`context.sizes`) derive from it.
     return LayoutBuilder(
@@ -106,7 +110,7 @@ class App extends StatelessWidget {
           title: '知识库',
           theme: AppTheme.light(scale),
           darkTheme: AppTheme.dark(scale),
-          themeMode: ThemeMode.system,
+          themeMode: ref.watch(themeModeProvider),
           routerConfig: router,
           debugShowCheckedModeBanner: false,
         );
