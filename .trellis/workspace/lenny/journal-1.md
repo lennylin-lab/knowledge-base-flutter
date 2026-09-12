@@ -146,3 +146,25 @@ Diagnosed why rendered markdown paragraphs showed no visible blank line: flutter
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: Chat multi-turn sessions support
+<!-- trellis-session: v=2 fp=59e1ecf083ee59b3 -->
+
+**Date**: 2026-09-13
+**Task**: Chat multi-turn sessions support
+**Branch**: `main`
+
+### Summary
+
+Updated the Flutter client to the backend's multi-turn chat API: session_id on ChatRequest/RunStarted/ChatDone (omitted when absent), new SessionRepository for /api/v1/chat/sessions (list/detail/delete), session-aware ChatNotifier (active session, newSession/openSession, turn committed to history), conversation rendering on the chat page, and a new /chat/sessions page with refresh/load-more/confirmed delete. Spec state-management.md updated from single-turn to session semantics. flutter analyze clean; 201 tests pass.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `05bb5a7` | feat(chat): multi-turn sessions — session-aware chat, history, session list |
+
+### Status
+
+[OK] **Completed**
