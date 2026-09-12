@@ -6,6 +6,7 @@ import 'core/layout/layout_preferences.dart';
 import 'core/theme/app_sizes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/chat/chat_page.dart';
+import 'features/chat/sessions_page.dart';
 import 'features/documents/document_detail_page.dart';
 import 'features/documents/document_editor_page.dart';
 import 'features/documents/documents_page.dart';
@@ -79,6 +80,13 @@ class App extends StatelessWidget {
                 path: '/chat',
                 name: 'chat',
                 builder: (context, state) => const ChatPage(),
+                routes: [
+                  GoRoute(
+                    path: 'sessions',
+                    name: 'chat-sessions',
+                    builder: (context, state) => const SessionsPage(),
+                  ),
+                ],
               ),
             ],
           ),

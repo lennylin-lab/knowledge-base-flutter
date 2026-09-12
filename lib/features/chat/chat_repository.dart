@@ -7,9 +7,8 @@ import '../../shared/models/chat.dart';
 /// into a terminal [ChatErrorEvent] carrying the envelope's `code` /
 /// `message` — the stream itself never throws (state-management spec).
 ///
-/// **Single-turn semantics**: there is no session history API. Each
-/// [chat] call is one independent stateless QA run; the UI must not build
-/// multi-turn conversation state on top of it (state-management
+/// Sessions are server-persisted: a [chat] call without `sessionId` starts
+/// a new conversation, one with `sessionId` continues it (state-management
 /// spec).
 class ChatRepository {
   ChatRepository(this._sseClient);
@@ -25,17 +24,26 @@ class ChatRepository {
   /// (type-safety spec: validate at the boundary).
   static int clampLimit(int limit) => limit.clamp(minLimit, maxLimit).toInt();
 
-  /// Streams one single-turn QA run for [question] (min 1 char, validated
-  /// server-side as 422 `validation_failed`).
+  /// Streams one QA run for [question] (min 1 char, validated server-side
+  /// as 422 `validation_failed`). Pass [sessionId] to continue an existing
+  /// persisted conversation; omit it to start a new one.
   ///
   /// Event order guarantee: `run_started` → `sources*` → `answer_delta*` →
   /// `done`, or a terminal `error` at any point. `sources` may repeat —
   /// consumers append to the accumulated list. The stream ends right after
   /// the terminal event; a stream that ends without one yields a
   /// `network_error` [ChatErrorEvent].
-  Stream<ChatEvent> chat({required String question, int limit = defaultLimit}) {
+  Stream<ChatEvent> chat({
+    required String question,
+    int limit = defaultLimit,
+    String? sessionId,
+  }) {
     return _sseClient.chatStream(
-      ChatRequest(question: question, limit: clampLimit(limit)),
+      ChatRequest(
+        question: question,
+        limit: clampLimit(limit),
+        sessionId: sessionId,
+      ),
     );
   }
 }

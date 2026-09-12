@@ -3,12 +3,34 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
+import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/features/chat/chat_providers.dart';
+import 'package:knowledge_base_flutter/features/chat/session_repository.dart';
 import 'package:knowledge_base_flutter/shared/models/chat.dart';
 import 'package:knowledge_base_flutter/shared/models/search.dart';
+import 'package:knowledge_base_flutter/shared/models/session.dart';
 
 import '../search/stub_search_repository.dart';
 import 'stub_chat_repository.dart';
+
+/// In-memory [SessionRepository]: scripted detail result / error, every call
+/// recorded.
+class StubSessionRepository implements SessionRepository {
+  SessionDetail? detail;
+  ApiException? detailError;
+  final List<String> getSessionCalls = <String>[];
+
+  @override
+  Future<SessionDetail> getSession(String sessionId) async {
+    getSessionCalls.add(sessionId);
+    final error = detailError;
+    if (error != null) throw error;
+    return detail!;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 /// Drains the event loop: broadcast stream events are delivered via the
 /// event loop rather than plain microtasks, so Riverpod's `container.pump()`
@@ -21,9 +43,16 @@ Future<void> flush() => Future<void>.delayed(Duration.zero);
 /// semantics. Timing is controlled with broadcast stream controllers (events
 /// added with no listener are dropped, so late events can be proven inert) —
 /// no sleeps.
-ProviderContainer _makeContainer(StubChatRepository repo) {
+ProviderContainer _makeContainer(
+  StubChatRepository repo, {
+  StubSessionRepository? sessionRepo,
+}) {
   final container = ProviderContainer(
-    overrides: [chatRepositoryProvider.overrideWithValue(repo)],
+    overrides: [
+      chatRepositoryProvider.overrideWithValue(repo),
+      if (sessionRepo != null)
+        sessionRepositoryProvider.overrideWithValue(sessionRepo),
+    ],
     retry: noAutomaticRetry,
   );
   addTearDown(container.dispose);
@@ -64,13 +93,13 @@ void main() {
 
   test('full machine: run_started → sources ×2 (append) → deltas → done', () async {
     final controller = StreamController<ChatEvent>.broadcast();
-    final repo = StubChatRepository()..chatHandler = (q, limit) => controller.stream;
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
     final container = _makeContainer(repo);
 
     container.read(chatProvider.notifier).ask('知识库用什么检索？');
     await flush();
 
-    expect(repo.chatCalls.single, (question: '知识库用什么检索？', limit: 8));
+    expect(repo.chatCalls.single, (question: '知识库用什么检索？', limit: 8, sessionId: null));
     var state = container.read(chatProvider);
     expect(state.phase, ChatPhase.running);
     expect(state.question, '知识库用什么检索？');
@@ -118,7 +147,7 @@ void main() {
 
   test('terminal error after deltas keeps rendered content and surfaces it', () async {
     final controller = StreamController<ChatEvent>.broadcast();
-    final repo = StubChatRepository()..chatHandler = (q, limit) => controller.stream;
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
     final container = _makeContainer(repo);
 
     container.read(chatProvider.notifier).ask('问题');
@@ -147,7 +176,7 @@ void main() {
 
   test('cancel() aborts the run and keeps the rendered content', () async {
     final controller = StreamController<ChatEvent>.broadcast();
-    final repo = StubChatRepository()..chatHandler = (q, limit) => controller.stream;
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
     final container = _makeContainer(repo);
 
     container.read(chatProvider.notifier).ask('问题');
@@ -179,7 +208,7 @@ void main() {
     final controllers = [first, second];
     var callIndex = 0;
     final repo =
-        StubChatRepository()..chatHandler = (q, limit) => controllers[callIndex++].stream;
+        StubChatRepository()..chatHandler = (q, limit, sessionId) => controllers[callIndex++].stream;
     final container = _makeContainer(repo);
 
     container.read(chatProvider.notifier).ask('问题');
@@ -193,7 +222,7 @@ void main() {
     container.read(chatProvider.notifier).retry();
     await flush();
 
-    expect(repo.chatCalls.last, (question: '问题', limit: 8));
+    expect(repo.chatCalls.last, (question: '问题', limit: 8, sessionId: null));
     var state = container.read(chatProvider);
     expect(state.phase, ChatPhase.running);
     expect(state.answer, isEmpty, reason: 'a fresh run resets the answer');
@@ -216,7 +245,7 @@ void main() {
     final newRun = StreamController<ChatEvent>.broadcast();
     final repo =
         StubChatRepository()
-          ..chatHandler = (q, limit) => q == 'first' ? oldRun.stream : newRun.stream;
+          ..chatHandler = (q, limit, sessionId) => q == 'first' ? oldRun.stream : newRun.stream;
     final container = _makeContainer(repo);
 
     container.read(chatProvider.notifier).ask('first');
@@ -249,7 +278,7 @@ void main() {
 
   test('disposing the container cancels the subscription (no ghost deltas)', () async {
     final controller = StreamController<ChatEvent>.broadcast();
-    final repo = StubChatRepository()..chatHandler = (q, limit) => controller.stream;
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
     final container = ProviderContainer(
       overrides: [chatRepositoryProvider.overrideWithValue(repo)],
       retry: noAutomaticRetry,
@@ -267,5 +296,123 @@ void main() {
     controller.add(answerDelta('幽灵'));
     await flush();
     await controller.close();
+  });
+
+  test('follow-up questions reuse the server-assigned session id', () async {
+    final first = StreamController<ChatEvent>.broadcast();
+    final second = StreamController<ChatEvent>.broadcast();
+    final runs = [first, second];
+    var call = 0;
+    final repo = StubChatRepository()
+      ..chatHandler = (q, limit, sessionId) => runs[call++].stream;
+    final container = _makeContainer(repo);
+
+    final notifier = container.read(chatProvider.notifier);
+    notifier.ask('第一问');
+    await flush();
+    first.add(runStarted(runId: 'r1', mode: SearchMode.hybrid, sessionId: 's-1'));
+    first.add(answerDelta('答案一'));
+    first.add(chatDone(runId: 'r1', sessionId: 's-1'));
+    await flush();
+    expect(container.read(chatProvider).sessionId, 's-1');
+
+    notifier.ask('第二问');
+    await flush();
+    expect(repo.chatCalls.last.sessionId, 's-1');
+    // The finished first turn is committed into the history when the next
+    // run starts.
+    final history = container.read(chatProvider).history;
+    expect(history, hasLength(2));
+    expect(history[0].role, ChatMessageRole.user);
+    expect(history[0].content, '第一问');
+    expect(history[1].role, ChatMessageRole.assistant);
+    expect(history[1].content, '答案一');
+
+    await first.close();
+    await second.close();
+  });
+
+  test('newSession() clears the session id, history, and rendered state', () async {
+    final controller = StreamController<ChatEvent>.broadcast();
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
+    final container = _makeContainer(repo);
+
+    container.read(chatProvider.notifier).ask('问题');
+    await flush();
+    controller.add(runStarted(runId: 'r1', sessionId: 's-1'));
+    controller.add(answerDelta('答案'));
+    controller.add(chatDone(runId: 'r1', sessionId: 's-1'));
+    await flush();
+
+    container.read(chatProvider.notifier).newSession();
+
+    final state = container.read(chatProvider);
+    expect(state.phase, ChatPhase.idle);
+    expect(state.sessionId, isNull);
+    expect(state.history, isEmpty);
+    expect(state.question, isEmpty);
+    expect(state.answer, isEmpty);
+
+    await controller.close();
+  });
+
+  test('openSession loads history and continues the conversation', () async {
+    final controller = StreamController<ChatEvent>.broadcast();
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
+    final sessionRepo = StubSessionRepository()
+      ..detail = SessionDetail(
+        id: 's-9',
+        title: '旧会话',
+        createdAt: DateTime.utc(2026, 9, 1),
+        updatedAt: DateTime.utc(2026, 9, 2),
+        messages: [
+          ChatMessage(
+            id: 'm1',
+            role: ChatMessageRole.user,
+            content: '旧问题',
+            createdAt: DateTime.utc(2026, 9, 1),
+          ),
+          ChatMessage(
+            id: 'm2',
+            role: ChatMessageRole.assistant,
+            content: '旧回答',
+            runId: 'r0',
+            createdAt: DateTime.utc(2026, 9, 1),
+          ),
+        ],
+      );
+    final container = _makeContainer(repo, sessionRepo: sessionRepo);
+
+    await container.read(chatProvider.notifier).openSession('s-9');
+
+    expect(sessionRepo.getSessionCalls, ['s-9']);
+    var state = container.read(chatProvider);
+    expect(state.phase, ChatPhase.idle);
+    expect(state.sessionId, 's-9');
+    expect(state.history, hasLength(2));
+
+    container.read(chatProvider.notifier).ask('新问题');
+    await flush();
+    expect(repo.chatCalls.single.sessionId, 's-9');
+
+    await controller.close();
+  });
+
+  test('openSession failure surfaces the error envelope and keeps idle', () async {
+    final repo = StubChatRepository();
+    final sessionRepo = StubSessionRepository()
+      ..detailError = const ApiException(
+        code: 'session_not_found',
+        message: 'no such session',
+      );
+    final container = _makeContainer(repo, sessionRepo: sessionRepo);
+
+    await container.read(chatProvider.notifier).openSession('missing');
+
+    final state = container.read(chatProvider);
+    expect(state.phase, ChatPhase.error);
+    expect(state.errorCode, 'session_not_found');
+    expect(state.errorMessage, 'no such session');
+    expect(state.sessionId, isNull);
   });
 }

@@ -15,7 +15,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ChatRequest {
 
- String get question; int get limit;
+ String get question; int get limit;// Absent on the wire == null server-side; omitting the key keeps the
+// first-question request identical to the pre-sessions wire shape.
+@JsonKey(includeIfNull: false) String? get sessionId;
 /// Create a copy of ChatRequest
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +30,16 @@ $ChatRequestCopyWith<ChatRequest> get copyWith => _$ChatRequestCopyWithImpl<Chat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatRequest&&(identical(other.question, question) || other.question == question)&&(identical(other.limit, limit) || other.limit == limit));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatRequest&&(identical(other.question, question) || other.question == question)&&(identical(other.limit, limit) || other.limit == limit)&&(identical(other.sessionId, sessionId) || other.sessionId == sessionId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,question,limit);
+int get hashCode => Object.hash(runtimeType,question,limit,sessionId);
 
 @override
 String toString() {
-  return 'ChatRequest(question: $question, limit: $limit)';
+  return 'ChatRequest(question: $question, limit: $limit, sessionId: $sessionId)';
 }
 
 
@@ -48,7 +50,7 @@ abstract mixin class $ChatRequestCopyWith<$Res>  {
   factory $ChatRequestCopyWith(ChatRequest value, $Res Function(ChatRequest) _then) = _$ChatRequestCopyWithImpl;
 @useResult
 $Res call({
- String question, int limit
+ String question, int limit,@JsonKey(includeIfNull: false) String? sessionId
 });
 
 
@@ -65,11 +67,12 @@ class _$ChatRequestCopyWithImpl<$Res>
 
 /// Create a copy of ChatRequest
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? question = null,Object? limit = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? question = null,Object? limit = null,Object? sessionId = freezed,}) {
   return _then(_self.copyWith(
 question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
 as String,limit: null == limit ? _self.limit : limit // ignore: cast_nullable_to_non_nullable
-as int,
+as int,sessionId: freezed == sessionId ? _self.sessionId : sessionId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -154,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String question,  int limit)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String question,  int limit, @JsonKey(includeIfNull: false)  String? sessionId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatRequest() when $default != null:
-return $default(_that.question,_that.limit);case _:
+return $default(_that.question,_that.limit,_that.sessionId);case _:
   return orElse();
 
 }
@@ -175,10 +178,10 @@ return $default(_that.question,_that.limit);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String question,  int limit)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String question,  int limit, @JsonKey(includeIfNull: false)  String? sessionId)  $default,) {final _that = this;
 switch (_that) {
 case _ChatRequest():
-return $default(_that.question,_that.limit);case _:
+return $default(_that.question,_that.limit,_that.sessionId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -195,10 +198,10 @@ return $default(_that.question,_that.limit);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String question,  int limit)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String question,  int limit, @JsonKey(includeIfNull: false)  String? sessionId)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatRequest() when $default != null:
-return $default(_that.question,_that.limit);case _:
+return $default(_that.question,_that.limit,_that.sessionId);case _:
   return null;
 
 }
@@ -210,11 +213,14 @@ return $default(_that.question,_that.limit);case _:
 @JsonSerializable()
 
 class _ChatRequest implements ChatRequest {
-  const _ChatRequest({required this.question, this.limit = 8});
+  const _ChatRequest({required this.question, this.limit = 8, @JsonKey(includeIfNull: false) this.sessionId});
   factory _ChatRequest.fromJson(Map<String, dynamic> json) => _$ChatRequestFromJson(json);
 
 @override final  String question;
 @override@JsonKey() final  int limit;
+// Absent on the wire == null server-side; omitting the key keeps the
+// first-question request identical to the pre-sessions wire shape.
+@override@JsonKey(includeIfNull: false) final  String? sessionId;
 
 /// Create a copy of ChatRequest
 /// with the given fields replaced by the non-null parameter values.
@@ -229,16 +235,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatRequest&&(identical(other.question, question) || other.question == question)&&(identical(other.limit, limit) || other.limit == limit));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatRequest&&(identical(other.question, question) || other.question == question)&&(identical(other.limit, limit) || other.limit == limit)&&(identical(other.sessionId, sessionId) || other.sessionId == sessionId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,question,limit);
+int get hashCode => Object.hash(runtimeType,question,limit,sessionId);
 
 @override
 String toString() {
-  return 'ChatRequest(question: $question, limit: $limit)';
+  return 'ChatRequest(question: $question, limit: $limit, sessionId: $sessionId)';
 }
 
 
@@ -249,7 +255,7 @@ abstract mixin class _$ChatRequestCopyWith<$Res> implements $ChatRequestCopyWith
   factory _$ChatRequestCopyWith(_ChatRequest value, $Res Function(_ChatRequest) _then) = __$ChatRequestCopyWithImpl;
 @override @useResult
 $Res call({
- String question, int limit
+ String question, int limit,@JsonKey(includeIfNull: false) String? sessionId
 });
 
 
@@ -266,11 +272,12 @@ class __$ChatRequestCopyWithImpl<$Res>
 
 /// Create a copy of ChatRequest
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? question = null,Object? limit = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? question = null,Object? limit = null,Object? sessionId = freezed,}) {
   return _then(_ChatRequest(
 question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
 as String,limit: null == limit ? _self.limit : limit // ignore: cast_nullable_to_non_nullable
-as int,
+as int,sessionId: freezed == sessionId ? _self.sessionId : sessionId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -281,7 +288,7 @@ as int,
 /// @nodoc
 mixin _$RunStarted {
 
- String get runId;@JsonKey(unknownEnumValue: SearchMode.bm25) SearchMode get mode;
+ String get runId;@JsonKey(unknownEnumValue: SearchMode.bm25) SearchMode get mode; String? get sessionId;
 /// Create a copy of RunStarted
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -294,16 +301,16 @@ $RunStartedCopyWith<RunStarted> get copyWith => _$RunStartedCopyWithImpl<RunStar
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RunStarted&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.mode, mode) || other.mode == mode));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RunStarted&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.mode, mode) || other.mode == mode)&&(identical(other.sessionId, sessionId) || other.sessionId == sessionId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,runId,mode);
+int get hashCode => Object.hash(runtimeType,runId,mode,sessionId);
 
 @override
 String toString() {
-  return 'RunStarted(runId: $runId, mode: $mode)';
+  return 'RunStarted(runId: $runId, mode: $mode, sessionId: $sessionId)';
 }
 
 
@@ -314,7 +321,7 @@ abstract mixin class $RunStartedCopyWith<$Res>  {
   factory $RunStartedCopyWith(RunStarted value, $Res Function(RunStarted) _then) = _$RunStartedCopyWithImpl;
 @useResult
 $Res call({
- String runId,@JsonKey(unknownEnumValue: SearchMode.bm25) SearchMode mode
+ String runId,@JsonKey(unknownEnumValue: SearchMode.bm25) SearchMode mode, String? sessionId
 });
 
 
@@ -331,11 +338,12 @@ class _$RunStartedCopyWithImpl<$Res>
 
 /// Create a copy of RunStarted
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? runId = null,Object? mode = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? runId = null,Object? mode = null,Object? sessionId = freezed,}) {
   return _then(_self.copyWith(
 runId: null == runId ? _self.runId : runId // ignore: cast_nullable_to_non_nullable
 as String,mode: null == mode ? _self.mode : mode // ignore: cast_nullable_to_non_nullable
-as SearchMode,
+as SearchMode,sessionId: freezed == sessionId ? _self.sessionId : sessionId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -420,10 +428,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String runId, @JsonKey(unknownEnumValue: SearchMode.bm25)  SearchMode mode)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String runId, @JsonKey(unknownEnumValue: SearchMode.bm25)  SearchMode mode,  String? sessionId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _RunStarted() when $default != null:
-return $default(_that.runId,_that.mode);case _:
+return $default(_that.runId,_that.mode,_that.sessionId);case _:
   return orElse();
 
 }
@@ -441,10 +449,10 @@ return $default(_that.runId,_that.mode);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String runId, @JsonKey(unknownEnumValue: SearchMode.bm25)  SearchMode mode)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String runId, @JsonKey(unknownEnumValue: SearchMode.bm25)  SearchMode mode,  String? sessionId)  $default,) {final _that = this;
 switch (_that) {
 case _RunStarted():
-return $default(_that.runId,_that.mode);case _:
+return $default(_that.runId,_that.mode,_that.sessionId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -461,10 +469,10 @@ return $default(_that.runId,_that.mode);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String runId, @JsonKey(unknownEnumValue: SearchMode.bm25)  SearchMode mode)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String runId, @JsonKey(unknownEnumValue: SearchMode.bm25)  SearchMode mode,  String? sessionId)?  $default,) {final _that = this;
 switch (_that) {
 case _RunStarted() when $default != null:
-return $default(_that.runId,_that.mode);case _:
+return $default(_that.runId,_that.mode,_that.sessionId);case _:
   return null;
 
 }
@@ -476,11 +484,12 @@ return $default(_that.runId,_that.mode);case _:
 @JsonSerializable()
 
 class _RunStarted extends RunStarted {
-  const _RunStarted({required this.runId, @JsonKey(unknownEnumValue: SearchMode.bm25) required this.mode}): super._();
+  const _RunStarted({required this.runId, @JsonKey(unknownEnumValue: SearchMode.bm25) required this.mode, this.sessionId}): super._();
   factory _RunStarted.fromJson(Map<String, dynamic> json) => _$RunStartedFromJson(json);
 
 @override final  String runId;
 @override@JsonKey(unknownEnumValue: SearchMode.bm25) final  SearchMode mode;
+@override final  String? sessionId;
 
 /// Create a copy of RunStarted
 /// with the given fields replaced by the non-null parameter values.
@@ -495,16 +504,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RunStarted&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.mode, mode) || other.mode == mode));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RunStarted&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.mode, mode) || other.mode == mode)&&(identical(other.sessionId, sessionId) || other.sessionId == sessionId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,runId,mode);
+int get hashCode => Object.hash(runtimeType,runId,mode,sessionId);
 
 @override
 String toString() {
-  return 'RunStarted(runId: $runId, mode: $mode)';
+  return 'RunStarted(runId: $runId, mode: $mode, sessionId: $sessionId)';
 }
 
 
@@ -515,7 +524,7 @@ abstract mixin class _$RunStartedCopyWith<$Res> implements $RunStartedCopyWith<$
   factory _$RunStartedCopyWith(_RunStarted value, $Res Function(_RunStarted) _then) = __$RunStartedCopyWithImpl;
 @override @useResult
 $Res call({
- String runId,@JsonKey(unknownEnumValue: SearchMode.bm25) SearchMode mode
+ String runId,@JsonKey(unknownEnumValue: SearchMode.bm25) SearchMode mode, String? sessionId
 });
 
 
@@ -532,11 +541,12 @@ class __$RunStartedCopyWithImpl<$Res>
 
 /// Create a copy of RunStarted
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? runId = null,Object? mode = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? runId = null,Object? mode = null,Object? sessionId = freezed,}) {
   return _then(_RunStarted(
 runId: null == runId ? _self.runId : runId // ignore: cast_nullable_to_non_nullable
 as String,mode: null == mode ? _self.mode : mode // ignore: cast_nullable_to_non_nullable
-as SearchMode,
+as SearchMode,sessionId: freezed == sessionId ? _self.sessionId : sessionId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -1079,7 +1089,7 @@ as String,
 /// @nodoc
 mixin _$ChatDone {
 
- String get runId; String get outcome; int get toolCalls; double get latencyMs;
+ String get runId; String get outcome; int get toolCalls; double get latencyMs; String? get sessionId;
 /// Create a copy of ChatDone
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1092,16 +1102,16 @@ $ChatDoneCopyWith<ChatDone> get copyWith => _$ChatDoneCopyWithImpl<ChatDone>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDone&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.toolCalls, toolCalls) || other.toolCalls == toolCalls)&&(identical(other.latencyMs, latencyMs) || other.latencyMs == latencyMs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDone&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.toolCalls, toolCalls) || other.toolCalls == toolCalls)&&(identical(other.latencyMs, latencyMs) || other.latencyMs == latencyMs)&&(identical(other.sessionId, sessionId) || other.sessionId == sessionId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,runId,outcome,toolCalls,latencyMs);
+int get hashCode => Object.hash(runtimeType,runId,outcome,toolCalls,latencyMs,sessionId);
 
 @override
 String toString() {
-  return 'ChatDone(runId: $runId, outcome: $outcome, toolCalls: $toolCalls, latencyMs: $latencyMs)';
+  return 'ChatDone(runId: $runId, outcome: $outcome, toolCalls: $toolCalls, latencyMs: $latencyMs, sessionId: $sessionId)';
 }
 
 
@@ -1112,7 +1122,7 @@ abstract mixin class $ChatDoneCopyWith<$Res>  {
   factory $ChatDoneCopyWith(ChatDone value, $Res Function(ChatDone) _then) = _$ChatDoneCopyWithImpl;
 @useResult
 $Res call({
- String runId, String outcome, int toolCalls, double latencyMs
+ String runId, String outcome, int toolCalls, double latencyMs, String? sessionId
 });
 
 
@@ -1129,13 +1139,14 @@ class _$ChatDoneCopyWithImpl<$Res>
 
 /// Create a copy of ChatDone
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? runId = null,Object? outcome = null,Object? toolCalls = null,Object? latencyMs = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? runId = null,Object? outcome = null,Object? toolCalls = null,Object? latencyMs = null,Object? sessionId = freezed,}) {
   return _then(_self.copyWith(
 runId: null == runId ? _self.runId : runId // ignore: cast_nullable_to_non_nullable
 as String,outcome: null == outcome ? _self.outcome : outcome // ignore: cast_nullable_to_non_nullable
 as String,toolCalls: null == toolCalls ? _self.toolCalls : toolCalls // ignore: cast_nullable_to_non_nullable
 as int,latencyMs: null == latencyMs ? _self.latencyMs : latencyMs // ignore: cast_nullable_to_non_nullable
-as double,
+as double,sessionId: freezed == sessionId ? _self.sessionId : sessionId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -1220,10 +1231,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String runId,  String outcome,  int toolCalls,  double latencyMs)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String runId,  String outcome,  int toolCalls,  double latencyMs,  String? sessionId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatDone() when $default != null:
-return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs);case _:
+return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs,_that.sessionId);case _:
   return orElse();
 
 }
@@ -1241,10 +1252,10 @@ return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs);case 
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String runId,  String outcome,  int toolCalls,  double latencyMs)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String runId,  String outcome,  int toolCalls,  double latencyMs,  String? sessionId)  $default,) {final _that = this;
 switch (_that) {
 case _ChatDone():
-return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs);case _:
+return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs,_that.sessionId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1261,10 +1272,10 @@ return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs);case 
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String runId,  String outcome,  int toolCalls,  double latencyMs)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String runId,  String outcome,  int toolCalls,  double latencyMs,  String? sessionId)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatDone() when $default != null:
-return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs);case _:
+return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs,_that.sessionId);case _:
   return null;
 
 }
@@ -1276,13 +1287,14 @@ return $default(_that.runId,_that.outcome,_that.toolCalls,_that.latencyMs);case 
 @JsonSerializable()
 
 class _ChatDone extends ChatDone {
-  const _ChatDone({required this.runId, this.outcome = 'success', this.toolCalls = 0, this.latencyMs = 0}): super._();
+  const _ChatDone({required this.runId, this.outcome = 'success', this.toolCalls = 0, this.latencyMs = 0, this.sessionId}): super._();
   factory _ChatDone.fromJson(Map<String, dynamic> json) => _$ChatDoneFromJson(json);
 
 @override final  String runId;
 @override@JsonKey() final  String outcome;
 @override@JsonKey() final  int toolCalls;
 @override@JsonKey() final  double latencyMs;
+@override final  String? sessionId;
 
 /// Create a copy of ChatDone
 /// with the given fields replaced by the non-null parameter values.
@@ -1297,16 +1309,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDone&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.toolCalls, toolCalls) || other.toolCalls == toolCalls)&&(identical(other.latencyMs, latencyMs) || other.latencyMs == latencyMs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDone&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.toolCalls, toolCalls) || other.toolCalls == toolCalls)&&(identical(other.latencyMs, latencyMs) || other.latencyMs == latencyMs)&&(identical(other.sessionId, sessionId) || other.sessionId == sessionId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,runId,outcome,toolCalls,latencyMs);
+int get hashCode => Object.hash(runtimeType,runId,outcome,toolCalls,latencyMs,sessionId);
 
 @override
 String toString() {
-  return 'ChatDone(runId: $runId, outcome: $outcome, toolCalls: $toolCalls, latencyMs: $latencyMs)';
+  return 'ChatDone(runId: $runId, outcome: $outcome, toolCalls: $toolCalls, latencyMs: $latencyMs, sessionId: $sessionId)';
 }
 
 
@@ -1317,7 +1329,7 @@ abstract mixin class _$ChatDoneCopyWith<$Res> implements $ChatDoneCopyWith<$Res>
   factory _$ChatDoneCopyWith(_ChatDone value, $Res Function(_ChatDone) _then) = __$ChatDoneCopyWithImpl;
 @override @useResult
 $Res call({
- String runId, String outcome, int toolCalls, double latencyMs
+ String runId, String outcome, int toolCalls, double latencyMs, String? sessionId
 });
 
 
@@ -1334,13 +1346,14 @@ class __$ChatDoneCopyWithImpl<$Res>
 
 /// Create a copy of ChatDone
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? runId = null,Object? outcome = null,Object? toolCalls = null,Object? latencyMs = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? runId = null,Object? outcome = null,Object? toolCalls = null,Object? latencyMs = null,Object? sessionId = freezed,}) {
   return _then(_ChatDone(
 runId: null == runId ? _self.runId : runId // ignore: cast_nullable_to_non_nullable
 as String,outcome: null == outcome ? _self.outcome : outcome // ignore: cast_nullable_to_non_nullable
 as String,toolCalls: null == toolCalls ? _self.toolCalls : toolCalls // ignore: cast_nullable_to_non_nullable
 as int,latencyMs: null == latencyMs ? _self.latencyMs : latencyMs // ignore: cast_nullable_to_non_nullable
-as double,
+as double,sessionId: freezed == sessionId ? _self.sessionId : sessionId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

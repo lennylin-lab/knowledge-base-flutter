@@ -5,15 +5,20 @@ import 'search.dart';
 part 'chat.freezed.dart';
 part 'chat.g.dart';
 
-/// One stateless chat turn: a question plus retrieval sizing.
+/// One chat turn: a question plus retrieval sizing.
 ///
 /// [limit] is clamped to 1–20 (default 8) by the caller before sending —
-/// out-of-range values are rejected server-side with 422.
+/// out-of-range values are rejected server-side with 422. [sessionId] absent
+/// starts a new persisted session (title derived from the question); present
+/// continues that session (unknown id is rejected with an error envelope).
 @freezed
 abstract class ChatRequest with _$ChatRequest {
   const factory ChatRequest({
     required String question,
     @Default(8) int limit,
+    // Absent on the wire == null server-side; omitting the key keeps the
+    // first-question request identical to the pre-sessions wire shape.
+    @JsonKey(includeIfNull: false) String? sessionId,
   }) = _ChatRequest;
 
   factory ChatRequest.fromJson(Map<String, dynamic> json) =>
@@ -32,6 +37,8 @@ sealed class ChatEvent {
 }
 
 /// First event of every run; `mode` is the configured retrieval mode.
+/// [sessionId] is the persisted conversation this run belongs to (may be
+/// `null` on a stateless server wiring — clients must tolerate it).
 @freezed
 abstract class RunStarted extends ChatEvent with _$RunStarted {
   const RunStarted._();
@@ -40,6 +47,7 @@ abstract class RunStarted extends ChatEvent with _$RunStarted {
     required String runId,
     @JsonKey(unknownEnumValue: SearchMode.bm25)
     required SearchMode mode,
+    String? sessionId,
   }) = _RunStarted;
 
   factory RunStarted.fromJson(Map<String, dynamic> json) =>
@@ -81,6 +89,7 @@ abstract class ChatDone extends ChatEvent with _$ChatDone {
     @Default('success') String outcome,
     @Default(0) int toolCalls,
     @Default(0) double latencyMs,
+    String? sessionId,
   }) = _ChatDone;
 
   factory ChatDone.fromJson(Map<String, dynamic> json) =>

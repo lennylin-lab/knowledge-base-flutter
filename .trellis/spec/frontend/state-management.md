@@ -58,7 +58,9 @@ truly app-wide.
 
 ## Chat SSE State Machine (critical)
 
-Single-turn, stateless QA. The chat notifier implements this state machine:
+Session-persisted multi-turn QA. The chat notifier holds one active
+conversation (`sessionId`, server-assigned via `run_started`/`done`) and
+implements this state machine per run:
 
 ```
 idle → run_started (keep run_id, mode)
@@ -73,13 +75,16 @@ idle → run_started (keep run_id, mode)
 - On widget dispose, cancel the subscription and return to `idle`.
 - HTTP status may already be 200 when an `error` event arrives — the SSE layer,
   not dio, reports it.
+- Follow-up questions send the active `sessionId`; `newSession()` clears it.
+  A finished run commits its turn into the client-side `history` when the next
+  run starts (the server persists the same turns; history messages carry no
+  sources).
 
 ---
 
 ## Common Mistakes
 
-- Keeping a `List` of chat messages — there are no conversation turns in the
-  backend (single-turn only). UI may keep local history for display, but each
-  question is an independent request.
+- Sending `session_id: null` on the wire — omit it (`includeIfNull: false` on
+  `ChatRequest.sessionId`); absent == new session server-side.
 - Treating `next_cursor == null` as an error — it means "end of list".
 - Mutating DTO lists in place — freezed models are immutable; copy/replace.

@@ -9,10 +9,15 @@ part of 'chat.dart';
 _ChatRequest _$ChatRequestFromJson(Map<String, dynamic> json) => _ChatRequest(
   question: json['question'] as String,
   limit: (json['limit'] as num?)?.toInt() ?? 8,
+  sessionId: json['session_id'] as String?,
 );
 
 Map<String, dynamic> _$ChatRequestToJson(_ChatRequest instance) =>
-    <String, dynamic>{'question': instance.question, 'limit': instance.limit};
+    <String, dynamic>{
+      'question': instance.question,
+      'limit': instance.limit,
+      'session_id': ?instance.sessionId,
+    };
 
 _RunStarted _$RunStartedFromJson(Map<String, dynamic> json) => _RunStarted(
   runId: json['run_id'] as String,
@@ -21,12 +26,14 @@ _RunStarted _$RunStartedFromJson(Map<String, dynamic> json) => _RunStarted(
     json['mode'],
     unknownValue: SearchMode.bm25,
   ),
+  sessionId: json['session_id'] as String?,
 );
 
 Map<String, dynamic> _$RunStartedToJson(_RunStarted instance) =>
     <String, dynamic>{
       'run_id': instance.runId,
       'mode': _$SearchModeEnumMap[instance.mode]!,
+      'session_id': instance.sessionId,
     };
 
 const _$SearchModeEnumMap = {
@@ -57,6 +64,7 @@ _ChatDone _$ChatDoneFromJson(Map<String, dynamic> json) => _ChatDone(
   outcome: json['outcome'] as String? ?? 'success',
   toolCalls: (json['tool_calls'] as num?)?.toInt() ?? 0,
   latencyMs: (json['latency_ms'] as num?)?.toDouble() ?? 0,
+  sessionId: json['session_id'] as String?,
 );
 
 Map<String, dynamic> _$ChatDoneToJson(_ChatDone instance) => <String, dynamic>{
@@ -64,6 +72,7 @@ Map<String, dynamic> _$ChatDoneToJson(_ChatDone instance) => <String, dynamic>{
   'outcome': instance.outcome,
   'tool_calls': instance.toolCalls,
   'latency_ms': instance.latencyMs,
+  'session_id': instance.sessionId,
 };
 
 _ChatErrorEvent _$ChatErrorEventFromJson(Map<String, dynamic> json) =>

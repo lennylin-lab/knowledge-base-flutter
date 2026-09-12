@@ -69,12 +69,12 @@ void main() {
   testWidgets('streams the answer progressively with a spinner; send is disabled '
       'while running; done shows latency/tool metadata', (tester) async {
     final controller = StreamController<ChatEvent>.broadcast();
-    final repo = StubChatRepository()..chatHandler = (q, limit) => controller.stream;
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
 
     await pumpChatApp(tester, chatRepo: repo);
     await sendQuestion(tester, '什么是 RAG？');
 
-    expect(repo.chatCalls.single, (question: '什么是 RAG？', limit: 8));
+    expect(repo.chatCalls.single, (question: '什么是 RAG？', limit: 8, sessionId: null));
     expect(find.text('正在思考…'), findsOneWidget);
     expect(find.text('问：什么是 RAG？'), findsOneWidget);
     expect(sendButton(tester).onPressed, isNull, reason: 'send disabled while running');
@@ -116,7 +116,7 @@ void main() {
             );
           };
     final controller = StreamController<ChatEvent>.broadcast();
-    final repo = StubChatRepository()..chatHandler = (q, limit) => controller.stream;
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
 
     await pumpChatApp(tester, chatRepo: repo, documentsRepo: docsRepo);
     await sendQuestion(tester, '来源有哪些？');
@@ -159,7 +159,7 @@ void main() {
     final controllers = [first, second];
     var calls = 0;
     final repo =
-        StubChatRepository()..chatHandler = (q, limit) => controllers[calls++].stream;
+        StubChatRepository()..chatHandler = (q, limit, sessionId) => controllers[calls++].stream;
 
     await pumpChatApp(tester, chatRepo: repo);
     await sendQuestion(tester, '问题');
@@ -196,7 +196,7 @@ void main() {
     tester,
   ) async {
     final controller = StreamController<ChatEvent>.broadcast();
-    final repo = StubChatRepository()..chatHandler = (q, limit) => controller.stream;
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
 
     await pumpChatApp(tester, chatRepo: repo);
     await sendQuestion(tester, '问题');
@@ -219,7 +219,7 @@ void main() {
 
   testWidgets('a done run without deltas renders 未生成回答内容', (tester) async {
     final controller = StreamController<ChatEvent>.broadcast();
-    final repo = StubChatRepository()..chatHandler = (q, limit) => controller.stream;
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
 
     await pumpChatApp(tester, chatRepo: repo);
     await sendQuestion(tester, '问题');

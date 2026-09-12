@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Stack and binding spec index for the Flutter client"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "freezed DTO ↔ backend schema mapping and JSON rules for new session DTOs"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Riverpod state categories and the chat SSE state machine being extended"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Provider patterns for the new session providers"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Widget rules for the conversation view and sessions page"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Feature-first layout rules for new files"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "analyze/test gates and forbidden patterns"}

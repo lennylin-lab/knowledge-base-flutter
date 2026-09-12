@@ -4,16 +4,18 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/search.dart';
+import '../../shared/models/session.dart';
 import '../../shared/widgets/markdown_content.dart';
 import 'chat_providers.dart';
 
-/// 问答页：单轮 SSE 流式问答。
+/// 问答页：多轮会话式流式问答。
 ///
-/// 输入问题后通过 [ChatNotifier] 订阅 `POST /api/v1/chat` 事件流：
-/// `run_started → sources* → answer_delta* → done | error`。答案增量以
-/// Markdown 渲染（与文档详情页共用 MarkdownContent）；引用来源按到达顺序
-/// 编号展示，答案中的 `[n]` 对应第 n 条来源，点击跳转文档详情
-/// （state-management / component-guidelines spec）。
+/// 通过 [ChatNotifier] 订阅 `POST /api/v1/chat` 事件流：
+/// `run_started → sources* → answer_delta* → done | error`。历史消息在上方
+/// 按时间顺序渲染；当前一轮的增量以 Markdown 渲染（与文档详情页共用
+/// MarkdownContent），引用来源按到达顺序编号展示，答案中的 `[n]` 对应第 n
+/// 条来源，点击跳转文档详情（state-management / component-guidelines
+/// spec）。AppBar 提供「新对话」与「历史会话」入口。
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
 
@@ -42,18 +44,43 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(chatProvider);
     final notifier = ref.read(chatProvider.notifier);
+    final sizes = context.sizes;
+
+    final children = <Widget>[
+      for (final message in state.history) _HistoryBubble(message: message),
+      if (state.question.isNotEmpty) _RunView(state: state, onRetry: notifier.retry),
+    ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('问答')),
+      appBar: AppBar(
+        title: const Text('问答'),
+        actions: [
+          IconButton(
+            tooltip: '新对话',
+            icon: const Icon(Icons.add_comment_outlined),
+            onPressed: notifier.newSession,
+          ),
+          IconButton(
+            tooltip: '历史会话',
+            icon: const Icon(Icons.history),
+            onPressed: () => context.push('/chat/sessions'),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
-            child:
-                state.phase == ChatPhase.idle &&
-                    state.answer.isEmpty &&
-                    state.sources.isEmpty
+            child: children.isEmpty
                 ? const _IdleHint()
-                : _AnswerView(state: state, onRetry: notifier.retry),
+                : ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      sizes.pagePadH,
+                      sizes.space12,
+                      sizes.pagePadH,
+                      sizes.space16,
+                    ),
+                    children: children,
+                  ),
           ),
           _InputBar(
             controller: _inputController,
@@ -67,46 +94,46 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 }
 
-/// 尚未提问时的引导态。
-class _IdleHint extends StatelessWidget {
-  const _IdleHint();
+/// 历史消息气泡：用户消息右对齐容器，助手消息全宽 Markdown 渲染。
+/// 历史助手消息不含来源（后端只存文本），引用编号不解析。
+class _HistoryBubble extends StatelessWidget {
+  const _HistoryBubble({required this.message});
+
+  final ChatMessage message;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sizes = context.sizes;
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(sizes.space24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: sizes.iconHero,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            SizedBox(height: sizes.space12),
-            Text('尚未提问', style: theme.textTheme.titleMedium),
-            SizedBox(height: sizes.space4),
-            Text(
-              '输入问题，AI 将基于知识库检索结果给出带引用的回答',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+    if (message.role == ChatMessageRole.user) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          margin: EdgeInsets.only(bottom: sizes.space8, left: sizes.space24),
+          padding: EdgeInsets.symmetric(
+            horizontal: sizes.space12,
+            vertical: sizes.space8,
+          ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(sizes.radiusLg),
+          ),
+          child: Text(message.content, style: theme.textTheme.bodyMedium),
         ),
-      ),
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.only(bottom: sizes.space12),
+      child: MarkdownContent(data: message.content),
     );
   }
 }
 
-/// 问答内容区：问题、流式答案（Markdown）、引用来源、终端状态
-/// （done 元信息 / 内联错误 + 重试）。已渲染的增量与来源在错误后保留。
-class _AnswerView extends StatelessWidget {
-  const _AnswerView({required this.state, required this.onRetry});
+/// 当前一轮运行视图：问题、流式答案（Markdown）、引用来源、终端错误
+/// （内联错误 + 重试）。已渲染的增量与来源在错误后保留；`done` 后该轮
+/// 已并入历史，这里不再重复渲染。
+class _RunView extends StatelessWidget {
+  const _RunView({required this.state, required this.onRetry});
 
   final ChatState state;
   final VoidCallback onRetry;
@@ -116,16 +143,15 @@ class _AnswerView extends StatelessWidget {
     final theme = Theme.of(context);
     final sizes = context.sizes;
     final children = <Widget>[
-      if (state.question.isNotEmpty)
-        Padding(
-          padding: EdgeInsets.only(bottom: sizes.space8),
-          child: Text(
-            '问：${state.question}',
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+      Padding(
+        padding: EdgeInsets.only(bottom: sizes.space8),
+        child: Text(
+          '问：${state.question}',
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+      ),
       if (state.phase == ChatPhase.running)
         const _ProgressRow(text: '正在思考…'),
       if (state.phase == ChatPhase.streaming)
@@ -164,14 +190,45 @@ class _AnswerView extends StatelessWidget {
       ],
     ];
 
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-        sizes.pagePadH,
-        sizes.space12,
-        sizes.pagePadH,
-        sizes.space16,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
+    );
+  }
+}
+
+/// 尚未提问时的引导态。
+class _IdleHint extends StatelessWidget {
+  const _IdleHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(sizes.space24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline,
+              size: sizes.iconHero,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            SizedBox(height: sizes.space12),
+            Text('尚未提问', style: theme.textTheme.titleMedium),
+            SizedBox(height: sizes.space4),
+            Text(
+              '输入问题，AI 将基于知识库检索结果给出带引用的回答',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
