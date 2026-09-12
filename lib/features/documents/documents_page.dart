@@ -245,6 +245,7 @@ class _DocumentsListView extends ConsumerWidget {
           itemBuilder: (context, index) {
             if (index < state.items.length) {
               final document = state.items[index];
+              final selected = document.id == selectedId;
               return Card.outlined(
                 // Margin doubles as the gap between neighbouring cards,
                 // so each document reads as its own bordered block.
@@ -252,9 +253,14 @@ class _DocumentsListView extends ConsumerWidget {
                   horizontal: sizes.pagePadHCompact,
                   vertical: sizes.cardGapVWide,
                 ),
+                // Selection reads as the card background (M3 selected-item
+                // container), not as recolored title text.
+                color: selected
+                    ? Theme.of(context).colorScheme.secondaryContainer
+                    : null,
                 child: _DocumentTile(
                   document: document,
-                  selected: document.id == selectedId,
+                  selected: selected,
                   onTap: () => onOpenDocument(document.id),
                   // failed → re-save affordance deep-links to the editor.
                   onRetryIndex: () =>
@@ -290,6 +296,9 @@ class _DocumentTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       selected: selected,
+      // Selection is expressed by the card background — keep the title at
+      // its normal color instead of the ListTile selected tint.
+      selectedColor: theme.colorScheme.onSurface,
       // 无行数上限：文本自然铺满卡片宽度、在边界处换行，不截断。
       title: Text(document.title),
       subtitle: Column(
