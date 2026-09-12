@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "布局/组件规范：断点、Adaptive Layout、尺寸常量豁免规则"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Riverpod 状态模式与测试 retry 约定，新增持久化 provider 需遵循"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "质量红线（硬编码尺寸等）"}

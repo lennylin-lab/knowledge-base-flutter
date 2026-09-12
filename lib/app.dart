@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/layout/layout_preferences.dart';
 import 'core/theme/app_sizes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/chat/chat_page.dart';
@@ -8,6 +10,7 @@ import 'features/documents/document_detail_page.dart';
 import 'features/documents/document_editor_page.dart';
 import 'features/documents/documents_page.dart';
 import 'features/search/search_page.dart';
+import 'shared/widgets/resizable_pane.dart';
 
 /// Root widget: Material 3 app, system light/dark, three-branch shell.
 ///
@@ -142,10 +145,24 @@ const _destinations = [
 /// Adaptive navigation shell (Material 3 breakpoints): expanded rail ≥ 840,
 /// collapsed rail 600–840, bottom bar < 600. Content area is identical in
 /// every shell (component-guidelines spec).
-class _AdaptiveShell extends StatelessWidget {
+///
+/// The rail edge is draggable on wide layouts (persisted width via
+/// [layoutWidthsProvider], two-tier shrink bounds in `_rail*` constants).
+/// Until the rail has been dragged (`width == null`) the layout is
+/// pixel-identical to the pre-resizable shell.
+class _AdaptiveShell extends ConsumerWidget {
   const _AdaptiveShell({required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
+
+  /// Rail pane sizing (layout constraints, exempt from AppSizes tokens):
+  /// default/auto, tier-one (responsive) minimum, tier-two hard minimum,
+  /// strict maximum.
+  static const String _railPaneId = 'nav.rail';
+  static const double _railDefaultWidth = 240;
+  static const double _railResponsiveMinWidth = 176;
+  static const double _railAbsoluteMinWidth = 88;
+  static const double _railMaxWidth = 320;
 
   void _goBranch(int index) {
     navigationShell.goBranch(
@@ -156,7 +173,7 @@ class _AdaptiveShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // NavigationRail/NavigationBar resolve icon size from their own theme
     // data, not the global iconTheme — set it explicitly via the tokens.
     final iconSize = context.sizes.iconLg;
@@ -164,25 +181,52 @@ class _AdaptiveShell extends StatelessWidget {
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= 600;
         if (useRail) {
-          final extended = constraints.maxWidth >= 840;
+          final railWidth = ref
+              .watch(layoutWidthsProvider)
+              .widthOf(_railPaneId);
+          // Untouched rail keeps the existing window-breakpoint behavior;
+          // once dragged, labels show whenever the pane is above tier one.
+          final extended = railWidth != null
+              ? railWidth >= _railResponsiveMinWidth
+              : constraints.maxWidth >= 840;
+          void setWidth(double width, {required bool persist}) {
+            final notifier = ref.read(layoutWidthsProvider.notifier);
+            if (persist) {
+              notifier.saveWidth(_railPaneId, width);
+            } else {
+              notifier.applyWidth(_railPaneId, width);
+            }
+          }
+
           return Scaffold(
             body: Row(
               children: [
-                NavigationRail(
-                  extended: extended,
-                  selectedIndex: navigationShell.currentIndex,
-                  onDestinationSelected: _goBranch,
-                  labelType: extended
-                      ? NavigationRailLabelType.none
-                      : NavigationRailLabelType.selected,
-                  destinations: [
-                    for (final d in _destinations)
-                      NavigationRailDestination(
-                        icon: Icon(d.icon, size: iconSize),
-                        selectedIcon: Icon(d.selectedIcon, size: iconSize),
-                        label: Text(d.label),
-                      ),
-                  ],
+                ResizablePane(
+                  width: railWidth,
+                  defaultWidth: _railDefaultWidth,
+                  responsiveMinWidth: _railResponsiveMinWidth,
+                  absoluteMinWidth: _railAbsoluteMinWidth,
+                  maxWidth: _railMaxWidth,
+                  side: PaneSide.right,
+                  onWidthChanged: (width) =>
+                      setWidth(width, persist: false),
+                  onWidthDragEnd: (width) => setWidth(width, persist: true),
+                  child: NavigationRail(
+                    extended: extended,
+                    selectedIndex: navigationShell.currentIndex,
+                    onDestinationSelected: _goBranch,
+                    labelType: extended
+                        ? NavigationRailLabelType.none
+                        : NavigationRailLabelType.selected,
+                    destinations: [
+                      for (final d in _destinations)
+                        NavigationRailDestination(
+                          icon: Icon(d.icon, size: iconSize),
+                          selectedIcon: Icon(d.selectedIcon, size: iconSize),
+                          label: Text(d.label),
+                        ),
+                    ],
+                  ),
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
                 Expanded(child: navigationShell),

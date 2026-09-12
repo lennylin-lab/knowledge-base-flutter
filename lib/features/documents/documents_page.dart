@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/layout/layout_preferences.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
 import '../../shared/widgets/horizontal_chip_bar.dart';
 import '../../shared/widgets/index_status_chip.dart';
+import '../../shared/widgets/resizable_pane.dart';
 import 'document_detail_page.dart';
 import 'documents_providers.dart';
 
@@ -26,8 +28,17 @@ class DocumentsPage extends ConsumerWidget {
   /// is joined by the embedded detail pane, and the fixed list-pane width.
   /// Layout constraints — exempt from the AppSizes scaling tokens
   /// (component-guidelines spec), like `_contentMaxWidth`.
+  ///
+  /// The list pane edge is draggable (persisted width via
+  /// [layoutWidthsProvider], two-tier shrink bounds below): tier one is the
+  /// responsive floor (content still reflows fully), tier two the hard
+  /// floor, and `_listPaneMaxWidth` the strict maximum.
   static const double _twoPaneMinWidth = 1100;
   static const double _listPaneWidth = 340;
+  static const String _listPaneId = 'documents.list';
+  static const double _listPaneResponsiveMinWidth = 300;
+  static const double _listPaneAbsoluteMinWidth = 240;
+  static const double _listPaneMaxWidth = 520;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -121,7 +132,23 @@ class DocumentsPage extends ConsumerWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(width: _listPaneWidth, child: listColumn),
+              ResizablePane(
+                width: ref
+                    .watch(layoutWidthsProvider)
+                    .widthOf(_listPaneId) ?? _listPaneWidth,
+                defaultWidth: _listPaneWidth,
+                responsiveMinWidth: _listPaneResponsiveMinWidth,
+                absoluteMinWidth: _listPaneAbsoluteMinWidth,
+                maxWidth: _listPaneMaxWidth,
+                side: PaneSide.right,
+                onWidthChanged: (width) => ref
+                    .read(layoutWidthsProvider.notifier)
+                    .applyWidth(_listPaneId, width),
+                onWidthDragEnd: (width) => ref
+                    .read(layoutWidthsProvider.notifier)
+                    .saveWidth(_listPaneId, width),
+                child: listColumn,
+              ),
               const VerticalDivider(thickness: 1, width: 1),
               Expanded(
                 child: selectedId == null

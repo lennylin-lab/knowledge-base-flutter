@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "检查质量红线与 lint/测试要求"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "检查组件/布局规范合规"}
