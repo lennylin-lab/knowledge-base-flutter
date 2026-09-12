@@ -168,3 +168,25 @@ Updated the Flutter client to the backend's multi-turn chat API: session_id on C
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: Light theme reachable: persisted app-bar theme toggle
+<!-- trellis-session: v=2 fp=1e2348de5168deff -->
+
+**Date**: 2026-09-13
+**Task**: Light theme reachable: persisted app-bar theme toggle
+**Branch**: `main`
+
+### Summary
+
+ThemeMode was hardcoded to ThemeMode.system, leaving the existing AppTheme.light unreachable on dark systems. Added themeModeProvider (core/theme/theme_preferences.dart, seed loaded in main.dart, write-through to shared_preferences key theme.mode) and a shared ThemeModeMenu popup in the three root app bars (documents/search/chat); MaterialApp.router now follows the provider. Quality gate: analyze clean, 204 tests pass (3 new in test/core/theme/theme_preferences_test.dart covering switch, persistence, and fallback).
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3d1dd8d` | feat(theme): persisted light/dark/system toggle in app bars |
+
+### Status
+
+[OK] **Completed**
