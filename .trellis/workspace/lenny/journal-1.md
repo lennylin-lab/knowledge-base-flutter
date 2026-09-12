@@ -126,3 +126,23 @@ Diagnosed why rendered markdown paragraphs showed no visible blank line: flutter
 ### Status
 
 [OK] **Completed**
+
+## Session 6: 可拖拽侧边栏分隔条与两层缩小界限
+
+**Date**: 2026-09-12
+**Task**: 可拖拽侧边栏分隔条与两层缩小界限（09-12-resizable-sidebar-two-tier-min）
+**Branch**: `main`
+
+### Summary
+
+从需求澄清到交付完成：桌面/Web 大屏下侧边栏可拖拽变宽——严格上限 + 两层缩小界限（层一前响应式完整展示、层一到层二间内容截断、层二后硬禁止）。新建可复用 `ResizablePane`（handle 8px 命中区叠加边缘不占布局空间，OverflowBox+ClipRect 实现截断层，宽度 null 时走 intrinsic 路径保证未拖拽用户布局像素级不变），宽度经 `shared_preferences` 持久化（沿用 AppConfig 预加载模式，key `layout.pane_width.<paneId>`，拖拽中仅内存、结束落盘）。落地到 NavigationRail（320/176/88）与文档页列表栏（默认 340，300/240/520），问答/搜索页 rail 同样可拖。测试中发现真实 bug：拖拽增量分帧到达时只应用最后一帧（基线未累积），已修复。14 个新测试，analyze 零问题，188 测试全绿。踩坑：`init_developer.py` 无 --help 会把参数当开发者名（误建 workspace/--help，已清理）；`DeviceGestureSettings` 无 panSlop 参数，touchSlop=0 即可让测试拖拽增量精确。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `87fbb18` | feat(shared): resizable sidebar pane with two-tier shrink bounds |
+
+### Status
+
+[OK] **Completed**
