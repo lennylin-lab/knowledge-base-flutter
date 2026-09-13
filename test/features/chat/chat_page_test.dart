@@ -21,6 +21,7 @@ Future<void> pumpChatApp(
   WidgetTester tester, {
   required StubChatRepository chatRepo,
   StubDocumentsRepository? documentsRepo,
+  Size surface = const Size(480, 800),
 }) async {
   final docsRepo =
       documentsRepo ??
@@ -28,7 +29,7 @@ Future<void> pumpChatApp(
         ..listHandler =
             (cursor, limit, tag) async =>
                 const DocumentPage(items: [], nextCursor: null);
-  await tester.binding.setSurfaceSize(const Size(480, 800));
+  await tester.binding.setSurfaceSize(surface);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     ProviderScope(
@@ -134,19 +135,79 @@ void main() {
     controller.add(chatDone());
     await tester.pumpAndSettle();
 
+    // 窄屏：来源是内联折叠，标题 + 副标题可见，条目默认收起。
     expect(find.text('参考来源'), findsOneWidget);
     expect(find.text('答案中的 [1][2] 对应下方来源序号'), findsOneWidget);
+    expect(find.text('检索笔记'), findsNothing);
+
+    await tester.tap(find.text('参考来源'));
+    await tester.pump(const Duration(milliseconds: 400));
+
     expect(find.text('1'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
     expect(find.text('检索笔记'), findsOneWidget);
     expect(find.text('向量入门'), findsOneWidget);
     expect(find.text('混合检索片段'), findsOneWidget);
 
+    // 展开把条目推到视口下方，先滚动到可见再点击。
+    await tester.ensureVisible(find.text('向量入门'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('向量入门'));
     await tester.pumpAndSettle();
 
     expect(docsRepo.getCalls.single, 'doc-b');
     expect(find.text('来源文档 doc-b'), findsWidgets); // detail app bar + headline
+
+    await controller.close();
+  });
+
+  testWidgets('wide layout shows sources in a collapsible right-side panel', (
+    tester,
+  ) async {
+    final docsRepo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async =>
+              const DocumentPage(items: [], nextCursor: null);
+    final controller = StreamController<ChatEvent>.broadcast();
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
+
+    await pumpChatApp(
+      tester,
+      chatRepo: repo,
+      documentsRepo: docsRepo,
+      surface: const Size(1200, 800),
+    );
+    await sendQuestion(tester, '来源有哪些？');
+
+    // 无来源时没有侧栏开关。
+    expect(find.byTooltip('收起来源'), findsNothing);
+
+    controller.add(runStarted());
+    controller.add(
+      sourcesEvent(items: [searchHit(documentId: 'doc-a', title: '检索笔记')]),
+    );
+    controller.add(answerDelta('见来源'));
+    controller.add(chatDone());
+    await tester.pumpAndSettle();
+
+    // 宽屏：来源在右侧栏，条目直接可见（无需展开），AppBar 提供开合。
+    expect(find.byTooltip('收起来源'), findsOneWidget);
+    expect(find.text('参考来源'), findsOneWidget);
+    expect(find.text('检索笔记'), findsOneWidget);
+    // 内联折叠不渲染（不同屏重复）。
+    expect(find.byTooltip('展开来源'), findsNothing);
+
+    await tester.tap(find.byTooltip('收起来源'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('参考来源'), findsNothing, reason: 'collapsed panel hides sources');
+    expect(find.byTooltip('展开来源'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('展开来源'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('参考来源'), findsOneWidget);
+    expect(find.text('检索笔记'), findsOneWidget);
 
     await controller.close();
   });

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/layout/layout_preferences.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/chat.dart';
 import '../../shared/models/search.dart';
 import '../../shared/models/session.dart';
 import '../../shared/widgets/markdown_content.dart';
+import '../../shared/widgets/resizable_pane.dart';
 import '../../shared/widgets/theme_mode_menu.dart';
 import 'chat_providers.dart';
 
@@ -15,11 +17,25 @@ import 'chat_providers.dart';
 /// 通过 [ChatNotifier] 订阅 `POST /api/v1/chat` 事件流：
 /// `run_started → sources* → answer_delta* → done | error`。历史消息在上方
 /// 按时间顺序渲染；当前一轮的增量以 Markdown 渲染（与文档详情页共用
-/// MarkdownContent），引用来源按到达顺序编号展示，答案中的 `[n]` 对应第 n
-/// 条来源，点击跳转文档详情（state-management / component-guidelines
-/// spec）。AppBar 提供「新对话」与「历史会话」入口。
+/// MarkdownContent），答案中的 `[n]` 对应第 n 条来源，点击跳转文档详情
+/// （state-management / component-guidelines spec）。AppBar 提供「新对话」
+/// 与「历史会话」入口。
+///
+/// 来源区布局随内容区宽度自适应（双栏策略与文档页一致）：宽屏时来源在
+/// 右侧可收起侧栏（`ResizablePane`，宽度持久化），窄屏时回退为答案下方
+/// 的内联折叠（ExpansionTile）。
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
+
+  /// 内容区宽度达到该值才用右侧来源栏（与 shell 的 expanded 断点对齐；
+  /// 来源栏比文档页的 master-detail 轻，故低于其 1100）。布局约束，
+  /// 豁免 AppSizes 缩放 token（component-guidelines spec）。
+  static const double _sourcesPaneMinWidth = 840;
+  static const double _sourcesPaneDefaultWidth = 320;
+  static const double _sourcesPaneResponsiveMinWidth = 280;
+  static const double _sourcesPaneAbsoluteMinWidth = 240;
+  static const double _sourcesPaneMaxWidth = 440;
+  static const String _sourcesPaneId = 'chat.sources';
 
   @override
   ConsumerState<ChatPage> createState() => _ChatPageState();
@@ -27,6 +43,9 @@ class ChatPage extends ConsumerStatefulWidget {
 
 class _ChatPageState extends ConsumerState<ChatPage> {
   final TextEditingController _inputController = TextEditingController();
+
+  /// 来源侧栏的展开状态（会话级，不持久化）；仅宽屏且有来源时生效。
+  bool _sourcesOpen = true;
 
   @override
   void dispose() {
@@ -46,53 +65,104 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(chatProvider);
     final notifier = ref.read(chatProvider.notifier);
-    final sizes = context.sizes;
 
-    final children = <Widget>[
-      for (final message in state.history) _HistoryBubble(message: message),
-      if (state.question.isNotEmpty) _RunView(state: state, onRetry: notifier.retry),
-    ];
+    // 包在 Scaffold 外测量：宽度与 body 一致（App bar 只影响高度），
+    // 这样 AppBar 的来源开关和 body 的双栏布局基于同一个断点判断。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final sizes = context.sizes;
+        final wide = constraints.maxWidth >= ChatPage._sourcesPaneMinWidth;
+        final panelVisible = wide && state.sources.isNotEmpty;
+        final panelOpen = panelVisible && _sourcesOpen;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('问答'),
-        actions: [
-          IconButton(
-            tooltip: '新对话',
-            icon: const Icon(Icons.add_comment_outlined),
-            onPressed: notifier.newSession,
-          ),
-          IconButton(
-            tooltip: '历史会话',
-            icon: const Icon(Icons.history),
-            onPressed: () => context.push('/chat/sessions'),
-          ),
-          const ThemeModeMenu(),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: children.isEmpty
-                ? const _IdleHint()
-                : ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      sizes.pagePadH,
-                      sizes.space12,
-                      sizes.pagePadH,
-                      sizes.space16,
-                    ),
-                    children: children,
+        final conversationChildren = [
+          for (final message in state.history)
+            _HistoryBubble(message: message),
+          if (state.question.isNotEmpty)
+            _RunView(
+              state: state,
+              onRetry: notifier.retry,
+              showInlineSources: !panelVisible,
+            ),
+        ];
+
+        Widget content = conversationChildren.isEmpty
+            ? const _IdleHint()
+            : ListView(
+                padding: EdgeInsets.fromLTRB(
+                  sizes.pagePadH,
+                  sizes.space12,
+                  sizes.pagePadH,
+                  sizes.space16,
+                ),
+                children: conversationChildren,
+              );
+
+        final body = panelOpen
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: content),
+                  const VerticalDivider(thickness: 1, width: 1),
+                  ResizablePane(
+                    width: ref
+                        .watch(layoutWidthsProvider)
+                        .widthOf(ChatPage._sourcesPaneId) ??
+                        ChatPage._sourcesPaneDefaultWidth,
+                    defaultWidth: ChatPage._sourcesPaneDefaultWidth,
+                    responsiveMinWidth: ChatPage._sourcesPaneResponsiveMinWidth,
+                    absoluteMinWidth: ChatPage._sourcesPaneAbsoluteMinWidth,
+                    maxWidth: ChatPage._sourcesPaneMaxWidth,
+                    side: PaneSide.left,
+                    onWidthChanged: (width) => ref
+                        .read(layoutWidthsProvider.notifier)
+                        .applyWidth(ChatPage._sourcesPaneId, width),
+                    onWidthDragEnd: (width) => ref
+                        .read(layoutWidthsProvider.notifier)
+                        .saveWidth(ChatPage._sourcesPaneId, width),
+                    child: _SourcesPanel(sources: state.sources),
                   ),
+                ],
+              )
+            : content;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('问答'),
+            actions: [
+              if (panelVisible)
+                IconButton(
+                  tooltip: _sourcesOpen ? '收起来源' : '展开来源',
+                  icon: const Icon(Icons.view_sidebar),
+                  onPressed: () =>
+                      setState(() => _sourcesOpen = !_sourcesOpen),
+                ),
+              IconButton(
+                tooltip: '新对话',
+                icon: const Icon(Icons.add_comment_outlined),
+                onPressed: notifier.newSession,
+              ),
+              IconButton(
+                tooltip: '历史会话',
+                icon: const Icon(Icons.history),
+                onPressed: () => context.push('/chat/sessions'),
+              ),
+              const ThemeModeMenu(),
+            ],
           ),
-          _InputBar(
-            controller: _inputController,
-            running: state.isRunning,
-            onSend: _send,
-            onStop: notifier.cancel,
+          body: Column(
+            children: [
+              Expanded(child: body),
+              _InputBar(
+                controller: _inputController,
+                running: state.isRunning,
+                onSend: _send,
+                onStop: notifier.cancel,
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -132,14 +202,22 @@ class _HistoryBubble extends StatelessWidget {
   }
 }
 
-/// 当前一轮运行视图：问题、流式答案（Markdown）、引用来源、终端错误
-/// （内联错误 + 重试）。已渲染的增量与来源在错误后保留；`done` 后该轮
-/// 已并入历史，这里不再重复渲染。
+/// 当前一轮运行视图：问题、流式答案（Markdown）、引用来源（窄屏内联
+/// 折叠；宽屏由右侧栏承载）、终端错误（内联错误 + 重试）。已渲染的增量
+/// 与来源在错误后保留；`done` 后该轮已并入历史，这里不再重复渲染。
 class _RunView extends StatelessWidget {
-  const _RunView({required this.state, required this.onRetry});
+  const _RunView({
+    required this.state,
+    required this.onRetry,
+    this.showInlineSources = true,
+  });
 
   final ChatState state;
   final VoidCallback onRetry;
+
+  /// 是否在视图内渲染内联折叠来源（宽屏且侧栏开启时为 false，来源由
+  /// 右侧栏承载，避免同屏重复）。
+  final bool showInlineSources;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +241,8 @@ class _RunView extends StatelessWidget {
           padding: EdgeInsets.only(top: sizes.space8),
           child: MarkdownContent(data: state.answer),
         ),
-      if (state.sources.isNotEmpty) _SourcesSection(sources: state.sources),
+      if (showInlineSources && state.sources.isNotEmpty)
+        _SourcesSection(sources: state.sources),
       if (state.toolCallRows.isNotEmpty) _ToolCallsSection(rows: state.toolCallRows),
       if (state.phase == ChatPhase.error)
         _InlineError(
@@ -325,9 +404,48 @@ class _ProgressRow extends StatelessWidget {
   }
 }
 
-/// 引用来源：答案中 `[n]` 对应列表第 n 项（1 起），点击跳转文档详情。
+/// 引用来源（窄屏内联回退）：可折叠，默认收起。答案中 `[n]` 对应列表
+/// 第 n 项（1 起），点击跳转文档详情。
 class _SourcesSection extends StatelessWidget {
   const _SourcesSection({required this.sources});
+
+  final List<SearchHit> sources;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.only(bottom: sizes.space8),
+        initiallyExpanded: false,
+        leading: Icon(
+          Icons.menu_book_outlined,
+          size: sizes.iconMd,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        title: Text('参考来源', style: theme.textTheme.titleSmall),
+        subtitle: Text(
+          '答案中的 [1][2] 对应下方来源序号',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        children: [
+          for (final (index, source) in sources.indexed)
+            _SourceTile(number: index + 1, source: source),
+        ],
+      ),
+    );
+  }
+}
+
+/// 引用来源右侧栏（宽屏）：固定展开的来源列表，随侧栏开合整体显示/
+/// 隐藏；内容独立滚动，宽度由 [ResizablePane] 管理。
+class _SourcesPanel extends StatelessWidget {
+  const _SourcesPanel({required this.sources});
 
   final List<SearchHit> sources;
 
@@ -338,18 +456,43 @@ class _SourcesSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Divider(height: sizes.space28),
-        Text('参考来源', style: theme.textTheme.titleSmall),
-        SizedBox(height: sizes.space2),
-        Text(
-          '答案中的 [1][2] 对应下方来源序号',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            sizes.space12,
+            sizes.space12,
+            sizes.space12,
+            0,
+          ),
+          child: Text('参考来源', style: theme.textTheme.titleSmall),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            sizes.space12,
+            sizes.space2,
+            sizes.space12,
+            sizes.space8,
+          ),
+          child: Text(
+            '答案中的 [1][2] 对应来源序号',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
-        SizedBox(height: sizes.space8),
-        for (final (index, source) in sources.indexed)
-          _SourceTile(number: index + 1, source: source),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              sizes.space12,
+              0,
+              sizes.space12,
+              sizes.space16,
+            ),
+            children: [
+              for (final (index, source) in sources.indexed)
+                _SourceTile(number: index + 1, source: source),
+            ],
+          ),
+        ),
       ],
     );
   }
