@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
+- **Total Sessions**: 11
 - **Last Active**: 2026-09-14
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~236 | Active |
+| `journal-1.md` | ~258 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-09-14 | Chat sources side panel | `535ce1f` | `main` |
 | 10 | 2026-09-14 | Chat tool-call timeline UI | `1438c65` | `main` |
 | 9 | 2026-09-13 | Chat SSE progress events adaptation | `67fc7f6` | `main` |
 | 8 | 2026-09-13 | Light theme reachable: persisted app-bar theme toggle | `3d1dd8d` | `main` |

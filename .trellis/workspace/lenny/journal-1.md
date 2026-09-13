@@ -234,3 +234,25 @@ Added a collapsible 工具调用 timeline to the chat run view, replacing the si
 ### Status
 
 [OK] **Completed**
+
+
+## Session 11: Chat sources side panel
+<!-- trellis-session: v=2 fp=e1f1b1933455e70f -->
+
+**Date**: 2026-09-14
+**Task**: Chat sources side panel
+**Branch**: `main`
+
+### Summary
+
+Moved the chat run view's sources to a breakpoint-driven layout: content-area width >= 840 renders sources in a right-hand ResizablePane side panel (pane id chat.sources, persisted width 320/280/240/440, left drag edge) with an AppBar toggle (收起来源/展开来源, session-only state, hidden when no sources); hiding the panel hides sources entirely with no inline duplicate. Narrow layouts fall back to a collapsed-by-default inline ExpansionTile below the answer. Citations, tile navigation, tool-call timeline, rewrite disclosure, and progress surfaces unchanged. trellis-check agent verdict PASS (PRD + specs, documents-page two-pane parity); fixed a Scaffold indent artifact. flutter analyze clean; 212 tests pass.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `535ce1f` | feat(chat): sources move to a collapsible right-side panel on wide layouts |
+
+### Status
+
+[OK] **Completed**
