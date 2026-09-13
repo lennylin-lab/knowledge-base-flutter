@@ -68,3 +68,35 @@ ChatErrorEvent chatError({
 }) {
   return ChatErrorEvent(code: code, message: message);
 }
+
+ChatStatusEvent statusEvent(ChatStatusPhase phase) =>
+    ChatStatusEvent(phase: phase);
+
+QueryRewrittenEvent queryRewritten({
+  String original = '那它的缺点呢？',
+  String rewritten = 'Redis 分布式锁的缺点是什么？',
+}) {
+  return QueryRewrittenEvent(original: original, rewritten: rewritten);
+}
+
+ToolCallStartedEvent toolCallStarted({
+  String callId = 'call_1',
+  String toolName = 'search_knowledge',
+  Map<String, dynamic> args = const {'query': 'Redis 分布式锁的缺点', 'limit': 8},
+}) {
+  return ToolCallStartedEvent(callId: callId, toolName: toolName, args: args);
+}
+
+ToolCallFinishedEvent toolCallFinished({
+  String callId = 'call_1',
+  String toolName = 'search_knowledge',
+  ChatToolStatus status = ChatToolStatus.success,
+  double latencyMs = 142.5,
+}) {
+  return ToolCallFinishedEvent(
+    callId: callId,
+    toolName: toolName,
+    status: status,
+    latencyMs: latencyMs,
+  );
+}

@@ -64,7 +64,12 @@ implements this state machine per run:
 
 ```
 idle → run_started (keep run_id, mode)
-     → sources*     (append to sources list — event may repeat)
+     → sources*     (append to sources list — event may repeat; first batch
+                     of a follow-up may replay the previous run — carry-forward,
+                     numbering still restarts per run)
+     → [status | query_rewritten | tool_call_started | tool_call_finished]*
+                     (progress events — non-terminal, never touch the phase
+                      machine; may interleave anywhere before done)
      → answer_delta* (concatenate text deltas verbatim)
      → done          (terminal: outcome success, tool_calls, latency_ms)
      | error         (terminal: code + message → user-facing error)
@@ -79,6 +84,36 @@ idle → run_started (keep run_id, mode)
   A finished run commits its turn into the client-side `history` when the next
   run starts (the server persists the same turns; history messages carry no
   sources).
+
+### Progress events (wire contract, `docs/chat-api.md` §4.3–4.6)
+
+Scope: cross-layer contract — payload shapes are mirrored 1:1 by freezed DTOs
+in `shared/models/chat.dart`.
+
+| Event | Payload (snake_case on wire) | Client handling |
+|---|---|---|
+| `status` | `phase: "rewriting_query" \| "generating"` | writes the progress line |
+| `query_rewritten` | `original`, `rewritten`, `applied`, `changed` | stored in `ChatState.rewrite` (disclosure UI); emitted only when output changed |
+| `tool_call_started` | `call_id`, `tool_name`, `args: {query?, limit?}` | `search_knowledge` → progress 「正在检索：{query}」 |
+| `tool_call_finished` | `call_id`, `tool_name`, `status: "success" \| "failed"`, `latency_ms` | `failed` → `ChatState.toolFailure` (non-fatal note) |
+
+- **Non-terminal**: none of them set the parser's terminal flag; only
+  `done`/`error` end the stream. Unknown event names stay ignored.
+- **Latest event wins**: progress events write the progress line directly
+  (no phase-priority math) — `status(rewriting_query)` → 「正在理解问题…」,
+  `tool_call_started(search_knowledge)` → 「正在检索：{query}」,
+  `status(generating)` → 「正在生成回答…」. The line is hidden once the
+  first `answer_delta` arrives (the text is the progress) or the run ends.
+- **History keeps the original question**: `query_rewritten` is UI-only
+  transparency; never store the rewritten query as the turn's question
+  (server persists originals too).
+- **Wrong vs Correct**: deriving the line from a `statusPhase` enum with
+  priority rules breaks the moment a `status(generating)` event is optional
+  (§5.1) — a stale 「正在检索：…」 would outlive its tool call. Write the
+  literal line per event instead.
+- Tests: parser (each payload + unknown phase fallback), provider (progress
+  sequence, failed-tool-is-still-`done`), widget (progress line texts,
+  disclosure expansion, warning note).
 
 ---
 

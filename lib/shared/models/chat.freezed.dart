@@ -1362,6 +1362,1088 @@ as String?,
 
 
 /// @nodoc
+mixin _$ChatStatusEvent {
+
+@JsonKey(unknownEnumValue: ChatStatusPhase.generating) ChatStatusPhase get phase;
+/// Create a copy of ChatStatusEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ChatStatusEventCopyWith<ChatStatusEvent> get copyWith => _$ChatStatusEventCopyWithImpl<ChatStatusEvent>(this as ChatStatusEvent, _$identity);
+
+  /// Serializes this ChatStatusEvent to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatStatusEvent&&(identical(other.phase, phase) || other.phase == phase));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,phase);
+
+@override
+String toString() {
+  return 'ChatStatusEvent(phase: $phase)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ChatStatusEventCopyWith<$Res>  {
+  factory $ChatStatusEventCopyWith(ChatStatusEvent value, $Res Function(ChatStatusEvent) _then) = _$ChatStatusEventCopyWithImpl;
+@useResult
+$Res call({
+@JsonKey(unknownEnumValue: ChatStatusPhase.generating) ChatStatusPhase phase
+});
+
+
+
+
+}
+/// @nodoc
+class _$ChatStatusEventCopyWithImpl<$Res>
+    implements $ChatStatusEventCopyWith<$Res> {
+  _$ChatStatusEventCopyWithImpl(this._self, this._then);
+
+  final ChatStatusEvent _self;
+  final $Res Function(ChatStatusEvent) _then;
+
+/// Create a copy of ChatStatusEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? phase = null,}) {
+  return _then(_self.copyWith(
+phase: null == phase ? _self.phase : phase // ignore: cast_nullable_to_non_nullable
+as ChatStatusPhase,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ChatStatusEvent].
+extension ChatStatusEventPatterns on ChatStatusEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ChatStatusEvent value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ChatStatusEvent() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ChatStatusEvent value)  $default,){
+final _that = this;
+switch (_that) {
+case _ChatStatusEvent():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ChatStatusEvent value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ChatStatusEvent() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: ChatStatusPhase.generating)  ChatStatusPhase phase)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ChatStatusEvent() when $default != null:
+return $default(_that.phase);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: ChatStatusPhase.generating)  ChatStatusPhase phase)  $default,) {final _that = this;
+switch (_that) {
+case _ChatStatusEvent():
+return $default(_that.phase);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(unknownEnumValue: ChatStatusPhase.generating)  ChatStatusPhase phase)?  $default,) {final _that = this;
+switch (_that) {
+case _ChatStatusEvent() when $default != null:
+return $default(_that.phase);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ChatStatusEvent extends ChatStatusEvent {
+  const _ChatStatusEvent({@JsonKey(unknownEnumValue: ChatStatusPhase.generating) required this.phase}): super._();
+  factory _ChatStatusEvent.fromJson(Map<String, dynamic> json) => _$ChatStatusEventFromJson(json);
+
+@override@JsonKey(unknownEnumValue: ChatStatusPhase.generating) final  ChatStatusPhase phase;
+
+/// Create a copy of ChatStatusEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ChatStatusEventCopyWith<_ChatStatusEvent> get copyWith => __$ChatStatusEventCopyWithImpl<_ChatStatusEvent>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ChatStatusEventToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatStatusEvent&&(identical(other.phase, phase) || other.phase == phase));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,phase);
+
+@override
+String toString() {
+  return 'ChatStatusEvent(phase: $phase)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ChatStatusEventCopyWith<$Res> implements $ChatStatusEventCopyWith<$Res> {
+  factory _$ChatStatusEventCopyWith(_ChatStatusEvent value, $Res Function(_ChatStatusEvent) _then) = __$ChatStatusEventCopyWithImpl;
+@override @useResult
+$Res call({
+@JsonKey(unknownEnumValue: ChatStatusPhase.generating) ChatStatusPhase phase
+});
+
+
+
+
+}
+/// @nodoc
+class __$ChatStatusEventCopyWithImpl<$Res>
+    implements _$ChatStatusEventCopyWith<$Res> {
+  __$ChatStatusEventCopyWithImpl(this._self, this._then);
+
+  final _ChatStatusEvent _self;
+  final $Res Function(_ChatStatusEvent) _then;
+
+/// Create a copy of ChatStatusEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? phase = null,}) {
+  return _then(_ChatStatusEvent(
+phase: null == phase ? _self.phase : phase // ignore: cast_nullable_to_non_nullable
+as ChatStatusPhase,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$QueryRewrittenEvent {
+
+ String get original; String get rewritten; bool get applied; bool get changed;
+/// Create a copy of QueryRewrittenEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$QueryRewrittenEventCopyWith<QueryRewrittenEvent> get copyWith => _$QueryRewrittenEventCopyWithImpl<QueryRewrittenEvent>(this as QueryRewrittenEvent, _$identity);
+
+  /// Serializes this QueryRewrittenEvent to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is QueryRewrittenEvent&&(identical(other.original, original) || other.original == original)&&(identical(other.rewritten, rewritten) || other.rewritten == rewritten)&&(identical(other.applied, applied) || other.applied == applied)&&(identical(other.changed, changed) || other.changed == changed));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,original,rewritten,applied,changed);
+
+@override
+String toString() {
+  return 'QueryRewrittenEvent(original: $original, rewritten: $rewritten, applied: $applied, changed: $changed)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $QueryRewrittenEventCopyWith<$Res>  {
+  factory $QueryRewrittenEventCopyWith(QueryRewrittenEvent value, $Res Function(QueryRewrittenEvent) _then) = _$QueryRewrittenEventCopyWithImpl;
+@useResult
+$Res call({
+ String original, String rewritten, bool applied, bool changed
+});
+
+
+
+
+}
+/// @nodoc
+class _$QueryRewrittenEventCopyWithImpl<$Res>
+    implements $QueryRewrittenEventCopyWith<$Res> {
+  _$QueryRewrittenEventCopyWithImpl(this._self, this._then);
+
+  final QueryRewrittenEvent _self;
+  final $Res Function(QueryRewrittenEvent) _then;
+
+/// Create a copy of QueryRewrittenEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? original = null,Object? rewritten = null,Object? applied = null,Object? changed = null,}) {
+  return _then(_self.copyWith(
+original: null == original ? _self.original : original // ignore: cast_nullable_to_non_nullable
+as String,rewritten: null == rewritten ? _self.rewritten : rewritten // ignore: cast_nullable_to_non_nullable
+as String,applied: null == applied ? _self.applied : applied // ignore: cast_nullable_to_non_nullable
+as bool,changed: null == changed ? _self.changed : changed // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [QueryRewrittenEvent].
+extension QueryRewrittenEventPatterns on QueryRewrittenEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _QueryRewrittenEvent value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _QueryRewrittenEvent() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _QueryRewrittenEvent value)  $default,){
+final _that = this;
+switch (_that) {
+case _QueryRewrittenEvent():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _QueryRewrittenEvent value)?  $default,){
+final _that = this;
+switch (_that) {
+case _QueryRewrittenEvent() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String original,  String rewritten,  bool applied,  bool changed)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _QueryRewrittenEvent() when $default != null:
+return $default(_that.original,_that.rewritten,_that.applied,_that.changed);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String original,  String rewritten,  bool applied,  bool changed)  $default,) {final _that = this;
+switch (_that) {
+case _QueryRewrittenEvent():
+return $default(_that.original,_that.rewritten,_that.applied,_that.changed);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String original,  String rewritten,  bool applied,  bool changed)?  $default,) {final _that = this;
+switch (_that) {
+case _QueryRewrittenEvent() when $default != null:
+return $default(_that.original,_that.rewritten,_that.applied,_that.changed);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _QueryRewrittenEvent extends QueryRewrittenEvent {
+  const _QueryRewrittenEvent({required this.original, required this.rewritten, this.applied = true, this.changed = true}): super._();
+  factory _QueryRewrittenEvent.fromJson(Map<String, dynamic> json) => _$QueryRewrittenEventFromJson(json);
+
+@override final  String original;
+@override final  String rewritten;
+@override@JsonKey() final  bool applied;
+@override@JsonKey() final  bool changed;
+
+/// Create a copy of QueryRewrittenEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$QueryRewrittenEventCopyWith<_QueryRewrittenEvent> get copyWith => __$QueryRewrittenEventCopyWithImpl<_QueryRewrittenEvent>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$QueryRewrittenEventToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _QueryRewrittenEvent&&(identical(other.original, original) || other.original == original)&&(identical(other.rewritten, rewritten) || other.rewritten == rewritten)&&(identical(other.applied, applied) || other.applied == applied)&&(identical(other.changed, changed) || other.changed == changed));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,original,rewritten,applied,changed);
+
+@override
+String toString() {
+  return 'QueryRewrittenEvent(original: $original, rewritten: $rewritten, applied: $applied, changed: $changed)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$QueryRewrittenEventCopyWith<$Res> implements $QueryRewrittenEventCopyWith<$Res> {
+  factory _$QueryRewrittenEventCopyWith(_QueryRewrittenEvent value, $Res Function(_QueryRewrittenEvent) _then) = __$QueryRewrittenEventCopyWithImpl;
+@override @useResult
+$Res call({
+ String original, String rewritten, bool applied, bool changed
+});
+
+
+
+
+}
+/// @nodoc
+class __$QueryRewrittenEventCopyWithImpl<$Res>
+    implements _$QueryRewrittenEventCopyWith<$Res> {
+  __$QueryRewrittenEventCopyWithImpl(this._self, this._then);
+
+  final _QueryRewrittenEvent _self;
+  final $Res Function(_QueryRewrittenEvent) _then;
+
+/// Create a copy of QueryRewrittenEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? original = null,Object? rewritten = null,Object? applied = null,Object? changed = null,}) {
+  return _then(_QueryRewrittenEvent(
+original: null == original ? _self.original : original // ignore: cast_nullable_to_non_nullable
+as String,rewritten: null == rewritten ? _self.rewritten : rewritten // ignore: cast_nullable_to_non_nullable
+as String,applied: null == applied ? _self.applied : applied // ignore: cast_nullable_to_non_nullable
+as bool,changed: null == changed ? _self.changed : changed // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$ToolCallStartedEvent {
+
+ String get callId; String get toolName; Map<String, dynamic> get args;
+/// Create a copy of ToolCallStartedEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ToolCallStartedEventCopyWith<ToolCallStartedEvent> get copyWith => _$ToolCallStartedEventCopyWithImpl<ToolCallStartedEvent>(this as ToolCallStartedEvent, _$identity);
+
+  /// Serializes this ToolCallStartedEvent to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ToolCallStartedEvent&&(identical(other.callId, callId) || other.callId == callId)&&(identical(other.toolName, toolName) || other.toolName == toolName)&&const DeepCollectionEquality().equals(other.args, args));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,callId,toolName,const DeepCollectionEquality().hash(args));
+
+@override
+String toString() {
+  return 'ToolCallStartedEvent(callId: $callId, toolName: $toolName, args: $args)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ToolCallStartedEventCopyWith<$Res>  {
+  factory $ToolCallStartedEventCopyWith(ToolCallStartedEvent value, $Res Function(ToolCallStartedEvent) _then) = _$ToolCallStartedEventCopyWithImpl;
+@useResult
+$Res call({
+ String callId, String toolName, Map<String, dynamic> args
+});
+
+
+
+
+}
+/// @nodoc
+class _$ToolCallStartedEventCopyWithImpl<$Res>
+    implements $ToolCallStartedEventCopyWith<$Res> {
+  _$ToolCallStartedEventCopyWithImpl(this._self, this._then);
+
+  final ToolCallStartedEvent _self;
+  final $Res Function(ToolCallStartedEvent) _then;
+
+/// Create a copy of ToolCallStartedEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? callId = null,Object? toolName = null,Object? args = null,}) {
+  return _then(_self.copyWith(
+callId: null == callId ? _self.callId : callId // ignore: cast_nullable_to_non_nullable
+as String,toolName: null == toolName ? _self.toolName : toolName // ignore: cast_nullable_to_non_nullable
+as String,args: null == args ? _self.args : args // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ToolCallStartedEvent].
+extension ToolCallStartedEventPatterns on ToolCallStartedEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ToolCallStartedEvent value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ToolCallStartedEvent() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ToolCallStartedEvent value)  $default,){
+final _that = this;
+switch (_that) {
+case _ToolCallStartedEvent():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ToolCallStartedEvent value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ToolCallStartedEvent() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String callId,  String toolName,  Map<String, dynamic> args)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ToolCallStartedEvent() when $default != null:
+return $default(_that.callId,_that.toolName,_that.args);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String callId,  String toolName,  Map<String, dynamic> args)  $default,) {final _that = this;
+switch (_that) {
+case _ToolCallStartedEvent():
+return $default(_that.callId,_that.toolName,_that.args);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String callId,  String toolName,  Map<String, dynamic> args)?  $default,) {final _that = this;
+switch (_that) {
+case _ToolCallStartedEvent() when $default != null:
+return $default(_that.callId,_that.toolName,_that.args);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ToolCallStartedEvent extends ToolCallStartedEvent {
+  const _ToolCallStartedEvent({required this.callId, required this.toolName, final  Map<String, dynamic> args = const <String, dynamic>{}}): _args = args,super._();
+  factory _ToolCallStartedEvent.fromJson(Map<String, dynamic> json) => _$ToolCallStartedEventFromJson(json);
+
+@override final  String callId;
+@override final  String toolName;
+ final  Map<String, dynamic> _args;
+@override@JsonKey() Map<String, dynamic> get args {
+  if (_args is EqualUnmodifiableMapView) return _args;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_args);
+}
+
+
+/// Create a copy of ToolCallStartedEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ToolCallStartedEventCopyWith<_ToolCallStartedEvent> get copyWith => __$ToolCallStartedEventCopyWithImpl<_ToolCallStartedEvent>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ToolCallStartedEventToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ToolCallStartedEvent&&(identical(other.callId, callId) || other.callId == callId)&&(identical(other.toolName, toolName) || other.toolName == toolName)&&const DeepCollectionEquality().equals(other._args, _args));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,callId,toolName,const DeepCollectionEquality().hash(_args));
+
+@override
+String toString() {
+  return 'ToolCallStartedEvent(callId: $callId, toolName: $toolName, args: $args)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ToolCallStartedEventCopyWith<$Res> implements $ToolCallStartedEventCopyWith<$Res> {
+  factory _$ToolCallStartedEventCopyWith(_ToolCallStartedEvent value, $Res Function(_ToolCallStartedEvent) _then) = __$ToolCallStartedEventCopyWithImpl;
+@override @useResult
+$Res call({
+ String callId, String toolName, Map<String, dynamic> args
+});
+
+
+
+
+}
+/// @nodoc
+class __$ToolCallStartedEventCopyWithImpl<$Res>
+    implements _$ToolCallStartedEventCopyWith<$Res> {
+  __$ToolCallStartedEventCopyWithImpl(this._self, this._then);
+
+  final _ToolCallStartedEvent _self;
+  final $Res Function(_ToolCallStartedEvent) _then;
+
+/// Create a copy of ToolCallStartedEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? callId = null,Object? toolName = null,Object? args = null,}) {
+  return _then(_ToolCallStartedEvent(
+callId: null == callId ? _self.callId : callId // ignore: cast_nullable_to_non_nullable
+as String,toolName: null == toolName ? _self.toolName : toolName // ignore: cast_nullable_to_non_nullable
+as String,args: null == args ? _self._args : args // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$ToolCallFinishedEvent {
+
+ String get callId; String get toolName;@JsonKey(unknownEnumValue: ChatToolStatus.success) ChatToolStatus get status; double get latencyMs;
+/// Create a copy of ToolCallFinishedEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ToolCallFinishedEventCopyWith<ToolCallFinishedEvent> get copyWith => _$ToolCallFinishedEventCopyWithImpl<ToolCallFinishedEvent>(this as ToolCallFinishedEvent, _$identity);
+
+  /// Serializes this ToolCallFinishedEvent to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ToolCallFinishedEvent&&(identical(other.callId, callId) || other.callId == callId)&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.status, status) || other.status == status)&&(identical(other.latencyMs, latencyMs) || other.latencyMs == latencyMs));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,callId,toolName,status,latencyMs);
+
+@override
+String toString() {
+  return 'ToolCallFinishedEvent(callId: $callId, toolName: $toolName, status: $status, latencyMs: $latencyMs)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ToolCallFinishedEventCopyWith<$Res>  {
+  factory $ToolCallFinishedEventCopyWith(ToolCallFinishedEvent value, $Res Function(ToolCallFinishedEvent) _then) = _$ToolCallFinishedEventCopyWithImpl;
+@useResult
+$Res call({
+ String callId, String toolName,@JsonKey(unknownEnumValue: ChatToolStatus.success) ChatToolStatus status, double latencyMs
+});
+
+
+
+
+}
+/// @nodoc
+class _$ToolCallFinishedEventCopyWithImpl<$Res>
+    implements $ToolCallFinishedEventCopyWith<$Res> {
+  _$ToolCallFinishedEventCopyWithImpl(this._self, this._then);
+
+  final ToolCallFinishedEvent _self;
+  final $Res Function(ToolCallFinishedEvent) _then;
+
+/// Create a copy of ToolCallFinishedEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? callId = null,Object? toolName = null,Object? status = null,Object? latencyMs = null,}) {
+  return _then(_self.copyWith(
+callId: null == callId ? _self.callId : callId // ignore: cast_nullable_to_non_nullable
+as String,toolName: null == toolName ? _self.toolName : toolName // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ChatToolStatus,latencyMs: null == latencyMs ? _self.latencyMs : latencyMs // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ToolCallFinishedEvent].
+extension ToolCallFinishedEventPatterns on ToolCallFinishedEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ToolCallFinishedEvent value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ToolCallFinishedEvent() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ToolCallFinishedEvent value)  $default,){
+final _that = this;
+switch (_that) {
+case _ToolCallFinishedEvent():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ToolCallFinishedEvent value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ToolCallFinishedEvent() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String callId,  String toolName, @JsonKey(unknownEnumValue: ChatToolStatus.success)  ChatToolStatus status,  double latencyMs)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ToolCallFinishedEvent() when $default != null:
+return $default(_that.callId,_that.toolName,_that.status,_that.latencyMs);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String callId,  String toolName, @JsonKey(unknownEnumValue: ChatToolStatus.success)  ChatToolStatus status,  double latencyMs)  $default,) {final _that = this;
+switch (_that) {
+case _ToolCallFinishedEvent():
+return $default(_that.callId,_that.toolName,_that.status,_that.latencyMs);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String callId,  String toolName, @JsonKey(unknownEnumValue: ChatToolStatus.success)  ChatToolStatus status,  double latencyMs)?  $default,) {final _that = this;
+switch (_that) {
+case _ToolCallFinishedEvent() when $default != null:
+return $default(_that.callId,_that.toolName,_that.status,_that.latencyMs);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ToolCallFinishedEvent extends ToolCallFinishedEvent {
+  const _ToolCallFinishedEvent({required this.callId, required this.toolName, @JsonKey(unknownEnumValue: ChatToolStatus.success) required this.status, this.latencyMs = 0}): super._();
+  factory _ToolCallFinishedEvent.fromJson(Map<String, dynamic> json) => _$ToolCallFinishedEventFromJson(json);
+
+@override final  String callId;
+@override final  String toolName;
+@override@JsonKey(unknownEnumValue: ChatToolStatus.success) final  ChatToolStatus status;
+@override@JsonKey() final  double latencyMs;
+
+/// Create a copy of ToolCallFinishedEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ToolCallFinishedEventCopyWith<_ToolCallFinishedEvent> get copyWith => __$ToolCallFinishedEventCopyWithImpl<_ToolCallFinishedEvent>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ToolCallFinishedEventToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ToolCallFinishedEvent&&(identical(other.callId, callId) || other.callId == callId)&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.status, status) || other.status == status)&&(identical(other.latencyMs, latencyMs) || other.latencyMs == latencyMs));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,callId,toolName,status,latencyMs);
+
+@override
+String toString() {
+  return 'ToolCallFinishedEvent(callId: $callId, toolName: $toolName, status: $status, latencyMs: $latencyMs)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ToolCallFinishedEventCopyWith<$Res> implements $ToolCallFinishedEventCopyWith<$Res> {
+  factory _$ToolCallFinishedEventCopyWith(_ToolCallFinishedEvent value, $Res Function(_ToolCallFinishedEvent) _then) = __$ToolCallFinishedEventCopyWithImpl;
+@override @useResult
+$Res call({
+ String callId, String toolName,@JsonKey(unknownEnumValue: ChatToolStatus.success) ChatToolStatus status, double latencyMs
+});
+
+
+
+
+}
+/// @nodoc
+class __$ToolCallFinishedEventCopyWithImpl<$Res>
+    implements _$ToolCallFinishedEventCopyWith<$Res> {
+  __$ToolCallFinishedEventCopyWithImpl(this._self, this._then);
+
+  final _ToolCallFinishedEvent _self;
+  final $Res Function(_ToolCallFinishedEvent) _then;
+
+/// Create a copy of ToolCallFinishedEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? callId = null,Object? toolName = null,Object? status = null,Object? latencyMs = null,}) {
+  return _then(_ToolCallFinishedEvent(
+callId: null == callId ? _self.callId : callId // ignore: cast_nullable_to_non_nullable
+as String,toolName: null == toolName ? _self.toolName : toolName // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ChatToolStatus,latencyMs: null == latencyMs ? _self.latencyMs : latencyMs // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$ChatErrorEvent {
 
  String get code; String get message;

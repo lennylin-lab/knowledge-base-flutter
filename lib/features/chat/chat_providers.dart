@@ -66,6 +66,9 @@ class ChatState {
     this.latencyMs,
     this.errorCode,
     this.errorMessage,
+    this.progress,
+    this.rewrite,
+    this.toolFailure,
   });
 
   final ChatPhase phase;
@@ -101,7 +104,29 @@ class ChatState {
   final String? errorCode;
   final String? errorMessage;
 
+  /// Progress line announced by the current run's events — `status` phases
+  /// and `tool_call_started` write it directly, so the latest event always
+  /// wins. Cleared with the run's fresh state.
+  final String? progress;
+
+  /// The `query_rewritten` payload of the current run, when the rewrite
+  /// changed the retrieval prompt (transparency UI; cleared on the next run).
+  final QueryRewrittenEvent? rewrite;
+
+  /// Tool name of the latest failed `tool_call_finished` — non-fatal, the
+  /// run may still complete with `done`.
+  final String? toolFailure;
+
   bool get isRunning => phase == ChatPhase.running || phase == ChatPhase.streaming;
+
+  /// The progress line to show while a run is in flight; falls back to the
+  /// phase-less texts matching the pre-progress-events behavior. Cleared
+  /// once the answer starts streaming — the text itself is the progress.
+  String? progressText() {
+    if (!isRunning || answer.isNotEmpty) return null;
+    return progress ??
+        (phase == ChatPhase.running ? '正在思考…' : '正在生成回答…');
+  }
 
   ChatState copyWith({
     ChatPhase? phase,
@@ -117,6 +142,9 @@ class ChatState {
     double? latencyMs,
     String? errorCode,
     String? errorMessage,
+    String? progress,
+    QueryRewrittenEvent? rewrite,
+    String? toolFailure,
   }) {
     return ChatState(
       phase: phase ?? this.phase,
@@ -132,6 +160,9 @@ class ChatState {
       latencyMs: latencyMs ?? this.latencyMs,
       errorCode: errorCode ?? this.errorCode,
       errorMessage: errorMessage ?? this.errorMessage,
+      progress: progress ?? this.progress,
+      rewrite: rewrite ?? this.rewrite,
+      toolFailure: toolFailure ?? this.toolFailure,
     );
   }
 }
@@ -314,6 +345,31 @@ class ChatNotifier extends Notifier<ChatState> {
         }
       case AnswerDelta(:final text):
         state = state.copyWith(answer: state.answer + text);
+      case ChatStatusEvent(:final phase):
+        // The latest announced event wins — write the line directly.
+        state = state.copyWith(
+          progress: phase == ChatStatusPhase.rewritingQuery
+              ? '正在理解问题…'
+              : '正在生成回答…',
+        );
+      case QueryRewrittenEvent(:final original, :final rewritten):
+        state = state.copyWith(
+          rewrite: QueryRewrittenEvent(
+            original: original,
+            rewritten: rewritten,
+          ),
+        );
+      case ToolCallStartedEvent(:final toolName, :final args):
+        if (toolName == 'search_knowledge') {
+          final query = args['query'];
+          if (query is String && query.isNotEmpty) {
+            state = state.copyWith(progress: '正在检索：$query');
+          }
+        }
+      case ToolCallFinishedEvent(:final toolName, :final status):
+        if (status == ChatToolStatus.failed) {
+          state = state.copyWith(toolFailure: toolName);
+        }
       case ChatDone(
         :final runId,
         :final outcome,

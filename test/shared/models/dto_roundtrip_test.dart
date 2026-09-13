@@ -217,6 +217,14 @@ void main() {
       const List<ChatEvent> events = [
         RunStarted(runId: 'r', mode: SearchMode.bm25),
         SourcesEvent(),
+        ChatStatusEvent(phase: ChatStatusPhase.rewritingQuery),
+        QueryRewrittenEvent(original: 'o', rewritten: 'r'),
+        ToolCallStartedEvent(callId: 'c1', toolName: 'search_knowledge'),
+        ToolCallFinishedEvent(
+          callId: 'c1',
+          toolName: 'search_knowledge',
+          status: ChatToolStatus.failed,
+        ),
         AnswerDelta(text: 't'),
         ChatDone(runId: 'r'),
         ChatErrorEvent(code: 'network_error', message: 'x'),
@@ -225,6 +233,10 @@ void main() {
       final names = events.map((e) => switch (e) {
             RunStarted() => 'run_started',
             SourcesEvent() => 'sources',
+            ChatStatusEvent() => 'status',
+            QueryRewrittenEvent() => 'query_rewritten',
+            ToolCallStartedEvent() => 'tool_call_started',
+            ToolCallFinishedEvent() => 'tool_call_finished',
             AnswerDelta() => 'answer_delta',
             ChatDone() => 'done',
             ChatErrorEvent() => 'error',
@@ -232,6 +244,10 @@ void main() {
       expect(names, [
         'run_started',
         'sources',
+        'status',
+        'query_rewritten',
+        'tool_call_started',
+        'tool_call_finished',
         'answer_delta',
         'done',
         'error',

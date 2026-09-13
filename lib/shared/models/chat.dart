@@ -96,6 +96,98 @@ abstract class ChatDone extends ChatEvent with _$ChatDone {
       _$ChatDoneFromJson(json);
 }
 
+/// Phase of a chat run, as announced by `status` events (informational only).
+enum ChatStatusPhase {
+  /// A follow-up turn's query-rewrite LLM call is about to run.
+  @JsonValue('rewriting_query')
+  rewritingQuery,
+
+  /// The first answer text is about to stream.
+  @JsonValue('generating')
+  generating,
+}
+
+/// One `status` event: purely informational run progress — it never
+/// replaces the terminal `done` / `error` semantics.
+@freezed
+abstract class ChatStatusEvent extends ChatEvent with _$ChatStatusEvent {
+  const ChatStatusEvent._();
+
+  const factory ChatStatusEvent({
+    @JsonKey(unknownEnumValue: ChatStatusPhase.generating)
+    required ChatStatusPhase phase,
+  }) = _ChatStatusEvent;
+
+  factory ChatStatusEvent.fromJson(Map<String, dynamic> json) =>
+      _$ChatStatusEventFromJson(json);
+}
+
+/// One `query_rewritten` event: the retrieval prompt was rewritten from the
+/// raw follow-up question. Only emitted when the rewrite ran and the output
+/// differs from the original — the persisted history keeps the original
+/// question either way.
+@freezed
+abstract class QueryRewrittenEvent extends ChatEvent
+    with _$QueryRewrittenEvent {
+  const QueryRewrittenEvent._();
+
+  const factory QueryRewrittenEvent({
+    required String original,
+    required String rewritten,
+    @Default(true) bool applied,
+    @Default(true) bool changed,
+  }) = _QueryRewrittenEvent;
+
+  factory QueryRewrittenEvent.fromJson(Map<String, dynamic> json) =>
+      _$QueryRewrittenEventFromJson(json);
+}
+
+/// One `tool_call_started` event: a tool call is about to execute.
+/// [args] is the model-sent JSON object (`search_knowledge` carries
+/// `query` and the resolved `limit`).
+@freezed
+abstract class ToolCallStartedEvent extends ChatEvent
+    with _$ToolCallStartedEvent {
+  const ToolCallStartedEvent._();
+
+  const factory ToolCallStartedEvent({
+    required String callId,
+    required String toolName,
+    @Default(<String, dynamic>{}) Map<String, dynamic> args,
+  }) = _ToolCallStartedEvent;
+
+  factory ToolCallStartedEvent.fromJson(Map<String, dynamic> json) =>
+      _$ToolCallStartedEventFromJson(json);
+}
+
+/// One `tool_call_finished` event: a tool call completed. A `failed` status
+/// covers degraded calls (e.g. MCP soft failures) — the run may still end
+/// with `done`.
+@freezed
+abstract class ToolCallFinishedEvent extends ChatEvent
+    with _$ToolCallFinishedEvent {
+  const ToolCallFinishedEvent._();
+
+  const factory ToolCallFinishedEvent({
+    required String callId,
+    required String toolName,
+    @JsonKey(unknownEnumValue: ChatToolStatus.success)
+    required ChatToolStatus status,
+    @Default(0) double latencyMs,
+  }) = _ToolCallFinishedEvent;
+
+  factory ToolCallFinishedEvent.fromJson(Map<String, dynamic> json) =>
+      _$ToolCallFinishedEventFromJson(json);
+}
+
+/// Outcome of one tool call on the wire.
+enum ChatToolStatus {
+  @JsonValue('success')
+  success,
+  @JsonValue('failed')
+  failed,
+}
+
 /// Terminal failure event; the stream closes right after it.
 ///
 /// Payload mirrors the REST error envelope's `{code, message}` pair — the

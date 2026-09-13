@@ -168,6 +168,14 @@ class SseChatParser {
         return RunStarted.fromJson(json);
       case 'sources':
         return SourcesEvent.fromJson(json);
+      case 'status':
+        return ChatStatusEvent.fromJson(json);
+      case 'query_rewritten':
+        return QueryRewrittenEvent.fromJson(json);
+      case 'tool_call_started':
+        return ToolCallStartedEvent.fromJson(json);
+      case 'tool_call_finished':
+        return ToolCallFinishedEvent.fromJson(json);
       case 'answer_delta':
         return AnswerDelta.fromJson(json);
       case 'done':

@@ -111,6 +111,68 @@ void main() {
     });
   });
 
+  group('progress events (non-terminal)', () {
+    test('status phases parse and never terminate the stream', () {
+      final parser = SseChatParser();
+      final events = parser.push(
+        frame('status', '{"phase":"rewriting_query"}') +
+            frame('status', '{"phase":"generating"}') +
+            frame('answer_delta', '{"text":"答案"}') +
+            frame('done', '{"run_id":"r","outcome":"success","tool_calls":0,"latency_ms":1.0}'),
+      );
+
+      expect(events, hasLength(4));
+      expect((events[0] as ChatStatusEvent).phase, ChatStatusPhase.rewritingQuery);
+      expect((events[1] as ChatStatusEvent).phase, ChatStatusPhase.generating);
+      expect(events[2], isA<AnswerDelta>());
+      expect(events[3], isA<ChatDone>());
+      expect(parser.isTerminated, isTrue);
+    });
+
+    test('unknown status phase falls back to generating, never throws', () {
+      final events = SseChatParser().push(
+        frame('status', '{"phase":"quantum_entanglement"}'),
+      );
+      expect(events.single, isA<ChatStatusEvent>());
+      expect((events.single as ChatStatusEvent).phase, ChatStatusPhase.generating);
+    });
+
+    test('query_rewritten keeps original and rewritten verbatim', () {
+      final events = SseChatParser().push(
+        frame(
+          'query_rewritten',
+          '{"original":"那它的缺点呢？","rewritten":"Redis 分布式锁的缺点是什么？","applied":true,"changed":true}',
+        ),
+      );
+      final event = events.single as QueryRewrittenEvent;
+      expect(event.original, '那它的缺点呢？');
+      expect(event.rewritten, 'Redis 分布式锁的缺点是什么？');
+    });
+
+    test('tool_call_started / finished parse with args and status', () {
+      final events = SseChatParser().push(
+        frame(
+          'tool_call_started',
+          '{"call_id":"call_1","tool_name":"search_knowledge","args":{"query":"缺点","limit":8}}',
+        ) +
+            frame(
+              'tool_call_finished',
+              '{"call_id":"call_1","tool_name":"search_knowledge","status":"failed","latency_ms":42.0}',
+            ),
+      );
+
+      final started = events[0] as ToolCallStartedEvent;
+      expect(started.callId, 'call_1');
+      expect(started.toolName, 'search_knowledge');
+      expect(started.args['query'], '缺点');
+      expect(started.args['limit'], 8);
+
+      final finished = events[1] as ToolCallFinishedEvent;
+      expect(finished.status, ChatToolStatus.failed);
+      expect(finished.latencyMs, 42.0);
+    });
+  });
+
   group('terminal events', () {
     test('terminal error after deltas is emitted, later events ignored', () {
       final parser = SseChatParser();

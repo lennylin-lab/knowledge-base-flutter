@@ -151,6 +151,54 @@ void main() {
     await controller.close();
   });
 
+  testWidgets('progress events drive the progress line; rewrite is disclosed; '
+      'a failed tool shows a non-fatal warning', (tester) async {
+    final controller = StreamController<ChatEvent>.broadcast();
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
+
+    await pumpChatApp(tester, chatRepo: repo);
+    await sendQuestion(tester, '那它的缺点呢？');
+
+    controller.add(runStarted());
+    controller.add(statusEvent(ChatStatusPhase.rewritingQuery));
+    await tester.pump();
+    expect(find.text('正在理解问题…'), findsOneWidget);
+
+    controller.add(queryRewritten());
+    await tester.pump();
+    expect(find.text('已改写检索词'), findsOneWidget);
+    // Collapsed by default — details only after expansion.
+    expect(find.text('原始问题：那它的缺点呢？'), findsNothing);
+    await tester.tap(find.text('已改写检索词'));
+    // Fixed-duration pump: the in-flight run spins an endless progress
+    // spinner, so pumpAndSettle would never settle.
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('原始问题：那它的缺点呢？'), findsOneWidget);
+    expect(find.text('改写检索词：Redis 分布式锁的缺点是什么？'), findsOneWidget);
+
+    controller.add(toolCallStarted());
+    await tester.pump();
+    expect(find.text('正在检索：Redis 分布式锁的缺点'), findsOneWidget);
+
+    controller.add(statusEvent(ChatStatusPhase.generating));
+    await tester.pump();
+    expect(find.text('正在生成回答…'), findsOneWidget);
+
+    controller.add(toolCallStarted(toolName: 'mcp_weather', args: {}));
+    controller.add(
+      toolCallFinished(toolName: 'mcp_weather', status: ChatToolStatus.failed),
+    );
+    controller.add(answerDelta('仍能回答 [1]。'));
+    controller.add(chatDone());
+    await tester.pumpAndSettle();
+
+    expect(find.text('正在生成回答…'), findsNothing);
+    expect(find.text('工具调用 mcp_weather 失败，回答可能不完整'), findsOneWidget);
+    expect(find.text('仍能回答 [1]。'), findsOneWidget);
+
+    await controller.close();
+  });
+
   testWidgets('terminal error renders inline, keeps deltas and retries', (
     tester,
   ) async {
@@ -204,12 +252,13 @@ void main() {
     controller.add(runStarted());
     controller.add(answerDelta('部分'));
     await tester.pump();
-    expect(find.text('正在生成回答…'), findsOneWidget);
+    // The progress line cleared once the answer started streaming (PRD:
+    // progress is superseded by the answer text itself).
+    expect(find.text('正在生成回答…'), findsNothing);
 
     await tester.tap(find.byTooltip('停止'));
     await tester.pump();
 
-    expect(find.text('正在生成回答…'), findsNothing);
     expect(find.text('部分'), findsOneWidget, reason: 'partial answer stays visible');
     expect(sendButton(tester).onPressed, isNotNull, reason: 'input re-enabled');
     expect(controller.hasListener, isFalse, reason: 'subscription cancelled');

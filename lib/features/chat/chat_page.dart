@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_sizes.dart';
+import '../../shared/models/chat.dart';
 import '../../shared/models/search.dart';
 import '../../shared/models/session.dart';
 import '../../shared/widgets/markdown_content.dart';
@@ -144,6 +145,7 @@ class _RunView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sizes = context.sizes;
+    final progress = state.progressText();
     final children = <Widget>[
       Padding(
         padding: EdgeInsets.only(bottom: sizes.space8),
@@ -154,16 +156,34 @@ class _RunView extends StatelessWidget {
           ),
         ),
       ),
-      if (state.phase == ChatPhase.running)
-        const _ProgressRow(text: '正在思考…'),
-      if (state.phase == ChatPhase.streaming)
-        const _ProgressRow(text: '正在生成回答…'),
+      if (state.rewrite != null) _RewriteSection(rewrite: state.rewrite!),
+      if (progress != null) _ProgressRow(text: progress),
       if (state.answer.isNotEmpty)
         Padding(
           padding: EdgeInsets.only(top: sizes.space8),
           child: MarkdownContent(data: state.answer),
         ),
       if (state.sources.isNotEmpty) _SourcesSection(sources: state.sources),
+      if (state.toolFailure != null)
+        Padding(
+          padding: EdgeInsets.only(top: sizes.space8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.warning_amber_outlined,
+                size: sizes.iconSm,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              SizedBox(width: sizes.space4),
+              Text(
+                '工具调用 ${state.toolFailure} 失败，回答可能不完整',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
       if (state.phase == ChatPhase.error)
         _InlineError(
           message: '回答失败：${state.errorMessage}',
@@ -230,6 +250,63 @@ class _IdleHint extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 检索词改写披露：原始问题 → 改写后的检索词（可折叠，默认收起）。
+/// 历史与持久化消息始终保留原始问题，这里只做透明化展示。
+class _RewriteSection extends StatelessWidget {
+  const _RewriteSection({required this.rewrite});
+
+  final QueryRewrittenEvent rewrite;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.only(bottom: sizes.space8),
+        initiallyExpanded: false,
+        leading: Icon(
+          Icons.edit_note,
+          size: sizes.iconMd,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        title: Text(
+          '已改写检索词',
+          style: theme.textTheme.titleSmall,
+        ),
+        subtitle: Text(
+          rewrite.rewritten,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: sizes.space12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('原始问题：${rewrite.original}',
+                      style: theme.textTheme.bodySmall),
+                  SizedBox(height: sizes.space2),
+                  Text('改写检索词：${rewrite.rewritten}',
+                      style: theme.textTheme.bodySmall),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
