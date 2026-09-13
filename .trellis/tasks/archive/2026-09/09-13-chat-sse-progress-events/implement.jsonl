@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "freezed DTO conventions for the four new event payloads"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "chat SSE state machine rules being extended"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "widget rules for progress row / disclosure UI"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "analyze/test gates"}
+{"file": "docs/chat-api.md", "reason": "the API doc defining the new events, ordering, and UI hints"}
