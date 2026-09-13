@@ -256,3 +256,25 @@ Moved the chat run view's sources to a breakpoint-driven layout: content-area wi
 ### Status
 
 [OK] **Completed**
+
+
+## Session 12: Chat run parts chronological rendering
+<!-- trellis-session: v=2 fp=4c01146f3d48e69e -->
+
+**Date**: 2026-09-14
+**Task**: Chat run parts chronological rendering
+**Branch**: `main`
+
+### Summary
+
+Reworked the chat run view to render strictly in event arrival order: ChatState's fixed slots (answer string, rewrite, toolCallRows) became an ordered List<ChatRunPart> union (ChatAnswerPart segments / ChatRewriteEntry / ChatToolCallView upserted by call_id), with answer as a derived getter so history commit and progress gating are unchanged. answer_delta appends to the trailing segment or opens a new one, so a tool call arriving mid-answer (docs §5.1) splits the answer around its row; _RunView maps parts top-to-bottom and the fixed rewrite/tool-call sections are gone. Widget tests assert getTopLeft ordering including a mid-answer interleave; state-management.md documents the chronological-rendering rule. trellis-check agent verdict PASS. flutter analyze clean; 213 tests pass.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `51b8518` | refactor(chat): render run parts strictly in event arrival order |
+
+### Status
+
+[OK] **Completed**
