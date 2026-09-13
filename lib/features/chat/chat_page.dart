@@ -202,9 +202,10 @@ class _HistoryBubble extends StatelessWidget {
   }
 }
 
-/// 当前一轮运行视图：问题、流式答案（Markdown）、引用来源（窄屏内联
-/// 折叠；宽屏由右侧栏承载）、终端错误（内联错误 + 重试）。已渲染的增量
-/// 与来源在错误后保留；`done` 后该轮已并入历史，这里不再重复渲染。
+/// 当前一轮运行视图：问题、进度行、按事件到达顺序交错渲染的运行过程
+/// （答案分段 / 改写条目 / 工具调用行）、内联来源（窄屏）、终端错误
+/// （内联错误 + 重试）。已渲染的内容在错误后保留；`done` 后该轮继续
+/// 完整显示，直到下一轮开始时才提交进历史。
 class _RunView extends StatelessWidget {
   const _RunView({
     required this.state,
@@ -234,16 +235,19 @@ class _RunView extends StatelessWidget {
           ),
         ),
       ),
-      if (state.rewrite != null) _RewriteSection(rewrite: state.rewrite!),
       if (progress != null) _ProgressRow(text: progress),
-      if (state.answer.isNotEmpty)
-        Padding(
-          padding: EdgeInsets.only(top: sizes.space8),
-          child: MarkdownContent(data: state.answer),
-        ),
+      // 运行过程严格按事件到达顺序渲染：答案分段与改写/工具调用条目交错。
+      for (final part in state.parts)
+        switch (part) {
+          ChatAnswerPart(:final text) => Padding(
+              padding: EdgeInsets.only(top: sizes.space8),
+              child: MarkdownContent(data: text),
+            ),
+          ChatRewriteEntry() => _RewriteRow(entry: part),
+          ChatToolCallView() => _ToolCallRow(call: part),
+        },
       if (showInlineSources && state.sources.isNotEmpty)
         _SourcesSection(sources: state.sources),
-      if (state.toolCallRows.isNotEmpty) _ToolCallsSection(rows: state.toolCallRows),
       if (state.phase == ChatPhase.error)
         _InlineError(
           message: '回答失败：${state.errorMessage}',
@@ -315,12 +319,13 @@ class _IdleHint extends StatelessWidget {
   }
 }
 
-/// 检索词改写披露：原始问题 → 改写后的检索词（可折叠，默认收起）。
-/// 历史与持久化消息始终保留原始问题，这里只做透明化展示。
-class _RewriteSection extends StatelessWidget {
-  const _RewriteSection({required this.rewrite});
+/// 改写条目（过程日志内，按事件顺序渲染）：原始问题 → 改写后的检索词
+/// （可折叠，默认收起）。历史与持久化消息始终保留原始问题，这里只做
+/// 透明化展示。
+class _RewriteRow extends StatelessWidget {
+  const _RewriteRow({required this.entry});
 
-  final QueryRewrittenEvent rewrite;
+  final ChatRewriteEntry entry;
 
   @override
   Widget build(BuildContext context) {
@@ -342,7 +347,7 @@ class _RewriteSection extends StatelessWidget {
           style: theme.textTheme.titleSmall,
         ),
         subtitle: Text(
-          rewrite.rewritten,
+          entry.rewritten,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall?.copyWith(
@@ -357,10 +362,10 @@ class _RewriteSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('原始问题：${rewrite.original}',
+                  Text('原始问题：${entry.original}',
                       style: theme.textTheme.bodySmall),
                   SizedBox(height: sizes.space2),
-                  Text('改写检索词：${rewrite.rewritten}',
+                  Text('改写检索词：${entry.rewritten}',
                       style: theme.textTheme.bodySmall),
                 ],
               ),
@@ -561,76 +566,40 @@ class _SourceTile extends StatelessWidget {
   }
 }
 
-/// 工具调用时间线：按到达顺序列出当前这轮的每次调用（工具名、检索词、
-/// 状态、耗时），按 `call_id` 配对。默认收起，副标题汇总总数与失败数；
-/// 失败行用错误色标记（非致命——运行仍可能正常完成）。
-class _ToolCallsSection extends StatelessWidget {
-  const _ToolCallsSection({required this.rows});
+/// 工具调用条目（过程日志内，按事件顺序渲染）：进行中转圈 / 成功对勾 /
+/// 失败叉，检索类显示检索词，失败行用错误色标记（非致命——运行仍可能
+/// 正常完成）。
+class _ToolCallRow extends StatelessWidget {
+  const _ToolCallRow({required this.call});
 
-  final List<ChatToolCallView> rows;
+  final ChatToolCallView call;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final sizes = context.sizes;
-    final failed = rows.where((r) => r.status == ChatToolStatus.failed).length;
-    final subtitle = [
-      '${rows.length} 次',
-      if (failed > 0) '$failed 次失败',
-    ].join(' · ');
-
-    return Theme(
-      data: theme.copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: EdgeInsets.only(bottom: sizes.space4),
-        initiallyExpanded: false,
-        leading: Icon(
-          Icons.build_outlined,
-          size: sizes.iconMd,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        title: Text('工具调用', style: theme.textTheme.titleSmall),
-        subtitle: Text(
-          subtitle,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: failed > 0
-                ? theme.colorScheme.error
-                : theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        children: [
-          for (final row in rows)
-            ListTile(
-              dense: true,
-              leading: _ToolStatusIcon(status: row.status),
-              title: Text(
-                row.query == null || row.query!.isEmpty
-                    ? row.toolName
-                    : '${row.toolName}：${row.query}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
-              ),
-              trailing: row.latencyMs != null
-                  ? Text(
-                      '${row.latencyMs!.round()} ms',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    )
-                  : null,
-              iconColor:
-                  row.status == ChatToolStatus.failed
-                      ? theme.colorScheme.error
-                      : null,
-              textColor:
-                  row.status == ChatToolStatus.failed
-                      ? theme.colorScheme.error
-                      : null,
-            ),
-        ],
+    final failed = call.status == ChatToolStatus.failed;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      leading: _ToolStatusIcon(status: call.status),
+      title: Text(
+        call.query == null || call.query!.isEmpty
+            ? call.toolName
+            : '${call.toolName}：${call.query}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.bodyMedium,
       ),
+      trailing: call.latencyMs != null
+          ? Text(
+              '${call.latencyMs!.round()} ms',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          : null,
+      iconColor: failed ? theme.colorScheme.error : null,
+      textColor: failed ? theme.colorScheme.error : null,
     );
   }
 }

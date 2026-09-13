@@ -254,12 +254,7 @@ void main() {
       ),
     );
     await tester.pump();
-    // Timeline section appears with the failure summary, collapsed by default.
-    expect(find.text('工具调用'), findsOneWidget);
-    expect(find.text('1 次 · 1 次失败'), findsOneWidget);
-    expect(find.text('mcp_weather'), findsNothing);
-    await tester.tap(find.text('工具调用'));
-    await tester.pump(const Duration(milliseconds: 400));
+    // Tool rows render directly in the process log — no collapsible wrapper.
     expect(find.text('mcp_weather'), findsOneWidget);
     expect(find.text('42 ms'), findsOneWidget);
 
@@ -268,8 +263,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('正在生成回答…'), findsNothing);
-    expect(find.text('工具调用'), findsOneWidget, reason: 'timeline stays after done');
+    expect(find.text('mcp_weather'), findsOneWidget, reason: 'process log stays after done');
     expect(find.text('仍能回答 [1]。'), findsOneWidget);
+    // Strict event order top-to-bottom: rewrite row above the tool row,
+    // the tool row above the answer text.
+    final rewriteTop = tester.getTopLeft(find.text('已改写检索词')).dy;
+    final toolTop = tester.getTopLeft(find.text('mcp_weather')).dy;
+    final answerTop = tester.getTopLeft(find.text('仍能回答 [1]。')).dy;
+    expect(rewriteTop < toolTop && toolTop < answerTop, isTrue,
+        reason: 'run parts render in event arrival order');
+
+    await controller.close();
+  });
+
+  testWidgets('a tool call arriving mid-answer splits the answer around it', (
+    tester,
+  ) async {
+    final controller = StreamController<ChatEvent>.broadcast();
+    final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
+
+    await pumpChatApp(tester, chatRepo: repo);
+    await sendQuestion(tester, '继续');
+
+    controller.add(runStarted());
+    controller.add(answerDelta('前半 '));
+    await tester.pump();
+    expect(find.text('前半'), findsOneWidget);
+
+    // Retrieval between answer_delta chunks — its row must land between the
+    // two answer segments, not in a fixed bottom section.
+    controller.add(toolCallStarted(callId: 'mid', toolName: 'search_knowledge'));
+    controller.add(toolCallFinished(callId: 'mid', latencyMs: 7));
+    controller.add(answerDelta('后半'));
+    controller.add(chatDone());
+    await tester.pumpAndSettle();
+
+    expect(find.text('前半'), findsOneWidget);
+    expect(find.text('search_knowledge：Redis 分布式锁的缺点'), findsOneWidget);
+    expect(find.text('7 ms'), findsOneWidget);
+    expect(find.text('后半'), findsOneWidget);
+
+    final firstTop = tester.getTopLeft(find.text('前半')).dy;
+    final toolTop = tester.getTopLeft(find.text('search_knowledge：Redis 分布式锁的缺点')).dy;
+    final secondTop = tester.getTopLeft(find.text('后半')).dy;
+    expect(firstTop < toolTop && toolTop < secondTop, isTrue,
+        reason: 'mid-answer tool call renders between the answer segments');
 
     await controller.close();
   });

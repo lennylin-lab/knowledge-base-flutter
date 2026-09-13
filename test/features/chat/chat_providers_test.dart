@@ -435,8 +435,15 @@ void main() {
 
     controller.add(queryRewritten());
     await flush();
-    expect(container.read(chatProvider).rewrite?.rewritten,
-        'Redis 分布式锁的缺点是什么？');
+    expect(
+      container
+          .read(chatProvider)
+          .parts
+          .whereType<ChatRewriteEntry>()
+          .single
+          .rewritten,
+      'Redis 分布式锁的缺点是什么？',
+    );
 
     controller.add(toolCallStarted());
     await flush();
@@ -454,9 +461,9 @@ void main() {
     final state = container.read(chatProvider);
     expect(state.phase, ChatPhase.done);
     expect(state.progressText(), isNull); // not running anymore
-    // Rewrite disclosure stays visible for the finished run; progress fields
-    // reset with the next run's fresh state.
-    expect(state.rewrite, isNotNull);
+    // Rewrite entry stays visible for the finished run; process state resets
+    // with the next run's fresh parts.
+    expect(state.parts.whereType<ChatRewriteEntry>(), hasLength(1));
 
     await controller.close();
   });
@@ -473,17 +480,19 @@ void main() {
     await flush();
 
     var state = container.read(chatProvider);
-    expect(state.toolCallRows, hasLength(1));
-    expect(state.toolCallRows.single.toolName, 'mcp_weather');
-    expect(state.toolCallRows.single.status, isNull); // still running
+    var calls = state.parts.whereType<ChatToolCallView>().toList();
+    expect(calls, hasLength(1));
+    expect(calls.single.toolName, 'mcp_weather');
+    expect(calls.single.status, isNull); // still running
 
     controller.add(
       toolCallFinished(toolName: 'mcp_weather', status: ChatToolStatus.failed),
     );
     await flush();
     state = container.read(chatProvider);
-    expect(state.toolCallRows.single.status, ChatToolStatus.failed);
-    expect(state.toolCallRows.single.latencyMs, 142.5);
+    calls = state.parts.whereType<ChatToolCallView>().toList();
+    expect(calls.single.status, ChatToolStatus.failed);
+    expect(calls.single.latencyMs, 142.5);
 
     // Two calls with different call_ids render as two rows, in arrival order.
     controller.add(toolCallStarted(callId: 'call_2', toolName: 'search_knowledge'));
@@ -496,14 +505,15 @@ void main() {
 
     state = container.read(chatProvider);
     expect(state.phase, ChatPhase.done); // failed tool ≠ terminal error
-    expect(state.toolCallRows, hasLength(2));
-    expect(state.toolCallRows[0].callId, 'call_1');
-    expect(state.toolCallRows[0].status, ChatToolStatus.failed);
-    expect(state.toolCallRows[1].callId, 'call_2');
-    expect(state.toolCallRows[1].toolName, 'search_knowledge');
-    expect(state.toolCallRows[1].status, ChatToolStatus.success);
-    expect(state.toolCallRows[1].latencyMs, 88);
-    expect(state.toolCallRows[1].query, 'Redis 分布式锁的缺点');
+    calls = state.parts.whereType<ChatToolCallView>().toList();
+    expect(calls, hasLength(2));
+    expect(calls[0].callId, 'call_1');
+    expect(calls[0].status, ChatToolStatus.failed);
+    expect(calls[1].callId, 'call_2');
+    expect(calls[1].toolName, 'search_knowledge');
+    expect(calls[1].status, ChatToolStatus.success);
+    expect(calls[1].latencyMs, 88);
+    expect(calls[1].query, 'Redis 分布式锁的缺点');
     expect(state.answer, '仍能回答');
 
     await controller.close();

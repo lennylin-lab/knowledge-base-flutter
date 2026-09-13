@@ -57,7 +57,7 @@ class ChatState {
     this.sessionId,
     this.history = const <ChatMessage>[],
     this.question = '',
-    this.answer = '',
+    this.parts = const <ChatRunPart>[],
     this.sources = const <SearchHit>[],
     this.runId,
     this.mode,
@@ -67,8 +67,6 @@ class ChatState {
     this.errorCode,
     this.errorMessage,
     this.progress,
-    this.rewrite,
-    this.toolCallRows = const <ChatToolCallView>[],
   });
 
   final ChatPhase phase;
@@ -84,8 +82,10 @@ class ChatState {
   /// The question of the current (or last) run; `retry()` re-runs it.
   final String question;
 
-  /// Accumulated answer text so far (empty until the first delta).
-  final String answer;
+  /// The current run rendered strictly in event arrival order: answer text
+  /// segments interleaved with process entries (rewrite, tool calls). The
+  /// run view iterates this list top-to-bottom.
+  final List<ChatRunPart> parts;
 
   /// Accumulated retrieval sources in arrival order (may span several
   /// `sources` events).
@@ -109,14 +109,12 @@ class ChatState {
   /// wins. Cleared with the run's fresh state.
   final String? progress;
 
-  /// The `query_rewritten` payload of the current run, when the rewrite
-  /// changed the retrieval prompt (transparency UI; cleared on the next run).
-  final QueryRewrittenEvent? rewrite;
-
-  /// Tool calls of the current run in arrival order, upserted by `call_id`
-  /// from `tool_call_started` / `tool_call_finished` events (timeline UI;
-  /// cleared with the run's fresh state).
-  final List<ChatToolCallView> toolCallRows;
+  /// The full answer text so far — all answer segments concatenated, empty
+  /// until the first delta. History commit and progress gating use this.
+  String get answer => parts
+      .whereType<ChatAnswerPart>()
+      .map((part) => part.text)
+      .join();
 
   bool get isRunning => phase == ChatPhase.running || phase == ChatPhase.streaming;
 
@@ -134,7 +132,7 @@ class ChatState {
     String? sessionId,
     List<ChatMessage>? history,
     String? question,
-    String? answer,
+    List<ChatRunPart>? parts,
     List<SearchHit>? sources,
     String? runId,
     SearchMode? mode,
@@ -144,15 +142,13 @@ class ChatState {
     String? errorCode,
     String? errorMessage,
     String? progress,
-    QueryRewrittenEvent? rewrite,
-    List<ChatToolCallView>? toolCallRows,
   }) {
     return ChatState(
       phase: phase ?? this.phase,
       sessionId: sessionId ?? this.sessionId,
       history: history ?? this.history,
       question: question ?? this.question,
-      answer: answer ?? this.answer,
+      parts: parts ?? this.parts,
       sources: sources ?? this.sources,
       runId: runId ?? this.runId,
       mode: mode ?? this.mode,
@@ -162,17 +158,40 @@ class ChatState {
       errorCode: errorCode ?? this.errorCode,
       errorMessage: errorMessage ?? this.errorMessage,
       progress: progress ?? this.progress,
-      rewrite: rewrite ?? this.rewrite,
-      toolCallRows: toolCallRows ?? this.toolCallRows,
     );
   }
 }
 
-/// One tool call of the current run as rendered in the timeline — a row is
-/// created/updated by `tool_call_started` and completed by the matching
+/// One rendered piece of the current run, in event arrival order — the run
+/// view maps each part to a widget, so a process event that arrives between
+/// `answer_delta` chunks splits the answer into segments around it.
+sealed class ChatRunPart {
+  const ChatRunPart();
+}
+
+/// One contiguous run of `answer_delta` text, rendered as markdown.
+@immutable
+class ChatAnswerPart extends ChatRunPart {
+  const ChatAnswerPart(this.text);
+
+  final String text;
+}
+
+/// One `query_rewritten` event — transparency row (expandable to the
+/// original → rewritten pair). History keeps the original question.
+@immutable
+class ChatRewriteEntry extends ChatRunPart {
+  const ChatRewriteEntry({required this.original, required this.rewritten});
+
+  final String original;
+  final String rewritten;
+}
+
+/// One tool call of the current run as rendered in the process log — a row
+/// is created/updated by `tool_call_started` and completed by the matching
 /// `tool_call_finished` ([status] stays `null` while the call is in flight).
 @immutable
-class ChatToolCallView {
+class ChatToolCallView extends ChatRunPart {
   const ChatToolCallView({
     required this.callId,
     required this.toolName,
@@ -205,36 +224,42 @@ class ChatToolCallView {
   }
 }
 
-/// Upserts the started call (replace in place when the `call_id` is already
-/// tracked, append otherwise — wire contract: started precedes finished).
-List<ChatToolCallView> _onToolStarted(
-  List<ChatToolCallView> rows,
+/// Upserts the started call among the run's parts (replace in place when the
+/// `call_id` is already tracked, append otherwise — wire contract: started
+/// precedes finished).
+List<ChatRunPart> _onToolStarted(
+  List<ChatRunPart> parts,
   ToolCallStartedEvent event,
 ) {
   final query = event.toolName == 'search_knowledge' && event.args['query'] is String
       ? event.args['query'] as String
       : null;
   final row = ChatToolCallView(callId: event.callId, toolName: event.toolName, query: query);
-  final index = rows.indexWhere((r) => r.callId == event.callId);
-  if (index < 0) return [...rows, row];
-  final updated = [...rows];
-  updated[index] = row.copyWith(status: rows[index].status, latencyMs: rows[index].latencyMs);
+  final index = parts.indexWhere(
+    (part) => part is ChatToolCallView && part.callId == event.callId,
+  );
+  if (index < 0) return [...parts, row];
+  final updated = [...parts];
+  final existing = updated[index] as ChatToolCallView;
+  updated[index] = row.copyWith(status: existing.status, latencyMs: existing.latencyMs);
   return updated;
 }
 
 /// Completes the call matching [ToolCallFinishedEvent.callId]; a finished
 /// event without a started row (defensive) appends a completed row.
-List<ChatToolCallView> _onToolFinished(
-  List<ChatToolCallView> rows,
+List<ChatRunPart> _onToolFinished(
+  List<ChatRunPart> parts,
   ToolCallFinishedEvent event,
 ) {
-  final index = rows.indexWhere((r) => r.callId == event.callId);
+  final index = parts.indexWhere(
+    (part) => part is ChatToolCallView && part.callId == event.callId,
+  );
   final base = index >= 0
-      ? rows[index]
+      ? parts[index] as ChatToolCallView
       : ChatToolCallView(callId: event.callId, toolName: event.toolName);
   final row = base.copyWith(status: event.status, latencyMs: event.latencyMs);
-  if (index < 0) return [...rows, row];
-  final updated = [...rows];
+  if (index < 0) return [...parts, row];
+  final updated = [...parts];
   updated[index] = row;
   return updated;
 }
@@ -416,7 +441,17 @@ class ChatNotifier extends Notifier<ChatState> {
           state = state.copyWith(sources: [...state.sources, ...items]);
         }
       case AnswerDelta(:final text):
-        state = state.copyWith(answer: state.answer + text);
+        // Append to the trailing answer segment; a process entry in between
+        // (rewrite, tool call) already split the flow, so a delta after it
+        // opens a new segment — rendering stays in event arrival order.
+        final parts = [...state.parts];
+        if (parts.isNotEmpty && parts.last is ChatAnswerPart) {
+          final last = parts.removeLast() as ChatAnswerPart;
+          parts.add(ChatAnswerPart(last.text + text));
+        } else {
+          parts.add(ChatAnswerPart(text));
+        }
+        state = state.copyWith(parts: parts);
       case ChatStatusEvent(:final phase):
         // The latest announced event wins — write the line directly.
         state = state.copyWith(
@@ -426,10 +461,10 @@ class ChatNotifier extends Notifier<ChatState> {
         );
       case QueryRewrittenEvent(:final original, :final rewritten):
         state = state.copyWith(
-          rewrite: QueryRewrittenEvent(
-            original: original,
-            rewritten: rewritten,
-          ),
+          parts: [
+            ...state.parts,
+            ChatRewriteEntry(original: original, rewritten: rewritten),
+          ],
         );
       case ToolCallStartedEvent(:final toolName, :final args):
         final query = args['query'] is String ? args['query'] as String : null;
@@ -438,11 +473,11 @@ class ChatNotifier extends Notifier<ChatState> {
           progress: toolName == 'search_knowledge' && query != null
               ? '正在检索：$query'
               : null,
-          toolCallRows: _onToolStarted(state.toolCallRows, event),
+          parts: _onToolStarted(state.parts, event),
         );
       case ToolCallFinishedEvent():
         state = state.copyWith(
-          toolCallRows: _onToolFinished(state.toolCallRows, event),
+          parts: _onToolFinished(state.parts, event),
         );
       case ChatDone(
         :final runId,

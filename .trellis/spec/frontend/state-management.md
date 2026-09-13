@@ -93,12 +93,19 @@ in `shared/models/chat.dart`.
 | Event | Payload (snake_case on wire) | Client handling |
 |---|---|---|
 | `status` | `phase: "rewriting_query" \| "generating"` | writes the progress line |
-| `query_rewritten` | `original`, `rewritten`, `applied`, `changed` | stored in `ChatState.rewrite` (disclosure UI); emitted only when output changed |
+| `query_rewritten` | `original`, `rewritten`, `applied`, `changed` | appends a `ChatRewriteEntry` to the run parts (disclosure UI); emitted only when output changed |
 | `tool_call_started` | `call_id`, `tool_name`, `args: {query?, limit?}` | `search_knowledge` → progress 「正在检索：{query}」 |
-| `tool_call_finished` | `call_id`, `tool_name`, `status: "success" \| "failed"`, `latency_ms` | `failed` → `ChatState.toolFailure` (non-fatal note) |
+| `tool_call_finished` | `call_id`, `tool_name`, `status: "success" \| "failed"`, `latency_ms` | upserts the matching `ChatToolCallView` in the run parts; `failed` renders in error color (non-fatal — run may still `done`) |
 
 - **Non-terminal**: none of them set the parser's terminal flag; only
   `done`/`error` end the stream. Unknown event names stay ignored.
+- **Chronological rendering**: the run view renders `ChatState.parts`
+  (`ChatRunPart` union: answer segments / `ChatRewriteEntry` /
+  `ChatToolCallView`) strictly in event arrival order. An `answer_delta`
+  appends to the trailing answer segment or opens a new one — a process
+  event arriving between `answer_delta` chunks splits the answer around its
+  row (docs §5.1 allows mid-answer retrievals). Never pin process entries to
+  fixed slots (top/bottom); the wire order is the render order.
 - **Latest event wins**: progress events write the progress line directly
   (no phase-priority math) — `status(rewriting_query)` → 「正在理解问题…」,
   `tool_call_started(search_knowledge)` → 「正在检索：{query}」,
@@ -112,8 +119,9 @@ in `shared/models/chat.dart`.
   (§5.1) — a stale 「正在检索：…」 would outlive its tool call. Write the
   literal line per event instead.
 - Tests: parser (each payload + unknown phase fallback), provider (progress
-  sequence, failed-tool-is-still-`done`), widget (progress line texts,
-  disclosure expansion, warning note).
+  sequence, `call_id` upsert, failed-tool-is-still-`done`), widget (progress
+  line texts, rewrite disclosure expansion, `getTopLeft` ordering of parts —
+  including a mid-answer tool call splitting two answer segments).
 
 ---
 

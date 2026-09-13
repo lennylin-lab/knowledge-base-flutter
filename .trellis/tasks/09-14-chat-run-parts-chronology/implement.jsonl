@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Chat SSE state machine + progress-event contract the parts model extends"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Widget rules for the interleaved run view"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "analyze/test gates"}
+{"file": "docs/chat-api.md", "reason": "event ordering contract incl. mid-answer sources/tool calls"}

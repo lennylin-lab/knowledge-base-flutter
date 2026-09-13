@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify state machine semantics preserved under the parts model"}
+{"file": "docs/chat-api.md", "reason": "Verify chronological rendering matches the event ordering contract"}
