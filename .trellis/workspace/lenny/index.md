@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
+- **Total Sessions**: 9
 - **Last Active**: 2026-09-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~192 | Active |
+| `journal-1.md` | ~214 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-09-13 | Chat SSE progress events adaptation | `67fc7f6` | `main` |
 | 8 | 2026-09-13 | Light theme reachable: persisted app-bar theme toggle | `3d1dd8d` | `main` |
 | 7 | 2026-09-13 | Chat multi-turn sessions support | `05bb5a7` | `main` |
 | 5 | 2026-09-11 | Markdown 代码高亮与 Callout 完整交付 | `842f6a9`, `bba0809`, `c6171a3`, `695e5ea` | `main` |

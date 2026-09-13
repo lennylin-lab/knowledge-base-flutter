@@ -190,3 +190,25 @@ ThemeMode was hardcoded to ThemeMode.system, leaving the existing AppTheme.light
 ### Status
 
 [OK] **Completed**
+
+
+## Session 9: Chat SSE progress events adaptation
+<!-- trellis-session: v=2 fp=234d5a341e7082c3 -->
+
+**Date**: 2026-09-13
+**Task**: Chat SSE progress events adaptation
+**Branch**: `main`
+
+### Summary
+
+Adapted the Flutter chat client to the four new non-terminal SSE progress events from docs/chat-api.md: freezed DTOs (ChatStatusEvent, QueryRewrittenEvent, ToolCallStartedEvent, ToolCallFinishedEvent) on the sealed ChatEvent union with parser mappings (unknown events still ignored); ChatNotifier uses a latest-event-wins progress line (understanding/searching/generating) cleared once the first answer_delta streams; query rewrite kept as UI-only disclosure while history commits the original question; failed tool calls surface a non-fatal warning and the run still ends done. Chat page renders the progress row, collapsible rewrite disclosure, and tool-failure note. trellis-check agent verdict PASS; two follow-ups fixed (progress superseded by answer text, test format artifact). state-management.md spec documents the wire contract. flutter analyze clean; 211 tests pass.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `67fc7f6` | feat(chat): adapt to SSE progress events (status/query_rewritten/tool_call_*) |
+
+### Status
+
+[OK] **Completed**
