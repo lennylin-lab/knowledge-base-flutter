@@ -186,14 +186,28 @@ void main() {
 
     controller.add(toolCallStarted(toolName: 'mcp_weather', args: {}));
     controller.add(
-      toolCallFinished(toolName: 'mcp_weather', status: ChatToolStatus.failed),
+      toolCallFinished(
+        toolName: 'mcp_weather',
+        status: ChatToolStatus.failed,
+        latencyMs: 42,
+      ),
     );
+    await tester.pump();
+    // Timeline section appears with the failure summary, collapsed by default.
+    expect(find.text('工具调用'), findsOneWidget);
+    expect(find.text('1 次 · 1 次失败'), findsOneWidget);
+    expect(find.text('mcp_weather'), findsNothing);
+    await tester.tap(find.text('工具调用'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('mcp_weather'), findsOneWidget);
+    expect(find.text('42 ms'), findsOneWidget);
+
     controller.add(answerDelta('仍能回答 [1]。'));
     controller.add(chatDone());
     await tester.pumpAndSettle();
 
     expect(find.text('正在生成回答…'), findsNothing);
-    expect(find.text('工具调用 mcp_weather 失败，回答可能不完整'), findsOneWidget);
+    expect(find.text('工具调用'), findsOneWidget, reason: 'timeline stays after done');
     expect(find.text('仍能回答 [1]。'), findsOneWidget);
 
     await controller.close();

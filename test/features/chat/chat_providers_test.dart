@@ -461,7 +461,7 @@ void main() {
     await controller.close();
   });
 
-  test('a failed tool call records a non-fatal warning, run still done', () async {
+  test('tool calls upsert by call_id; a failed one is non-fatal', () async {
     final controller = StreamController<ChatEvent>.broadcast();
     final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
     final container = _makeContainer(repo);
@@ -470,16 +470,40 @@ void main() {
     await flush();
     controller.add(runStarted());
     controller.add(toolCallStarted(toolName: 'mcp_weather'));
+    await flush();
+
+    var state = container.read(chatProvider);
+    expect(state.toolCallRows, hasLength(1));
+    expect(state.toolCallRows.single.toolName, 'mcp_weather');
+    expect(state.toolCallRows.single.status, isNull); // still running
+
     controller.add(
       toolCallFinished(toolName: 'mcp_weather', status: ChatToolStatus.failed),
+    );
+    await flush();
+    state = container.read(chatProvider);
+    expect(state.toolCallRows.single.status, ChatToolStatus.failed);
+    expect(state.toolCallRows.single.latencyMs, 142.5);
+
+    // Two calls with different call_ids render as two rows, in arrival order.
+    controller.add(toolCallStarted(callId: 'call_2', toolName: 'search_knowledge'));
+    controller.add(
+      toolCallFinished(callId: 'call_2', latencyMs: 88),
     );
     controller.add(answerDelta('仍能回答'));
     controller.add(chatDone());
     await flush();
 
-    final state = container.read(chatProvider);
+    state = container.read(chatProvider);
     expect(state.phase, ChatPhase.done); // failed tool ≠ terminal error
-    expect(state.toolFailure, 'mcp_weather');
+    expect(state.toolCallRows, hasLength(2));
+    expect(state.toolCallRows[0].callId, 'call_1');
+    expect(state.toolCallRows[0].status, ChatToolStatus.failed);
+    expect(state.toolCallRows[1].callId, 'call_2');
+    expect(state.toolCallRows[1].toolName, 'search_knowledge');
+    expect(state.toolCallRows[1].status, ChatToolStatus.success);
+    expect(state.toolCallRows[1].latencyMs, 88);
+    expect(state.toolCallRows[1].query, 'Redis 分布式锁的缺点');
     expect(state.answer, '仍能回答');
 
     await controller.close();

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Chat SSE state machine rules the timeline extends"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Widget rules for the collapsible section"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "analyze/test gates"}
+{"file": "docs/chat-api.md", "reason": "tool_call_started/finished payload and ordering contract"}

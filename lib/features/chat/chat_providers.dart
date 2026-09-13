@@ -68,7 +68,7 @@ class ChatState {
     this.errorMessage,
     this.progress,
     this.rewrite,
-    this.toolFailure,
+    this.toolCallRows = const <ChatToolCallView>[],
   });
 
   final ChatPhase phase;
@@ -113,9 +113,10 @@ class ChatState {
   /// changed the retrieval prompt (transparency UI; cleared on the next run).
   final QueryRewrittenEvent? rewrite;
 
-  /// Tool name of the latest failed `tool_call_finished` — non-fatal, the
-  /// run may still complete with `done`.
-  final String? toolFailure;
+  /// Tool calls of the current run in arrival order, upserted by `call_id`
+  /// from `tool_call_started` / `tool_call_finished` events (timeline UI;
+  /// cleared with the run's fresh state).
+  final List<ChatToolCallView> toolCallRows;
 
   bool get isRunning => phase == ChatPhase.running || phase == ChatPhase.streaming;
 
@@ -144,7 +145,7 @@ class ChatState {
     String? errorMessage,
     String? progress,
     QueryRewrittenEvent? rewrite,
-    String? toolFailure,
+    List<ChatToolCallView>? toolCallRows,
   }) {
     return ChatState(
       phase: phase ?? this.phase,
@@ -162,9 +163,80 @@ class ChatState {
       errorMessage: errorMessage ?? this.errorMessage,
       progress: progress ?? this.progress,
       rewrite: rewrite ?? this.rewrite,
-      toolFailure: toolFailure ?? this.toolFailure,
+      toolCallRows: toolCallRows ?? this.toolCallRows,
     );
   }
+}
+
+/// One tool call of the current run as rendered in the timeline — a row is
+/// created/updated by `tool_call_started` and completed by the matching
+/// `tool_call_finished` ([status] stays `null` while the call is in flight).
+@immutable
+class ChatToolCallView {
+  const ChatToolCallView({
+    required this.callId,
+    required this.toolName,
+    this.query,
+    this.status,
+    this.latencyMs,
+  });
+
+  final String callId;
+  final String toolName;
+
+  /// Retrieval query for `search_knowledge` calls, from the started event's
+  /// `args`.
+  final String? query;
+  final ChatToolStatus? status;
+  final double? latencyMs;
+
+  ChatToolCallView copyWith({
+    String? query,
+    ChatToolStatus? status,
+    double? latencyMs,
+  }) {
+    return ChatToolCallView(
+      callId: callId,
+      toolName: toolName,
+      query: query ?? this.query,
+      status: status ?? this.status,
+      latencyMs: latencyMs ?? this.latencyMs,
+    );
+  }
+}
+
+/// Upserts the started call (replace in place when the `call_id` is already
+/// tracked, append otherwise — wire contract: started precedes finished).
+List<ChatToolCallView> _onToolStarted(
+  List<ChatToolCallView> rows,
+  ToolCallStartedEvent event,
+) {
+  final query = event.toolName == 'search_knowledge' && event.args['query'] is String
+      ? event.args['query'] as String
+      : null;
+  final row = ChatToolCallView(callId: event.callId, toolName: event.toolName, query: query);
+  final index = rows.indexWhere((r) => r.callId == event.callId);
+  if (index < 0) return [...rows, row];
+  final updated = [...rows];
+  updated[index] = row.copyWith(status: rows[index].status, latencyMs: rows[index].latencyMs);
+  return updated;
+}
+
+/// Completes the call matching [ToolCallFinishedEvent.callId]; a finished
+/// event without a started row (defensive) appends a completed row.
+List<ChatToolCallView> _onToolFinished(
+  List<ChatToolCallView> rows,
+  ToolCallFinishedEvent event,
+) {
+  final index = rows.indexWhere((r) => r.callId == event.callId);
+  final base = index >= 0
+      ? rows[index]
+      : ChatToolCallView(callId: event.callId, toolName: event.toolName);
+  final row = base.copyWith(status: event.status, latencyMs: event.latencyMs);
+  if (index < 0) return [...rows, row];
+  final updated = [...rows];
+  updated[index] = row;
+  return updated;
 }
 
 /// Drives the chat SSE state machine for one persisted conversation
@@ -360,16 +432,18 @@ class ChatNotifier extends Notifier<ChatState> {
           ),
         );
       case ToolCallStartedEvent(:final toolName, :final args):
-        if (toolName == 'search_knowledge') {
-          final query = args['query'];
-          if (query is String && query.isNotEmpty) {
-            state = state.copyWith(progress: '正在检索：$query');
-          }
-        }
-      case ToolCallFinishedEvent(:final toolName, :final status):
-        if (status == ChatToolStatus.failed) {
-          state = state.copyWith(toolFailure: toolName);
-        }
+        final query = args['query'] is String ? args['query'] as String : null;
+        state = state.copyWith(
+          // The latest announced event wins — write the line directly.
+          progress: toolName == 'search_knowledge' && query != null
+              ? '正在检索：$query'
+              : null,
+          toolCallRows: _onToolStarted(state.toolCallRows, event),
+        );
+      case ToolCallFinishedEvent():
+        state = state.copyWith(
+          toolCallRows: _onToolFinished(state.toolCallRows, event),
+        );
       case ChatDone(
         :final runId,
         :final outcome,

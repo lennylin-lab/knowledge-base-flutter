@@ -164,26 +164,7 @@ class _RunView extends StatelessWidget {
           child: MarkdownContent(data: state.answer),
         ),
       if (state.sources.isNotEmpty) _SourcesSection(sources: state.sources),
-      if (state.toolFailure != null)
-        Padding(
-          padding: EdgeInsets.only(top: sizes.space8),
-          child: Row(
-            children: [
-              Icon(
-                Icons.warning_amber_outlined,
-                size: sizes.iconSm,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              SizedBox(width: sizes.space4),
-              Text(
-                '工具调用 ${state.toolFailure} 失败，回答可能不完整',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
+      if (state.toolCallRows.isNotEmpty) _ToolCallsSection(rows: state.toolCallRows),
       if (state.phase == ChatPhase.error)
         _InlineError(
           message: '回答失败：${state.errorMessage}',
@@ -434,6 +415,113 @@ class _SourceTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 工具调用时间线：按到达顺序列出当前这轮的每次调用（工具名、检索词、
+/// 状态、耗时），按 `call_id` 配对。默认收起，副标题汇总总数与失败数；
+/// 失败行用错误色标记（非致命——运行仍可能正常完成）。
+class _ToolCallsSection extends StatelessWidget {
+  const _ToolCallsSection({required this.rows});
+
+  final List<ChatToolCallView> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    final failed = rows.where((r) => r.status == ChatToolStatus.failed).length;
+    final subtitle = [
+      '${rows.length} 次',
+      if (failed > 0) '$failed 次失败',
+    ].join(' · ');
+
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.only(bottom: sizes.space4),
+        initiallyExpanded: false,
+        leading: Icon(
+          Icons.build_outlined,
+          size: sizes.iconMd,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        title: Text('工具调用', style: theme.textTheme.titleSmall),
+        subtitle: Text(
+          subtitle,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: failed > 0
+                ? theme.colorScheme.error
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        children: [
+          for (final row in rows)
+            ListTile(
+              dense: true,
+              leading: _ToolStatusIcon(status: row.status),
+              title: Text(
+                row.query == null || row.query!.isEmpty
+                    ? row.toolName
+                    : '${row.toolName}：${row.query}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+              trailing: row.latencyMs != null
+                  ? Text(
+                      '${row.latencyMs!.round()} ms',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    )
+                  : null,
+              iconColor:
+                  row.status == ChatToolStatus.failed
+                      ? theme.colorScheme.error
+                      : null,
+              textColor:
+                  row.status == ChatToolStatus.failed
+                      ? theme.colorScheme.error
+                      : null,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 一次调用的状态标记：进行中转圈 / 成功对勾 / 失败叉。
+class _ToolStatusIcon extends StatelessWidget {
+  const _ToolStatusIcon({required this.status});
+
+  final ChatToolStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    switch (status) {
+      case null:
+        return SizedBox(
+          width: sizes.iconSm,
+          height: sizes.iconSm,
+          child: const CircularProgressIndicator(strokeWidth: 2),
+        );
+      case ChatToolStatus.success:
+        return Icon(
+          Icons.check_circle_outline,
+          size: sizes.iconSm,
+          color: theme.colorScheme.primary,
+        );
+      case ChatToolStatus.failed:
+        return Icon(
+          Icons.error_outline,
+          size: sizes.iconSm,
+          color: theme.colorScheme.error,
+        );
+    }
   }
 }
 
