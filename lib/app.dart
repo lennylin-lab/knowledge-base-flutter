@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/browser/browser_tab_title.dart';
 import 'core/layout/layout_preferences.dart';
 import 'core/theme/app_sizes.dart';
 import 'core/theme/app_theme.dart';
@@ -112,6 +113,10 @@ class App extends ConsumerWidget {
           darkTheme: AppTheme.dark(scale),
           themeMode: ref.watch(themeModeProvider),
           routerConfig: router,
+          builder: (context, child) => BrowserTabTitle(
+            router: router,
+            child: child ?? const SizedBox.shrink(),
+          ),
           debugShowCheckedModeBanner: false,
         );
       },
