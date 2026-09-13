@@ -212,3 +212,25 @@ Adapted the Flutter chat client to the four new non-terminal SSE progress events
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: Chat tool-call timeline UI
+<!-- trellis-session: v=2 fp=7442f44b03f04eef -->
+
+**Date**: 2026-09-14
+**Task**: Chat tool-call timeline UI
+**Branch**: `main`
+
+### Summary
+
+Added a collapsible 工具调用 timeline to the chat run view, replacing the single tool-failure note: ChatState.toolFailure became List<ChatToolCallView> toolCallRows, upserted by call_id from tool_call_started/finished (tool name, search query, running spinner / success / failed mark, latency ms). Collapsed subtitle summarizes count and failures in error color; failed rows render in error color and the run still ends done. Progress-line behavior unchanged. Provider tests cover call_id pairing and non-fatal failure; widget test covers the section summary and expanded rows. flutter analyze clean; 211 tests pass.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1438c65` | feat(chat): tool-call timeline in the run view |
+
+### Status
+
+[OK] **Completed**
