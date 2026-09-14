@@ -6,6 +6,7 @@ import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
 import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
 import 'stub_documents_repository.dart';
@@ -238,13 +239,49 @@ void main() {
       expect(find.byType(DocumentDetailPage), findsNothing);
       expect(find.text('正文片段甲内容'), findsOneWidget);
       expect(find.text('在左侧选择一个文档查看详情'), findsNothing);
-      // The pane shares DocumentDetailBody, so the on-demand AI sections
-      // are present here too — still without any LLM call on selection.
-      expect(find.text('生成摘要'), findsOneWidget);
-      expect(find.text('生成关联'), findsOneWidget);
+      // The pane shares DocumentDetailBody: it carries its own floating AI
+      // entry (collapsed) and the display-only AI sections with their idle
+      // hints — still without any LLM call on selection.
+      expect(find.byType(AiAssistantFab), findsOneWidget);
+      expect(find.text('AI 助手'), findsNothing);
+      expect(find.text('使用右下角悬浮入口生成'), findsNWidgets(2));
       expect(repo.summarizeCalls, isEmpty);
       expect(repo.listAssociationsCalls, isEmpty);
       expect(repo.getCalls, ['a']);
+    });
+
+    testWidgets('the pane floating AI entry generates the summary in place', (
+      tester,
+    ) async {
+      final repo =
+          repoWithDetail()
+            ..summarizeHandler =
+                (id) async => const SummaryResult(
+                  documentId: 'a',
+                  summary: '面板内摘要',
+                  model: 'glm-4.7',
+                  latencyMs: 1200,
+                );
+      await pumpWide(tester, repo);
+
+      await tester.tap(find.text('甲文档'));
+      await tester.pumpAndSettle();
+
+      // The floating entry lives inside the pane's own bounds; opening the
+      // bubble and selecting 「AI 摘要」 fires exactly one generation.
+      final fab = find.byType(AiAssistantFab);
+      expect(fab, findsOneWidget);
+      await tester.tap(fab);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(of: fab, matching: find.text('AI 摘要')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repo.summarizeCalls, ['a']);
+      expect(find.text('面板内摘要'), findsOneWidget);
+      expect(find.text('glm-4.7 · 1.2 s'), findsOneWidget);
+      expect(find.text('AI 助手'), findsNothing); // selection closed the bubble
     });
 
     testWidgets('deleting from the pane returns to the placeholder', (

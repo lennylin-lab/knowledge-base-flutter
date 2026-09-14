@@ -47,6 +47,7 @@ class AppSizes extends ThemeExtension<AppSizes> {
   double get radiusSm => 8 * scale;
   double get radiusMd => 12 * scale;
   double get radiusLg => 24 * scale;
+  double get aiBubbleWidth => 280 * scale;
   double get cardGapV => 4 * scale;
   double get cardGapVWide => 6 * scale;
   double get pagePadH => 16 * scale;

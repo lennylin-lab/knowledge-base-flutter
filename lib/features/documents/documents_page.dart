@@ -59,108 +59,126 @@ class DocumentsPage extends ConsumerWidget {
       }
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          selectedTags.isEmpty ? '文档' : '文档 · ${selectedTags.join(' + ')}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          IconButton(
-            tooltip: '刷新',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(documentsProvider.notifier).refresh(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Two-pane is decided on the content area (the rail already took
+        // its share — window width ≠ content width). Decided above the
+        // Scaffold so the 新建文档 entry can move out of the pane corner.
+        final twoPane = constraints.maxWidth >= _twoPaneMinWidth;
+        final selectedId = ref.watch(selectedDocumentIdProvider);
+        final sizes = context.sizes;
+        final listColumn = Column(
+          children: [
+            if (availableTags.isNotEmpty)
+              _TagFilterBar(
+                tags: availableTags,
+                selectedTags: selectedTags,
+                onToggle: (tag) =>
+                    ref.read(selectedTagsProvider.notifier).toggle(tag),
+                onClearAll: () =>
+                    ref.read(selectedTagsProvider.notifier).clear(),
+              ),
+            Expanded(
+              child: listState.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (error, _) => _ErrorPane(
+                  message: '加载失败：${toApiException(error).message}',
+                  onRetry: () =>
+                      ref.read(documentsProvider.notifier).refresh(),
+                ),
+                data: (state) => _DocumentsListView(
+                  state: state,
+                  selectedId: twoPane ? selectedId : null,
+                  onOpenDocument: (documentId) {
+                    if (twoPane) {
+                      ref
+                          .read(selectedDocumentIdProvider.notifier)
+                          .select(documentId);
+                    } else {
+                      context.push('/documents/$documentId');
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+        // 新建文档 floats at the content area's bottom-right in the
+        // single-column layout. In the two-pane layout that corner belongs
+        // to the detail pane's floating AI entry (DocumentDetailBody), so
+        // the FAB moves into the list pane's own bottom-right corner
+        // instead of covering the AI entry.
+        final createFab = FloatingActionButton(
+          tooltip: '新建文档',
+          onPressed: () => context.push('/documents/new'),
+          child: const Icon(Icons.add),
+        );
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(
+              selectedTags.isEmpty ? '文档' : '文档 · ${selectedTags.join(' + ')}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            actions: [
+              IconButton(
+                tooltip: '刷新',
+                icon: const Icon(Icons.refresh),
+                onPressed: () => ref.read(documentsProvider.notifier).refresh(),
+              ),
+              const ThemeModeMenu(),
+            ],
           ),
-          const ThemeModeMenu(),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: '新建文档',
-        onPressed: () => context.push('/documents/new'),
-        child: const Icon(Icons.add),
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          // Two-pane is decided on the content area (the rail already took
-          // its share — window width ≠ content width).
-          final twoPane = constraints.maxWidth >= _twoPaneMinWidth;
-          final selectedId = ref.watch(selectedDocumentIdProvider);
-          final listColumn = Column(
-            children: [
-              if (availableTags.isNotEmpty)
-                _TagFilterBar(
-                  tags: availableTags,
-                  selectedTags: selectedTags,
-                  onToggle: (tag) =>
-                      ref.read(selectedTagsProvider.notifier).toggle(tag),
-                  onClearAll: () =>
-                      ref.read(selectedTagsProvider.notifier).clear(),
-                ),
-              Expanded(
-                child: listState.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => _ErrorPane(
-                    message: '加载失败：${toApiException(error).message}',
-                    onRetry: () =>
-                        ref.read(documentsProvider.notifier).refresh(),
+          floatingActionButton: twoPane ? null : createFab,
+          body: !twoPane
+              ? Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: _contentMaxWidth,
+                    ),
+                    child: listColumn,
                   ),
-                  data: (state) => _DocumentsListView(
-                    state: state,
-                    selectedId: twoPane ? selectedId : null,
-                    onOpenDocument: (documentId) {
-                      if (twoPane) {
-                        ref
-                            .read(selectedDocumentIdProvider.notifier)
-                            .select(documentId);
-                      } else {
-                        context.push('/documents/$documentId');
-                      }
-                    },
-                  ),
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ResizablePane(
+                      width: ref
+                          .watch(layoutWidthsProvider)
+                          .widthOf(_listPaneId) ?? _listPaneWidth,
+                      defaultWidth: _listPaneWidth,
+                      responsiveMinWidth: _listPaneResponsiveMinWidth,
+                      absoluteMinWidth: _listPaneAbsoluteMinWidth,
+                      maxWidth: _listPaneMaxWidth,
+                      side: PaneSide.right,
+                      onWidthChanged: (width) => ref
+                          .read(layoutWidthsProvider.notifier)
+                          .applyWidth(_listPaneId, width),
+                      onWidthDragEnd: (width) => ref
+                          .read(layoutWidthsProvider.notifier)
+                          .saveWidth(_listPaneId, width),
+                      child: Stack(
+                        children: [
+                          Positioned.fill(child: listColumn),
+                          Positioned(
+                            right: sizes.space16,
+                            bottom: sizes.space16,
+                            child: createFab,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const VerticalDivider(thickness: 1, width: 1),
+                    Expanded(
+                      child: selectedId == null
+                          ? const _DetailPlaceholder()
+                          : DocumentDetailPane(documentId: selectedId),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          );
-          if (!twoPane) {
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
-                child: listColumn,
-              ),
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ResizablePane(
-                width: ref
-                    .watch(layoutWidthsProvider)
-                    .widthOf(_listPaneId) ?? _listPaneWidth,
-                defaultWidth: _listPaneWidth,
-                responsiveMinWidth: _listPaneResponsiveMinWidth,
-                absoluteMinWidth: _listPaneAbsoluteMinWidth,
-                maxWidth: _listPaneMaxWidth,
-                side: PaneSide.right,
-                onWidthChanged: (width) => ref
-                    .read(layoutWidthsProvider.notifier)
-                    .applyWidth(_listPaneId, width),
-                onWidthDragEnd: (width) => ref
-                    .read(layoutWidthsProvider.notifier)
-                    .saveWidth(_listPaneId, width),
-                child: listColumn,
-              ),
-              const VerticalDivider(thickness: 1, width: 1),
-              Expanded(
-                child: selectedId == null
-                    ? const _DetailPlaceholder()
-                    : DocumentDetailPane(documentId: selectedId),
-              ),
-            ],
-          );
-        },
-      ),
+        );
+      },
     );
   }
 

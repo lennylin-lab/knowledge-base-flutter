@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/app.dart';
 import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
+import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
@@ -74,8 +75,13 @@ void main() {
 
     await tester.tap(find.text('已删除的文档'));
     await tester.pump(); // route push, detail starts loading
+    // The floating AI entry only exists while detail data renders — it is
+    // hidden in the loading pane...
+    expect(find.byType(AiAssistantFab), findsNothing);
     await tester.pump(const Duration(milliseconds: 100)); // future fails
     await tester.pumpAndSettle(); // listener pops back to the list
+    // ...and in the error pane.
+    expect(find.byType(AiAssistantFab), findsNothing);
 
     // Back on the list; the toast carries the Chinese copy.
     expect(find.text('已删除的文档'), findsOneWidget);

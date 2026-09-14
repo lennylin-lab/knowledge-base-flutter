@@ -158,7 +158,14 @@ void _showToast(BuildContext context, String message) {
 /// two-pane detail pane (documents page wide layout) render the same body.
 /// [titleTrailing] replaces the default index-status chip at the end of the
 /// title row (the pane appends its edit/delete actions there).
-class DocumentDetailBody extends StatelessWidget {
+///
+/// Besides the scrolling content, the body hosts the unified floating AI
+/// entry ([AiAssistantFab]) anchored bottom-right **within this body's own
+/// bounds** — so the full page and the pane each get their own entry. It only
+/// exists while detail data renders (loading / error panes replace the body),
+/// and its collapsed form is just the small round button, so it neither
+/// blocks body scrolling nor traps clicks elsewhere.
+class DocumentDetailBody extends StatefulWidget {
   const DocumentDetailBody({
     super.key,
     required this.document,
@@ -170,71 +177,111 @@ class DocumentDetailBody extends StatelessWidget {
   final Widget? titleTrailing;
 
   @override
+  State<DocumentDetailBody> createState() => _DocumentDetailBodyState();
+}
+
+class _DocumentDetailBodyState extends State<DocumentDetailBody> {
+  /// Section anchors the floating entry scrolls to. Held in State instead of
+  /// being created per build: recreating a [GlobalKey] on every rebuild would
+  /// tear down and rebuild the section subtree each time.
+  final GlobalKey _summarySectionKey = GlobalKey();
+  final GlobalKey _associationsSectionKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sizes = context.sizes;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        sizes.pagePadH,
-        sizes.space16,
-        sizes.pagePadH,
-        sizes.space48,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  document.title,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              SizedBox(width: sizes.space8),
-              if (titleTrailing != null)
-                titleTrailing!
-              else
-                IndexStatusChip(
-                  status: document.indexStatus,
-                  onRetry: () => context.push('/documents/${document.id}/edit'),
-                ),
-            ],
-          ),
-          SizedBox(height: sizes.space8),
-          if (document.tags.isNotEmpty)
-            Padding(
-              padding: EdgeInsets.only(bottom: sizes.space4),
-              child: ExpandableTagWrap(
-                tags: document.tags,
-                spacing: sizes.space8,
-                runSpacing: sizes.space4,
-              ),
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              sizes.pagePadH,
+              sizes.space16,
+              sizes.pagePadH,
+              sizes.space48,
             ),
-          Divider(height: sizes.space32),
-          MarkdownContent(data: stripYamlFrontMatter(document.content)),
-          // On-demand AI sections (both detail surfaces share this body).
-          // They render below the markdown and never block it: every branch
-          // below is local to the section and driven by manual taps only —
-          // opening the page fires no LLM calls (PRD: manual generation).
-          Divider(height: sizes.space32),
-          _SummarySection(documentId: document.id),
-          Divider(height: sizes.space32),
-          _AssociationsSection(documentId: document.id),
-        ],
-      ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.document.title,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: sizes.space8),
+                    if (widget.titleTrailing != null)
+                      widget.titleTrailing!
+                    else
+                      IndexStatusChip(
+                        status: widget.document.indexStatus,
+                        onRetry: () => context
+                            .push('/documents/${widget.document.id}/edit'),
+                      ),
+                  ],
+                ),
+                SizedBox(height: sizes.space8),
+                if (widget.document.tags.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: sizes.space4),
+                    child: ExpandableTagWrap(
+                      tags: widget.document.tags,
+                      spacing: sizes.space8,
+                      runSpacing: sizes.space4,
+                    ),
+                  ),
+                Divider(height: sizes.space32),
+                MarkdownContent(
+                  data: stripYamlFrontMatter(widget.document.content),
+                ),
+                // Display-only on-demand AI sections below the markdown
+                // (both detail surfaces share this body). Generation is
+                // triggered exclusively through the floating AI entry to the
+                // right (plus inline 重试 / 重新生成); opening the page fires
+                // no LLM calls (PRD: manual generation).
+                Divider(height: sizes.space32),
+                _SummarySection(
+                  key: _summarySectionKey,
+                  documentId: widget.document.id,
+                ),
+                Divider(height: sizes.space32),
+                _AssociationsSection(
+                  key: _associationsSectionKey,
+                  documentId: widget.document.id,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          right: sizes.space16,
+          bottom: sizes.space16,
+          child: AiAssistantFab(
+            documentId: widget.document.id,
+            summarySectionKey: _summarySectionKey,
+            associationsSectionKey: _associationsSectionKey,
+          ),
+        ),
+      ],
     );
   }
 }
 
-/// 「AI 摘要」 section: manual LLM summary generation (生成摘要 / 重新生成),
-/// progress while in flight, the result verbatim with a 「{model} · {latency}」
-/// caption, and error copy that keeps any previous result visible.
+/// 「AI 摘要」 section, display-only: generation is triggered from the
+/// floating AI entry (bottom-right of the surface). Renders progress while
+/// in flight, the result verbatim with a 「{model} · {latency}」 caption and
+/// an inline 重新生成 affordance, and error copy that keeps any previous
+/// result visible (generic errors get an in-place 重试; the always-visible
+/// floating entry is the standing retry for the friendly chat_unavailable
+/// copy — dead-end rule).
 class _SummarySection extends ConsumerWidget {
-  const _SummarySection({required this.documentId});
+  const _SummarySection({super.key, required this.documentId});
 
   final String documentId;
 
@@ -289,26 +336,22 @@ class _SummarySection extends ConsumerWidget {
               icon: const Icon(Icons.refresh),
               label: const Text('重新生成'),
             ),
-        ] else if (!state.isGenerating)
-          // Also shown after a failure (alongside the error copy): the
-          // friendly chat_unavailable copy invites a retry, so an in-place
-          // affordance must exist even with no previous result.
-          FilledButton.tonal(
-            onPressed: () => ref
-                .read(documentSummaryProvider(documentId).notifier)
-                .generate(),
-            child: const Text('生成摘要'),
-          ),
+        ] else if (!state.isGenerating && state.error == null)
+          // Idle: the generation entry lives in the always-visible floating
+          // AI entry at the surface's bottom-right.
+          const _IdleHintRow(),
       ],
     );
   }
 }
 
-/// 「相关文档」 section: manual LLM association lookup (生成关联), progress
-/// while in flight, then the items (title / tags / reason); tapping an item
-/// pushes that document's detail route.
+/// 「相关文档」 section, display-only: generation is triggered from the
+/// floating AI entry (bottom-right of the surface). Renders progress while
+/// in flight, then the items (title / tags / reason); tapping an item pushes
+/// that document's detail route. Generic errors keep an in-place 重试; the
+/// always-visible floating entry covers the friendly chat_unavailable copy.
 class _AssociationsSection extends ConsumerWidget {
-  const _AssociationsSection({required this.documentId});
+  const _AssociationsSection({super.key, required this.documentId});
 
   final String documentId;
 
@@ -352,15 +395,9 @@ class _AssociationsSection extends ConsumerWidget {
                 _AssociationTile(item: item),
             ],
           )
-        else if (!state.isGenerating)
-          // Same as the summary section: stays visible after a failure so
-          // the friendly copy always has an in-place retry next to it.
-          FilledButton.tonal(
-            onPressed: () => ref
-                .read(documentAssociationsProvider(documentId).notifier)
-                .generate(),
-            child: const Text('生成关联'),
-          ),
+        else if (!state.isGenerating && state.error == null)
+          // Idle: the generation entry lives in the floating AI entry.
+          const _IdleHintRow(),
       ],
     );
   }
@@ -379,6 +416,311 @@ class _AiSectionHeader extends StatelessWidget {
       title,
       style: theme.textTheme.titleMedium?.copyWith(
         fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
+/// Idle-state hint of a display-only AI section: points at the floating AI
+/// entry at the surface's bottom-right (the unified generation trigger).
+class _IdleHintRow extends StatelessWidget {
+  const _IdleHintRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      '使用右下角悬浮入口生成',
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+/// Unified floating AI entry (收起/气泡双态), anchored bottom-right of a
+/// detail surface by [DocumentDetailBody]. Collapsed: a small always-visible
+/// round button (tooltip 「AI 助手」). Expanded: a bubble card listing the
+/// two AI functions.
+///
+/// Summon/dismiss behavior (test-pinned, PRD):
+/// - mouse hover opens the bubble (desktop/web);
+/// - the pointer leaving the entry's area closes a hover-summoned bubble
+///   again — a tap-opened one (touch path) stays until explicitly dismissed;
+/// - tapping the round button opens it when closed; on a hover-opened
+///   bubble the first tap upgrades it to tap-owned instead of closing (the
+///   second tap closes), and a tap-owned bubble closes on tap;
+/// - tapping outside the entry closes it;
+/// - selecting a function closes it, scrolls that bottom section into view
+///   and fires exactly one generation — first run and regenerate alike
+///   (generate() no-ops while one is already in flight).
+///
+/// The hero tag is unique per instance: the full-page detail and the two-pane
+/// pane can be mounted at once (deep-linked detail over a wide documents
+/// page), and shared default tags collide during route hero flights.
+class AiAssistantFab extends ConsumerStatefulWidget {
+  const AiAssistantFab({
+    super.key,
+    required this.documentId,
+    required this.summarySectionKey,
+    required this.associationsSectionKey,
+  });
+
+  final String documentId;
+
+  /// [GlobalKey] of the 「AI 摘要」 section, scrolled into view on select.
+  final GlobalKey summarySectionKey;
+
+  /// [GlobalKey] of the 「相关文档」 section, scrolled into view on select.
+  final GlobalKey associationsSectionKey;
+
+  @override
+  ConsumerState<AiAssistantFab> createState() => _AiAssistantFabState();
+}
+
+class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
+  static const Duration _revealDuration = Duration(milliseconds: 300);
+
+  final Object _heroTag = UniqueKey();
+
+  bool _open = false;
+
+  /// Whether the current expansion was summoned by hover (then the pointer
+  /// leaving closes it again) or by tap (then only explicit dismissal does).
+  bool _openedByHover = false;
+
+  void _openByHover() {
+    if (_open) return;
+    setState(() {
+      _open = true;
+      _openedByHover = true;
+    });
+  }
+
+  void _openByTap() {
+    if (_open) return;
+    setState(() {
+      _open = true;
+      _openedByHover = false;
+    });
+  }
+
+  void _close() {
+    if (!_open) return;
+    setState(() {
+      _open = false;
+      _openedByHover = false;
+    });
+  }
+
+  void _toggle() {
+    if (_open && !_openedByHover) {
+      _close();
+      return;
+    }
+    if (_open) {
+      // Touch-web compatibility: browsers fire compatibility mouse events
+      // around a tap, and mouseenter precedes the click — so the first tap
+      // lands on a bubble the hover already opened. Upgrade it to tap-owned
+      // instead of closing, or the first tap could never open the entry on
+      // touch devices (MVP target); a second tap then closes it.
+      setState(() => _openedByHover = false);
+      return;
+    }
+    _openByTap();
+  }
+
+  void _selectSummary() {
+    _close();
+    _revealSection(widget.summarySectionKey);
+    ref.read(documentSummaryProvider(widget.documentId).notifier).generate();
+  }
+
+  void _selectAssociations() {
+    _close();
+    _revealSection(widget.associationsSectionKey);
+    ref
+        .read(documentAssociationsProvider(widget.documentId).notifier)
+        .generate();
+  }
+
+  /// Scrolls the section with [sectionKey] into view (no-op when it is
+  /// already visible or not mounted).
+  void _revealSection(GlobalKey sectionKey) {
+    final sectionContext = sectionKey.currentContext;
+    if (sectionContext == null) return;
+    Scrollable.ensureVisible(
+      sectionContext,
+      duration: _revealDuration,
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sizes = context.sizes;
+    return TapRegion(
+      onTapOutside: (_) => _close(),
+      child: MouseRegion(
+        onEnter: (_) => _openByHover(),
+        onExit: (_) {
+          // Only a hover-summoned bubble follows the pointer out; a
+          // tap-opened one (touch path) stays until explicitly dismissed.
+          if (_openedByHover) _close();
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (_open) ...[
+              _AiBubbleCard(
+                onDismiss: _close,
+                onSelectSummary: _selectSummary,
+                onSelectAssociations: _selectAssociations,
+              ),
+              SizedBox(height: sizes.space12),
+            ],
+            FloatingActionButton(
+              heroTag: _heroTag,
+              tooltip: 'AI 助手',
+              onPressed: _toggle,
+              child: const Icon(Icons.auto_awesome),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The expanded bubble card: 「AI 助手」 header with a dismiss affordance,
+/// then one entry per AI function (icon + label + one-line description).
+class _AiBubbleCard extends StatelessWidget {
+  const _AiBubbleCard({
+    required this.onDismiss,
+    required this.onSelectSummary,
+    required this.onSelectAssociations,
+  });
+
+  final VoidCallback onDismiss;
+  final VoidCallback onSelectSummary;
+  final VoidCallback onSelectAssociations;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      clipBehavior: Clip.antiAlias,
+      borderRadius: BorderRadius.circular(sizes.radiusMd),
+      elevation: 6,
+      child: SizedBox(
+        width: sizes.aiBubbleWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                sizes.space16,
+                sizes.space12,
+                sizes.space4,
+                sizes.space12,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    size: sizes.iconSm,
+                    color: theme.colorScheme.primary,
+                  ),
+                  SizedBox(width: sizes.space8),
+                  Expanded(
+                    child: Text(
+                      'AI 助手',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '收起',
+                    icon: const Icon(Icons.close_outlined),
+                    onPressed: onDismiss,
+                  ),
+                ],
+              ),
+            ),
+            _AiBubbleEntry(
+              icon: Icons.summarize_outlined,
+              label: 'AI 摘要',
+              description: '生成这篇文档的内容摘要',
+              onTap: onSelectSummary,
+            ),
+            _AiBubbleEntry(
+              icon: Icons.library_books_outlined,
+              label: '相关文档',
+              description: '查找与本文相关的文档',
+              onTap: onSelectAssociations,
+            ),
+            SizedBox(height: sizes.space4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One selectable row of the bubble: leading icon, label and a one-line
+/// description of what the function does.
+class _AiBubbleEntry extends StatelessWidget {
+  const _AiBubbleEntry({
+    required this.icon,
+    required this.label,
+    required this.description,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: sizes.space16,
+          vertical: sizes.space10,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: sizes.iconMd, color: theme.colorScheme.primary),
+            SizedBox(width: sizes.space12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: theme.textTheme.titleSmall),
+                  SizedBox(height: sizes.space2),
+                  Text(
+                    description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
