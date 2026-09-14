@@ -347,3 +347,26 @@ Reworked the chat run view to render strictly in event arrival order: ChatState'
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: AI 助手两层路由（气泡入口→内容页）
+<!-- trellis-session: v=2 fp=3482813d39744d60 -->
+
+**Date**: 2026-09-15
+**Task**: AI 助手两层路由（气泡入口→内容页）
+**Branch**: `main`
+
+### Summary
+
+移除详情页底部摘要/相关文档展示区，内容统一收进 AI 助手体系并新增两层路由：气泡项点击跳转 /documents/:id/summary 与 /documents/:id/associations 内容页（560·scale 大气泡卡片，进入即生成一次、有缓存直接展示、重新生成/重试齐全），返回回入口（深链场景 go 回详情）；气泡菜单加大、详情页恢复纯正文、零调用规则保持。新增 10 个内容页测试，analyze 干净、244 测试全绿；check PASS。spec 沉淀内容页消费 on-demand provider 的进入即生成契约。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3db2efa` | feat(documents): route AI summary and associations behind the assistant bubble |
+| `17b4b53` | docs(spec): record content-page consumption of on-demand providers |
+
+### Status
+
+[OK] **Completed**
