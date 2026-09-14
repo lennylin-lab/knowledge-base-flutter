@@ -301,3 +301,26 @@ Reworked the chat run view to render strictly in event arrival order: ChatState'
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: 文档详情页摘要与关联 UI
+<!-- trellis-session: v=2 fp=9d2ab7311ec5a7f5 -->
+
+**Date**: 2026-09-14
+**Task**: 文档详情页摘要与关联 UI
+**Branch**: `main`
+
+### Summary
+
+在 DocumentDetailBody（全页与双栏右栏共用）新增「AI 摘要」「相关文档」两个按需分区：OnDemandGenerationNotifier 家族 provider（build 不发请求、生成中防重入、过期代际守卫、失败保留旧结果），摘要逐字渲染并带 model/latency 说明，关联项可跳转对应文档；chat_unavailable 显示友好文案且触发按钮保持可见（原地重试，修复了检查发现的死胡同）。新增 10 个 widget 测试，analyze 干净、235 测试全绿。沉淀 spec：hook-guidelines 新增 on-demand generation 模式，component-guidelines 新增错误死胡同规则。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4eefdc5` | feat(documents): add AI summary and associations sections to detail body |
+| `816ac5e` | docs(spec): record on-demand generation pattern and error dead-end rule |
+
+### Status
+
+[OK] **Completed**
