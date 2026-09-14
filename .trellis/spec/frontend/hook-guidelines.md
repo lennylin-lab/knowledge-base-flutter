@@ -64,9 +64,17 @@ last `error`):
   not let the stale result land anywhere.
 - The UI shows progress while generating and keeps the trigger affordance
   visible on error (component-guidelines: no error dead-ends).
+- **Dedicated content pages** that consume an on-demand provider (e.g.
+  `/documents/:id/summary`) treat page entry as the explicit trigger:
+  auto-generate once from a post-frame callback when there is no cached
+  result and nothing is in flight (never in `build()`); a cached result
+  renders as-is. Navigate via real routes so back returns to the entry
+  surface; on a content page the inline 重试 must exist for every error
+  branch — there is no floating entry to fall back on.
 
 Reference implementation: `lib/features/documents/documents_providers.dart`
-(`DocumentSummaryNotifier` / `DocumentAssociationsNotifier`).
+(`DocumentSummaryNotifier` / `DocumentAssociationsNotifier`) and
+`lib/features/documents/document_ai_pages.dart`.
 
 ---
 
