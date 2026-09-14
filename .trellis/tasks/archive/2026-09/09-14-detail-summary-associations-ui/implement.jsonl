@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Binding UI rules: AppSizes tokens, Chinese copy, AsyncValue error states, dumb widgets"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Riverpod 3 rules, noAutomaticRetry in tests, server-state-in-provider rule"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Provider patterns (Notifier/family) the new on-demand state must follow"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where feature state/widgets/tests live"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates and testing bar"}
+{"file": ".trellis/tasks/archive/2026-09/09-14-align-document-endpoints/research-server-document-api.md", "reason": "Summary/associations endpoint contract evidence (no body, 503 chat_unavailable, DTO fields)"}

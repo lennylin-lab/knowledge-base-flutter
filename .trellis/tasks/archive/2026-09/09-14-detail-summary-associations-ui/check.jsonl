@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates and forbidden patterns"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify AppSizes/copy/error-state conventions in the new sections"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify provider patterns and noAutomaticRetry test scopes"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify family Notifier pattern compliance"}
