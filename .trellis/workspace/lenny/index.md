@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 12
+- **Total Sessions**: 13
 - **Last Active**: 2026-09-14
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~280 | Active |
+| `journal-1.md` | ~303 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 13 | 2026-09-14 | 对齐服务端 document 端点（summary/associations） | `d3d66ad`, `21e67ad` | `main` |
 | 12 | 2026-09-14 | Chat run parts chronological rendering | `51b8518` | `main` |
 | 11 | 2026-09-14 | Chat sources side panel | `535ce1f` | `main` |
 | 10 | 2026-09-14 | Chat tool-call timeline UI | `1438c65` | `main` |

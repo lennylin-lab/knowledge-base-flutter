@@ -278,3 +278,26 @@ Reworked the chat run view to render strictly in event arrival order: ChatState'
 ### Status
 
 [OK] **Completed**
+
+
+## Session 13: 对齐服务端 document 端点（summary/associations）
+<!-- trellis-session: v=2 fp=4c4f120ee67e0239 -->
+
+**Date**: 2026-09-14
+**Task**: 对齐服务端 document 端点（summary/associations）
+**Branch**: `main`
+
+### Summary
+
+调研确认客户端 CRUD 已与服务端 /api/v1/documents 完全对齐，差距为两个未接入的 LLM 子端点。补齐 SummaryResult/AssociationItem/AssociationsResult DTO 与 DocumentsRepository.summarize/listAssociations（POST，无 body），契约测试钉住路径/无请求体/503 chat_unavailable 映射；flutter analyze 干净、222 测试全绿。顺带修正 type-safety.md 中 snake_case 映射机制的描述（实际为 build.yaml 全局 field_rename）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d3d66ad` | feat(documents): add summary and associations endpoint integration |
+| `21e67ad` | docs(spec): fix snake_case mapping mechanism, record agent-result DTOs |
+
+### Status
+
+[OK] **Completed**
