@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates: analyze/test commands and forbidden patterns"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify DTO naming, snake_case JSON keys, nullability against spec"}
+{"file": ".trellis/tasks/09-14-align-document-endpoints/research-server-document-api.md", "reason": "Contract source of truth to diff the implementation against"}

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Stack, key facts, doc language conventions"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Binding freezed/json_serializable DTO-to-backend-schema mapping rules for the new SummaryResult/AssociationItem/AssociationsResult DTOs"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where shared models, feature repositories, and tests live"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates and testing bar the implementation must meet"}
+{"file": ".trellis/tasks/09-14-align-document-endpoints/research-server-document-api.md", "reason": "Authoritative server contract evidence: exact paths, no body, DTO fields, error codes"}
