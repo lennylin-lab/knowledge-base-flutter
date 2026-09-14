@@ -238,6 +238,12 @@ void main() {
       expect(find.byType(DocumentDetailPage), findsNothing);
       expect(find.text('正文片段甲内容'), findsOneWidget);
       expect(find.text('在左侧选择一个文档查看详情'), findsNothing);
+      // The pane shares DocumentDetailBody, so the on-demand AI sections
+      // are present here too — still without any LLM call on selection.
+      expect(find.text('生成摘要'), findsOneWidget);
+      expect(find.text('生成关联'), findsOneWidget);
+      expect(repo.summarizeCalls, isEmpty);
+      expect(repo.listAssociationsCalls, isEmpty);
       expect(repo.getCalls, ['a']);
     });
 

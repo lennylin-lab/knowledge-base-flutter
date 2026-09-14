@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
+import '../../shared/models/agents_result.dart';
 import '../../shared/models/document.dart';
 import '../../shared/utils/markdown_front_matter.dart';
 import '../../shared/widgets/expandable_tag_wrap.dart';
+import '../../shared/widgets/format.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/markdown_content.dart';
 import 'documents_providers.dart';
@@ -214,7 +216,301 @@ class DocumentDetailBody extends StatelessWidget {
             ),
           Divider(height: sizes.space32),
           MarkdownContent(data: stripYamlFrontMatter(document.content)),
+          // On-demand AI sections (both detail surfaces share this body).
+          // They render below the markdown and never block it: every branch
+          // below is local to the section and driven by manual taps only —
+          // opening the page fires no LLM calls (PRD: manual generation).
+          Divider(height: sizes.space32),
+          _SummarySection(documentId: document.id),
+          Divider(height: sizes.space32),
+          _AssociationsSection(documentId: document.id),
         ],
+      ),
+    );
+  }
+}
+
+/// 「AI 摘要」 section: manual LLM summary generation (生成摘要 / 重新生成),
+/// progress while in flight, the result verbatim with a 「{model} · {latency}」
+/// caption, and error copy that keeps any previous result visible.
+class _SummarySection extends ConsumerWidget {
+  const _SummarySection({required this.documentId});
+
+  final String documentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    final state = ref.watch(documentSummaryProvider(documentId));
+    final result = state.result;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _AiSectionHeader('AI 摘要'),
+        SizedBox(height: sizes.space8),
+        if (state.isGenerating) ...[
+          const _GenerationProgressRow('正在生成摘要…'),
+          SizedBox(height: sizes.space4),
+          Text(
+            '同步生成可能需要数秒',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          SizedBox(height: sizes.space8),
+        ],
+        if (state.error != null) ...[
+          _GenerationErrorText(
+            error: state.error!,
+            onRetry: () => ref
+                .read(documentSummaryProvider(documentId).notifier)
+                .generate(),
+          ),
+          SizedBox(height: sizes.space8),
+        ],
+        if (result != null) ...[
+          // Backend answer text renders verbatim — never translated or
+          // trimmed (component-guidelines spec).
+          Text(result.summary),
+          SizedBox(height: sizes.space4),
+          Text(
+            '${result.model} · ${formatLatencyMs(result.latencyMs)}',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (!state.isGenerating)
+            TextButton.icon(
+              onPressed: () => ref
+                  .read(documentSummaryProvider(documentId).notifier)
+                  .generate(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('重新生成'),
+            ),
+        ] else if (!state.isGenerating)
+          // Also shown after a failure (alongside the error copy): the
+          // friendly chat_unavailable copy invites a retry, so an in-place
+          // affordance must exist even with no previous result.
+          FilledButton.tonal(
+            onPressed: () => ref
+                .read(documentSummaryProvider(documentId).notifier)
+                .generate(),
+            child: const Text('生成摘要'),
+          ),
+      ],
+    );
+  }
+}
+
+/// 「相关文档」 section: manual LLM association lookup (生成关联), progress
+/// while in flight, then the items (title / tags / reason); tapping an item
+/// pushes that document's detail route.
+class _AssociationsSection extends ConsumerWidget {
+  const _AssociationsSection({required this.documentId});
+
+  final String documentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    final state = ref.watch(documentAssociationsProvider(documentId));
+    final result = state.result;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _AiSectionHeader('相关文档'),
+        SizedBox(height: sizes.space8),
+        if (state.isGenerating) ...[
+          const _GenerationProgressRow('正在生成关联…'),
+          SizedBox(height: sizes.space8),
+        ],
+        if (state.error != null) ...[
+          _GenerationErrorText(
+            error: state.error!,
+            onRetry: () => ref
+                .read(documentAssociationsProvider(documentId).notifier)
+                .generate(),
+          ),
+          SizedBox(height: sizes.space8),
+        ],
+        if (result != null && result.associations.isEmpty)
+          Text(
+            '未找到相关文档',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else if (result != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final item in result.associations)
+                _AssociationTile(item: item),
+            ],
+          )
+        else if (!state.isGenerating)
+          // Same as the summary section: stays visible after a failure so
+          // the friendly copy always has an in-place retry next to it.
+          FilledButton.tonal(
+            onPressed: () => ref
+                .read(documentAssociationsProvider(documentId).notifier)
+                .generate(),
+            child: const Text('生成关联'),
+          ),
+      ],
+    );
+  }
+}
+
+/// Section title row shared by the two AI sections.
+class _AiSectionHeader extends StatelessWidget {
+  const _AiSectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      title,
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
+/// In-flight row: small spinner + progress copy.
+class _GenerationProgressRow extends StatelessWidget {
+  const _GenerationProgressRow(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    return Row(
+      children: [
+        SizedBox(
+          width: sizes.spinnerSm,
+          height: sizes.spinnerSm,
+          child: const CircularProgressIndicator(strokeWidth: 2),
+        ),
+        SizedBox(width: sizes.space8),
+        Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Generation error copy: `503 chat_unavailable` gets the friendly copy;
+/// every other failure shows the backend message with a 生成失败 prefix plus
+/// a 重试 affordance (quality-guidelines: backend message verbatim with a
+/// Chinese prefix).
+class _GenerationErrorText extends StatelessWidget {
+  const _GenerationErrorText({required this.error, required this.onRetry});
+
+  final Object error;
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    final isChatUnavailable = toApiException(error).code == 'chat_unavailable';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            isChatUnavailable
+                ? 'AI 服务暂不可用，请稍后重试'
+                : '生成失败：${toApiException(error).message}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ),
+        if (!isChatUnavailable) ...[
+          SizedBox(width: sizes.space8),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('重试'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// One related document: title + tags + the LLM reason; the whole tile
+/// pushes that document's detail (go_router name `document-detail`).
+class _AssociationTile extends StatelessWidget {
+  const _AssociationTile({required this.item});
+
+  final AssociationItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    return InkWell(
+      onTap: () => context.push('/documents/${item.documentId}'),
+      borderRadius: BorderRadius.circular(sizes.radiusSm),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: sizes.space8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (item.tags.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.only(top: sizes.space2),
+                child: Wrap(
+                  spacing: sizes.space8,
+                  runSpacing: sizes.space2,
+                  children: [
+                    for (final tag in item.tags)
+                      Text(
+                        '#$tag',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            Padding(
+              padding: EdgeInsets.only(top: sizes.space2),
+              child: Text(
+                item.reason,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_client.dart';
+import '../../shared/models/agents_result.dart';
 import '../../shared/models/document.dart';
 import 'documents_repository.dart';
 
@@ -198,3 +199,91 @@ final documentDetailProvider =
     FutureProvider.family<DocumentReadDetail, String>((ref, id) {
       return ref.watch(documentsRepositoryProvider).get(id);
     });
+
+/// On-demand AI generation state for one document (summary or
+/// associations): the last successful [result], an [isGenerating] flag, and
+/// the raw [error] of the last failed attempt. Nothing is fetched on build —
+/// both endpoints are synchronous LLM calls whose results are not persisted
+/// server-side, so generation is always an explicit user action. A failed
+/// attempt keeps the previous [result] visible and exposes the raw error,
+/// which the UI maps to Chinese copy (hook-guidelines: providers let
+/// [ApiException] propagate).
+@immutable
+class OnDemandState<T> {
+  const OnDemandState({this.result, this.isGenerating = false, this.error});
+
+  final T? result;
+
+  final bool isGenerating;
+
+  final Object? error;
+}
+
+/// Shared generate state machine behind [documentSummaryProvider] and
+/// [documentAssociationsProvider]: no fetch on build; a tap while a
+/// generation is in flight is a no-op; a new result replaces the old; and a
+/// superseded generation (the provider rebuilt mid-flight) never writes
+/// state (same generation-guard pattern as [DocumentsNotifier]).
+abstract class OnDemandGenerationNotifier<T>
+    extends Notifier<OnDemandState<T>> {
+  int _generation = 0;
+
+  /// The repository call this notifier drives.
+  Future<T> fetch();
+
+  @override
+  OnDemandState<T> build() {
+    _generation++;
+    // Not `const` — a const creation may not use the type parameter T.
+    return OnDemandState<T>();
+  }
+
+  /// Runs one generation; the UI's single entry point (buttons, 重试,
+  /// 重新生成 all land here).
+  Future<void> generate() async {
+    if (state.isGenerating) return;
+    final generation = _generation;
+    state = OnDemandState<T>(result: state.result, isGenerating: true);
+    try {
+      final result = await fetch();
+      if (_generation != generation) return;
+      state = OnDemandState<T>(result: result);
+    } catch (error) {
+      if (_generation != generation) return;
+      state = OnDemandState<T>(result: state.result, error: error);
+    }
+  }
+}
+
+/// LLM summary of one document, generated on demand.
+class DocumentSummaryNotifier
+    extends OnDemandGenerationNotifier<SummaryResult> {
+  DocumentSummaryNotifier(this.documentId);
+
+  final String documentId;
+
+  @override
+  Future<SummaryResult> fetch() =>
+      ref.read(documentsRepositoryProvider).summarize(documentId);
+}
+
+final documentSummaryProvider =
+    NotifierProvider.family<DocumentSummaryNotifier, OnDemandState<SummaryResult>,
+        String>(DocumentSummaryNotifier.new);
+
+/// LLM-curated related documents of one document, generated on demand.
+class DocumentAssociationsNotifier
+    extends OnDemandGenerationNotifier<AssociationsResult> {
+  DocumentAssociationsNotifier(this.documentId);
+
+  final String documentId;
+
+  @override
+  Future<AssociationsResult> fetch() =>
+      ref.read(documentsRepositoryProvider).listAssociations(documentId);
+}
+
+final documentAssociationsProvider = NotifierProvider.family<
+    DocumentAssociationsNotifier,
+    OnDemandState<AssociationsResult>,
+    String>(DocumentAssociationsNotifier.new);
