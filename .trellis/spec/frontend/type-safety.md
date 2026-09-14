@@ -26,6 +26,7 @@
 | `DocumentReadDetail` | `DocumentReadDetail` | extends read + `content` |
 | `DocumentPage` | `DocumentPage` | `items` + `nextCursor` (nullable = end) |
 | `SearchResponse` / `SearchHit` | same names | `esRank` and `vectorRank` both nullable (`int \| None` per backend `SearchHit` — a per-leg rank is absent when that leg missed the chunk) |
+| `SummaryResult` / `AssociationItem` / `AssociationsResult` | same names (backend `schemas/agents.py`) | all fields required; `latency_ms` is float on the wire → Dart `double` (decode via `(as num).toDouble()` so integral JSON values work); served by `POST /documents/{id}/summary` and `POST /documents/{id}/associations`, no request body |
 | chat SSE payloads | `RunStarted`, `SourcesEvent`, `AnswerDelta`, `ChatDone`, `ChatErrorEvent` | |
 | error envelope | `ApiErrorEnvelope` / `ApiError` | `code`, `message`, `details` map |
 
@@ -33,10 +34,14 @@
 
 ## JSON Mapping Rules
 
-- Dart fields are `camelCase`; wire format is `snake_case` — annotate classes
-  with `@JsonSerializable(fieldRename: FieldRename.snake)` instead of per-field
-  `@JsonKey` (use `@JsonKey` only for irregular names like `es_rank` vs
-  `vector_rank`, which are regular snake_case and covered by the rename).
+- Dart fields are `camelCase`; wire format is `snake_case` — the rename is
+  configured **package-wide in `build.yaml`** (`json_serializable > options >
+  field_rename: snake`, plus `explicit_to_json: true` so nested DTOs
+  serialize correctly). Do **not** add per-class
+  `@JsonSerializable(fieldRename: FieldRename.snake)` annotations: the global
+  setting already applies, and a local override risks diverging from it.
+  Reach for `@JsonKey` only when the global rename cannot express the mapping,
+  e.g. `@JsonKey(unknownEnumValue: ...)` for defensive enum parsing.
 - Wire enums are **strings**, never ints:
   - `index_status`: `pending` | `done` | `failed`
   - `mode`: `hybrid` | `bm25`
