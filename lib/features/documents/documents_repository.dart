@@ -1,5 +1,6 @@
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
+import '../../shared/models/agents_result.dart';
 import '../../shared/models/document.dart';
 
 /// All documents endpoints — the only place this feature calls dio
@@ -93,6 +94,35 @@ class DocumentsRepository {
   Future<void> delete(String id) async {
     try {
       await _client.dio.delete<void>('$_basePath/$id');
+    } catch (error) {
+      throw toApiException(error);
+    }
+  }
+
+  /// Computes an LLM summary of the document (synchronous, not persisted).
+  /// Sends no body and no query — the server takes only the path id.
+  /// Fails with 503 `chat_unavailable` when the backend has no LLM key.
+  Future<SummaryResult> summarize(String id) async {
+    try {
+      final response = await _client.dio.post<Map<String, dynamic>>(
+        '$_basePath/$id/summary',
+      );
+      return SummaryResult.fromJson(response.data!);
+    } catch (error) {
+      throw toApiException(error);
+    }
+  }
+
+  /// Computes LLM-curated related documents (synchronous, not persisted).
+  /// Sends no body and no query — the server takes only the path id; the
+  /// result may be empty. Same 503 `chat_unavailable` failure mode as
+  /// [summarize].
+  Future<AssociationsResult> listAssociations(String id) async {
+    try {
+      final response = await _client.dio.post<Map<String, dynamic>>(
+        '$_basePath/$id/associations',
+      );
+      return AssociationsResult.fromJson(response.data!);
     } catch (error) {
       throw toApiException(error);
     }

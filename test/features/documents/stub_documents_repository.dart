@@ -1,4 +1,5 @@
 import 'package:knowledge_base_flutter/features/documents/documents_repository.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
 /// In-memory [DocumentsRepository] for widget tests: handlers decide the
@@ -11,6 +12,8 @@ class StubDocumentsRepository implements DocumentsRepository {
     this.createHandler,
     this.updateHandler,
     this.deleteHandler,
+    this.summarizeHandler,
+    this.listAssociationsHandler,
   });
 
   Future<DocumentPage> Function(String? cursor, int limit, List<String> tags)?
@@ -20,12 +23,16 @@ class StubDocumentsRepository implements DocumentsRepository {
   Future<DocumentRead> Function(String id, DocumentUpdate payload)?
   updateHandler;
   Future<void> Function(String id)? deleteHandler;
+  Future<SummaryResult> Function(String id)? summarizeHandler;
+  Future<AssociationsResult> Function(String id)? listAssociationsHandler;
 
   final List<({String? cursor, int limit, List<String> tags})> listCalls = [];
   final List<String> getCalls = [];
   final List<DocumentCreate> createCalls = [];
   final List<({String id, DocumentUpdate payload})> updateCalls = [];
   final List<String> deleteCalls = [];
+  final List<String> summarizeCalls = [];
+  final List<String> listAssociationsCalls = [];
 
   @override
   Future<DocumentPage> list({
@@ -77,6 +84,30 @@ class StubDocumentsRepository implements DocumentsRepository {
     final handler = deleteHandler;
     if (handler == null) {
       throw StateError('DocumentsRepository.delete called without a handler');
+    }
+    return handler(id);
+  }
+
+  @override
+  Future<SummaryResult> summarize(String id) async {
+    summarizeCalls.add(id);
+    final handler = summarizeHandler;
+    if (handler == null) {
+      throw StateError(
+        'DocumentsRepository.summarize called without a handler',
+      );
+    }
+    return handler(id);
+  }
+
+  @override
+  Future<AssociationsResult> listAssociations(String id) async {
+    listAssociationsCalls.add(id);
+    final handler = listAssociationsHandler;
+    if (handler == null) {
+      throw StateError(
+        'DocumentsRepository.listAssociations called without a handler',
+      );
     }
     return handler(id);
   }

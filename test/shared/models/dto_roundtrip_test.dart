@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
 import 'package:knowledge_base_flutter/shared/models/api_error.dart';
 import 'package:knowledge_base_flutter/shared/models/chat.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
@@ -252,6 +253,79 @@ void main() {
         'done',
         'error',
       ]);
+    });
+  });
+
+  group('Agents results (summary / associations)', () {
+    test('SummaryResult round-trips with snake_case keys and double latency',
+        () {
+      final model = SummaryResult.fromJson({
+        'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        'summary': '这份文档记录了知识库的整体设计思路。',
+        'model': 'glm-4.7',
+        'latency_ms': 1234.5,
+      });
+      expect(model.documentId, '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+      expect(model.latencyMs, 1234.5);
+      assertRoundTrip(model, (m) => m.toJson(), SummaryResult.fromJson);
+
+      // Wire keys must stay snake_case (round-trip to the backend).
+      final encoded = jsonEncode(model.toJson());
+      expect(encoded, contains('"document_id"'));
+      expect(encoded, contains('"latency_ms":1234.5'));
+    });
+
+    test('SummaryResult decodes an integral latency_ms (1234) as double', () {
+      final model = SummaryResult.fromJson({
+        'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        'summary': 's',
+        'model': 'glm-4.7',
+        'latency_ms': 1234,
+      });
+      expect(model.latencyMs, 1234.0);
+      expect(model.latencyMs, isA<double>());
+    });
+
+    test('AssociationItem round-trips every field', () {
+      final model = AssociationItem.fromJson({
+        'document_id': '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+        'title': 'Riverpod 迁移笔记',
+        'tags': ['flutter', 'dart'],
+        'reason': '共享状态管理的迁移经验。',
+        'signal': 'tag_overlap',
+      });
+      expect(model.tags, ['flutter', 'dart']);
+      assertRoundTrip(model, (m) => m.toJson(), AssociationItem.fromJson);
+    });
+
+    test('AssociationsResult round-trips nested items and allows empty', () {
+      final model = AssociationsResult.fromJson({
+        'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        'associations': [
+          {
+            'document_id': '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+            'title': 'Riverpod 迁移笔记',
+            'tags': ['flutter'],
+            'reason': '共享状态管理的迁移经验。',
+            'signal': 'tag_overlap',
+          },
+        ],
+        'model': 'glm-4.7',
+        'latency_ms': 2345.0,
+      });
+      expect(model.associations.single, isA<AssociationItem>());
+      expect(model.associations.single.documentId,
+          '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f');
+      assertRoundTrip(model, (m) => m.toJson(), AssociationsResult.fromJson);
+
+      final empty = AssociationsResult.fromJson({
+        'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        'associations': <Map<String, dynamic>>[],
+        'model': 'glm-4.7',
+        'latency_ms': 1.0,
+      });
+      expect(empty.associations, isEmpty);
+      assertRoundTrip(empty, (m) => m.toJson(), AssociationsResult.fromJson);
     });
   });
 

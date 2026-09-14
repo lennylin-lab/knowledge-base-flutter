@@ -109,6 +109,30 @@ final documentDetailJson = {
   'content': '---\ntitle: 知识库设计笔记\n---\n\n## 内容',
 };
 
+/// Wire-shaped fixtures for the LLM sub-endpoints (backend
+/// `src/app/schemas/agents.py`): every field required, none nullable.
+const summaryResultJson = {
+  'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+  'summary': '这份文档记录了知识库的整体设计思路。',
+  'model': 'glm-4.7',
+  'latency_ms': 1234.5,
+};
+
+const associationsResultJson = {
+  'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+  'associations': [
+    {
+      'document_id': '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+      'title': 'Riverpod 迁移笔记',
+      'tags': ['flutter', 'dart'],
+      'reason': '共享状态管理的迁移经验。',
+      'signal': 'tag_overlap',
+    },
+  ],
+  'model': 'glm-4.7',
+  'latency_ms': 2345.0,
+};
+
 (DocumentsRepository, _RecordingAdapter) _makeRepo(
   List<_CannedResponse> responses,
 ) {
@@ -305,6 +329,120 @@ void main() {
         '/api/v1/documents/0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
       );
       expect(request.body, isNull);
+    });
+  });
+
+  group('summarize', () {
+    test('posts no body to /documents/{id}/summary and parses SummaryResult',
+        () async {
+      final (repo, adapter) = _makeRepo([
+        _CannedResponse(200, jsonEncode(summaryResultJson)),
+      ]);
+
+      final result =
+          await repo.summarize('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+
+      expect(result.documentId, summaryResultJson['document_id']);
+      expect(result.summary, summaryResultJson['summary']);
+      expect(result.model, 'glm-4.7');
+      expect(result.latencyMs, 1234.5);
+
+      final request = adapter.requests.single;
+      expect(request.method, 'POST');
+      expect(
+        request.path,
+        '/api/v1/documents/0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01/summary',
+      );
+      expect(request.queryParameters, isEmpty);
+      expect(request.body, isNull,
+          reason: 'the server handler takes only the path UUID');
+    });
+
+    test('503 chat_unavailable envelope surfaces as ApiException', () async {
+      final (repo, _) = _makeRepo([
+        const _CannedResponse(
+          503,
+          '{"error": {"code": "chat_unavailable", '
+              '"message": "LLM provider is not configured", "details": {}}}',
+        ),
+      ]);
+
+      await expectLater(
+        repo.summarize('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', 'chat_unavailable')
+              .having((e) => e.statusCode, 'statusCode', 503),
+        ),
+      );
+    });
+  });
+
+  group('listAssociations', () {
+    test(
+        'posts no body to /documents/{id}/associations and parses '
+        'AssociationsResult', () async {
+      final (repo, adapter) = _makeRepo([
+        _CannedResponse(200, jsonEncode(associationsResultJson)),
+      ]);
+
+      final result =
+          await repo.listAssociations('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+
+      expect(result.documentId, associationsResultJson['document_id']);
+      expect(result.model, 'glm-4.7');
+      expect(result.latencyMs, 2345.0);
+      expect(result.associations, hasLength(1));
+      expect(result.associations.single.documentId,
+          '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f');
+      expect(result.associations.single.title, 'Riverpod 迁移笔记');
+      expect(result.associations.single.tags, ['flutter', 'dart']);
+      expect(result.associations.single.reason, '共享状态管理的迁移经验。');
+      expect(result.associations.single.signal, 'tag_overlap');
+
+      final request = adapter.requests.single;
+      expect(request.method, 'POST');
+      expect(
+        request.path,
+        '/api/v1/documents/0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01/associations',
+      );
+      expect(request.queryParameters, isEmpty);
+      expect(request.body, isNull,
+          reason: 'the server handler takes only the path UUID');
+    });
+
+    test('parses an empty associations list', () async {
+      final (repo, _) = _makeRepo([
+        const _CannedResponse(
+          200,
+          '{"document_id": "0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01", '
+              '"associations": [], "model": "glm-4.7", "latency_ms": 12.0}',
+        ),
+      ]);
+
+      final result =
+          await repo.listAssociations('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+
+      expect(result.associations, isEmpty);
+    });
+
+    test('503 chat_unavailable envelope surfaces as ApiException', () async {
+      final (repo, _) = _makeRepo([
+        const _CannedResponse(
+          503,
+          '{"error": {"code": "chat_unavailable", '
+              '"message": "LLM provider is not configured", "details": {}}}',
+        ),
+      ]);
+
+      await expectLater(
+        repo.listAssociations('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', 'chat_unavailable')
+              .having((e) => e.statusCode, 'statusCode', 503),
+        ),
+      );
     });
   });
 
