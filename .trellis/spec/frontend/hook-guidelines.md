@@ -23,6 +23,7 @@
 | One-shot fetch with refresh | `FutureProvider.family` (e.g. document detail by id) |
 | Paginated / mutable server list | `AsyncNotifierProvider` + `AsyncNotifier` |
 | Streaming chat state | `NotifierProvider` + `Notifier<ChatState>` driving an SSE subscription |
+| Manual-trigger LLM result (summary, associations) | family `NotifierProvider` over `OnDemandGenerationNotifier<T>` — see below |
 | App config (baseUrl) | `Provider<AppConfig>` from `main.dart` |
 
 Example shape:
@@ -44,6 +45,28 @@ class DocumentsNotifier extends AsyncNotifier<DocumentPage> {
   Future<void> loadNext() async { /* uses next_cursor; appends */ }
 }
 ```
+
+### Pattern: On-demand generation (`OnDemandGenerationNotifier<T>`)
+
+For server calls that are **slow, billed, and not persisted server-side**
+(LLM endpoints like `POST /documents/{id}/summary|associations`), never use an
+auto-fetching provider — opening a page must fire zero calls. Use a family
+`Notifier` whose state is `OnDemandState<T>` (last `result` + `isGenerating` +
+last `error`):
+
+- `build()` fetches **nothing**; it only bumps a generation counter.
+- `generate(id)` no-ops while `isGenerating` (set synchronously before the
+  first `await`, so same-frame double taps cannot double-fire); success
+  replaces the prior result; failure keeps the prior result visible and stores
+  the error for the UI.
+- Late responses are dropped when `_generation != generation` (same
+  stale-guard as `DocumentsNotifier.loadNext`) — an invalidate mid-flight must
+  not let the stale result land anywhere.
+- The UI shows progress while generating and keeps the trigger affordance
+  visible on error (component-guidelines: no error dead-ends).
+
+Reference implementation: `lib/features/documents/documents_providers.dart`
+(`DocumentSummaryNotifier` / `DocumentAssociationsNotifier`).
 
 ---
 

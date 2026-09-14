@@ -150,7 +150,10 @@ trade-off record).
   - `markdown` is declared as a direct dependency (BlockSyntax API surface).
 - **Empty / loading / error states:** every list-like surface must handle all
   three `AsyncValue` branches; error copy shows the backend `message` plus a
-  Chinese fallback.
+  Chinese fallback. Error states must never strand the user: keep the primary
+  trigger visible alongside the error so recovery is one tap (e.g. after a
+  `chat_unavailable` failure the 生成 button stays available for an in-place
+  retry — hiding it turns the friendly copy into a dead end).
 
 ---
 
