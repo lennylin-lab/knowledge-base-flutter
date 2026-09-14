@@ -175,3 +175,10 @@ trade-off record).
 - Building a mobile-only layout first and bolting desktop on later — design the
   two shells from day one.
 - Translating or trimming LLM answer text before rendering — show it verbatim.
+- Dual-path (hover + tap) widgets on touch-web: browsers fire compatibility
+  mouse events around a tap and `mouseenter` precedes `click`, so a
+  hover-open → click-toggle pair cancels out and the **first tap appears
+  dead**. When a tap lands on a hover-opened state, upgrade it to tap-owned
+  (sticky) instead of toggling closed — see `AiAssistantFab._toggle`
+  (`document_detail_page.dart`). Keep hover-dismiss scoped to hover-opened
+  state only.
