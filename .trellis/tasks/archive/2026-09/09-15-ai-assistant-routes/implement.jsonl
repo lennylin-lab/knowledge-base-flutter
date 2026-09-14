@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Binding UI rules: AppSizes tokens, Chinese copy, error dead-end rule, touch-web hover/tap pitfall"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Riverpod 3 rules, noAutomaticRetry test scopes"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "OnDemandGenerationNotifier pattern (unchanged) the content pages consume"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates"}
