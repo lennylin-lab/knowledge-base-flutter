@@ -9,6 +9,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/theme_preferences.dart';
 import 'features/chat/chat_page.dart';
 import 'features/chat/sessions_page.dart';
+import 'features/documents/document_ai_pages.dart';
 import 'features/documents/document_detail_page.dart';
 import 'features/documents/document_editor_page.dart';
 import 'features/documents/documents_page.dart';
@@ -28,11 +29,14 @@ class App extends ConsumerWidget {
 
   final GoRouter router;
 
-  /// Route table. Detail/editor live inside the documents branch, so the
-  /// three-tab state is kept while they are shown. Static segments
-  /// (`new`) are declared before the dynamic one (`:id`).
-  static GoRouter buildRouter() => GoRouter(
-    initialLocation: '/documents',
+  /// Route table. Detail/editor and the AI content pages live inside the
+  /// documents branch, so the three-tab state is kept while they are shown.
+  /// Static segments (`new`) are declared before the dynamic one (`:id`).
+  /// [initialLocation] is overridable so tests can deep-link straight to a
+  /// nested route.
+  static GoRouter buildRouter({String initialLocation = '/documents'}) =>
+      GoRouter(
+    initialLocation: initialLocation,
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -62,6 +66,20 @@ class App extends ConsumerWidget {
                         name: 'document-edit',
                         builder: (context, state) => DocumentEditorPage(
                           documentId: state.pathParameters['id'],
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'summary',
+                        name: 'document-summary',
+                        builder: (context, state) => DocumentSummaryPage(
+                          documentId: state.pathParameters['id']!,
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'associations',
+                        name: 'document-associations',
+                        builder: (context, state) => DocumentAssociationsPage(
+                          documentId: state.pathParameters['id']!,
                         ),
                       ),
                     ],

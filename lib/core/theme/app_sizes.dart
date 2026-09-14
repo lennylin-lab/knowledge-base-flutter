@@ -48,6 +48,10 @@ class AppSizes extends ThemeExtension<AppSizes> {
   double get radiusMd => 12 * scale;
   double get radiusLg => 24 * scale;
   double get aiBubbleWidth => 280 * scale;
+
+  /// Wide content bubble of the AI content pages (AI 摘要 / 相关文档) —
+  /// clearly larger than the entry menu bubble ([aiBubbleWidth]).
+  double get aiContentBubbleWidth => 560 * scale;
   double get cardGapV => 4 * scale;
   double get cardGapVWide => 6 * scale;
   double get pagePadH => 16 * scale;

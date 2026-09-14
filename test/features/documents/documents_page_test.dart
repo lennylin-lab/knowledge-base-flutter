@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/app.dart';
 import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
+import 'package:knowledge_base_flutter/features/documents/document_ai_pages.dart';
 import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
@@ -240,17 +241,18 @@ void main() {
       expect(find.text('正文片段甲内容'), findsOneWidget);
       expect(find.text('在左侧选择一个文档查看详情'), findsNothing);
       // The pane shares DocumentDetailBody: it carries its own floating AI
-      // entry (collapsed) and the display-only AI sections with their idle
-      // hints — still without any LLM call on selection.
+      // entry (collapsed) and no AI sections — still without any LLM call
+      // on selection.
       expect(find.byType(AiAssistantFab), findsOneWidget);
       expect(find.text('AI 助手'), findsNothing);
-      expect(find.text('使用右下角悬浮入口生成'), findsNWidgets(2));
+      expect(find.text('使用右下角悬浮入口生成'), findsNothing);
       expect(repo.summarizeCalls, isEmpty);
       expect(repo.listAssociationsCalls, isEmpty);
       expect(repo.getCalls, ['a']);
     });
 
-    testWidgets('the pane floating AI entry generates the summary in place', (
+    testWidgets('the pane floating AI entry navigates to the summary content '
+        'page; back restores /documents with the pane selection', (
       tester,
     ) async {
       final repo =
@@ -258,7 +260,7 @@ void main() {
             ..summarizeHandler =
                 (id) async => const SummaryResult(
                   documentId: 'a',
-                  summary: '面板内摘要',
+                  summary: '面板入口后的摘要',
                   model: 'glm-4.7',
                   latencyMs: 1200,
                 );
@@ -268,20 +270,45 @@ void main() {
       await tester.pumpAndSettle();
 
       // The floating entry lives inside the pane's own bounds; opening the
-      // bubble and selecting 「AI 摘要」 fires exactly one generation.
-      final fab = find.byType(AiAssistantFab);
-      expect(fab, findsOneWidget);
-      await tester.tap(fab);
+      // bubble and selecting 「AI 摘要」 navigates to the content page, which
+      // covers the branch content area and auto-generates once.
+      final fabButton = find.descendant(
+        of: find.byType(AiAssistantFab),
+        matching: find.byType(FloatingActionButton),
+      );
+      await tester.tap(fabButton);
       await tester.pumpAndSettle();
       await tester.tap(
-        find.descendant(of: fab, matching: find.text('AI 摘要')),
+        find.descendant(of: find.byType(AiAssistantFab), matching: find.text('AI 摘要')),
       );
       await tester.pumpAndSettle();
 
+      expect(find.byType(DocumentSummaryPage), findsOneWidget);
       expect(repo.summarizeCalls, ['a']);
-      expect(find.text('面板内摘要'), findsOneWidget);
+      expect(find.text('面板入口后的摘要'), findsOneWidget);
       expect(find.text('glm-4.7 · 1.2 s'), findsOneWidget);
-      expect(find.text('AI 助手'), findsNothing); // selection closed the bubble
+      // The pane's entry (and its bubble) is gone under the content page —
+      // 「AI 助手」 itself is the content card's branding header now.
+      expect(find.byType(AiAssistantFab), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(AiAssistantFab),
+          matching: find.text('AI 摘要'),
+        ),
+        findsNothing,
+      );
+
+      // Back pops the content page; the documents page returns with the
+      // pane selection (and its floating AI entry) preserved.
+      await tester.tap(find.descendant(
+        of: find.byType(DocumentSummaryPage),
+        matching: find.byType(BackButton),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DocumentSummaryPage), findsNothing);
+      expect(find.byType(DocumentDetailPane), findsOneWidget);
+      expect(find.text('正文片段甲内容'), findsOneWidget);
     });
 
     testWidgets('deleting from the pane returns to the placeholder', (

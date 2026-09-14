@@ -4,11 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
-import '../../shared/models/agents_result.dart';
 import '../../shared/models/document.dart';
 import '../../shared/utils/markdown_front_matter.dart';
 import '../../shared/widgets/expandable_tag_wrap.dart';
-import '../../shared/widgets/format.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/markdown_content.dart';
 import 'documents_providers.dart';
@@ -164,8 +162,10 @@ void _showToast(BuildContext context, String message) {
 /// bounds** — so the full page and the pane each get their own entry. It only
 /// exists while detail data renders (loading / error panes replace the body),
 /// and its collapsed form is just the small round button, so it neither
-/// blocks body scrolling nor traps clicks elsewhere.
-class DocumentDetailBody extends StatefulWidget {
+/// blocks body scrolling nor traps clicks elsewhere. There is no AI content
+/// in the body itself: the bubble items navigate to the dedicated content
+/// pages (`/documents/{id}/summary` / `/documents/{id}/associations`).
+class DocumentDetailBody extends StatelessWidget {
   const DocumentDetailBody({
     super.key,
     required this.document,
@@ -175,17 +175,6 @@ class DocumentDetailBody extends StatefulWidget {
   final DocumentReadDetail document;
 
   final Widget? titleTrailing;
-
-  @override
-  State<DocumentDetailBody> createState() => _DocumentDetailBodyState();
-}
-
-class _DocumentDetailBodyState extends State<DocumentDetailBody> {
-  /// Section anchors the floating entry scrolls to. Held in State instead of
-  /// being created per build: recreating a [GlobalKey] on every rebuild would
-  /// tear down and rebuild the section subtree each time.
-  final GlobalKey _summarySectionKey = GlobalKey();
-  final GlobalKey _associationsSectionKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -209,51 +198,36 @@ class _DocumentDetailBodyState extends State<DocumentDetailBody> {
                   children: [
                     Expanded(
                       child: Text(
-                        widget.document.title,
+                        document.title,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                     SizedBox(width: sizes.space8),
-                    if (widget.titleTrailing != null)
-                      widget.titleTrailing!
+                    if (titleTrailing != null)
+                      titleTrailing!
                     else
                       IndexStatusChip(
-                        status: widget.document.indexStatus,
-                        onRetry: () => context
-                            .push('/documents/${widget.document.id}/edit'),
+                        status: document.indexStatus,
+                        onRetry: () =>
+                            context.push('/documents/${document.id}/edit'),
                       ),
                   ],
                 ),
                 SizedBox(height: sizes.space8),
-                if (widget.document.tags.isNotEmpty)
+                if (document.tags.isNotEmpty)
                   Padding(
                     padding: EdgeInsets.only(bottom: sizes.space4),
                     child: ExpandableTagWrap(
-                      tags: widget.document.tags,
+                      tags: document.tags,
                       spacing: sizes.space8,
                       runSpacing: sizes.space4,
                     ),
                   ),
                 Divider(height: sizes.space32),
                 MarkdownContent(
-                  data: stripYamlFrontMatter(widget.document.content),
-                ),
-                // Display-only on-demand AI sections below the markdown
-                // (both detail surfaces share this body). Generation is
-                // triggered exclusively through the floating AI entry to the
-                // right (plus inline 重试 / 重新生成); opening the page fires
-                // no LLM calls (PRD: manual generation).
-                Divider(height: sizes.space32),
-                _SummarySection(
-                  key: _summarySectionKey,
-                  documentId: widget.document.id,
-                ),
-                Divider(height: sizes.space32),
-                _AssociationsSection(
-                  key: _associationsSectionKey,
-                  documentId: widget.document.id,
+                  data: stripYamlFrontMatter(document.content),
                 ),
               ],
             ),
@@ -262,178 +236,9 @@ class _DocumentDetailBodyState extends State<DocumentDetailBody> {
         Positioned(
           right: sizes.space16,
           bottom: sizes.space16,
-          child: AiAssistantFab(
-            documentId: widget.document.id,
-            summarySectionKey: _summarySectionKey,
-            associationsSectionKey: _associationsSectionKey,
-          ),
+          child: AiAssistantFab(documentId: document.id),
         ),
       ],
-    );
-  }
-}
-
-/// 「AI 摘要」 section, display-only: generation is triggered from the
-/// floating AI entry (bottom-right of the surface). Renders progress while
-/// in flight, the result verbatim with a 「{model} · {latency}」 caption and
-/// an inline 重新生成 affordance, and error copy that keeps any previous
-/// result visible (generic errors get an in-place 重试; the always-visible
-/// floating entry is the standing retry for the friendly chat_unavailable
-/// copy — dead-end rule).
-class _SummarySection extends ConsumerWidget {
-  const _SummarySection({super.key, required this.documentId});
-
-  final String documentId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final sizes = context.sizes;
-    final state = ref.watch(documentSummaryProvider(documentId));
-    final result = state.result;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _AiSectionHeader('AI 摘要'),
-        SizedBox(height: sizes.space8),
-        if (state.isGenerating) ...[
-          const _GenerationProgressRow('正在生成摘要…'),
-          SizedBox(height: sizes.space4),
-          Text(
-            '同步生成可能需要数秒',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          SizedBox(height: sizes.space8),
-        ],
-        if (state.error != null) ...[
-          _GenerationErrorText(
-            error: state.error!,
-            onRetry: () => ref
-                .read(documentSummaryProvider(documentId).notifier)
-                .generate(),
-          ),
-          SizedBox(height: sizes.space8),
-        ],
-        if (result != null) ...[
-          // Backend answer text renders verbatim — never translated or
-          // trimmed (component-guidelines spec).
-          Text(result.summary),
-          SizedBox(height: sizes.space4),
-          Text(
-            '${result.model} · ${formatLatencyMs(result.latencyMs)}',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (!state.isGenerating)
-            TextButton.icon(
-              onPressed: () => ref
-                  .read(documentSummaryProvider(documentId).notifier)
-                  .generate(),
-              icon: const Icon(Icons.refresh),
-              label: const Text('重新生成'),
-            ),
-        ] else if (!state.isGenerating && state.error == null)
-          // Idle: the generation entry lives in the always-visible floating
-          // AI entry at the surface's bottom-right.
-          const _IdleHintRow(),
-      ],
-    );
-  }
-}
-
-/// 「相关文档」 section, display-only: generation is triggered from the
-/// floating AI entry (bottom-right of the surface). Renders progress while
-/// in flight, then the items (title / tags / reason); tapping an item pushes
-/// that document's detail route. Generic errors keep an in-place 重试; the
-/// always-visible floating entry covers the friendly chat_unavailable copy.
-class _AssociationsSection extends ConsumerWidget {
-  const _AssociationsSection({super.key, required this.documentId});
-
-  final String documentId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final sizes = context.sizes;
-    final state = ref.watch(documentAssociationsProvider(documentId));
-    final result = state.result;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _AiSectionHeader('相关文档'),
-        SizedBox(height: sizes.space8),
-        if (state.isGenerating) ...[
-          const _GenerationProgressRow('正在生成关联…'),
-          SizedBox(height: sizes.space8),
-        ],
-        if (state.error != null) ...[
-          _GenerationErrorText(
-            error: state.error!,
-            onRetry: () => ref
-                .read(documentAssociationsProvider(documentId).notifier)
-                .generate(),
-          ),
-          SizedBox(height: sizes.space8),
-        ],
-        if (result != null && result.associations.isEmpty)
-          Text(
-            '未找到相关文档',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          )
-        else if (result != null)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final item in result.associations)
-                _AssociationTile(item: item),
-            ],
-          )
-        else if (!state.isGenerating && state.error == null)
-          // Idle: the generation entry lives in the floating AI entry.
-          const _IdleHintRow(),
-      ],
-    );
-  }
-}
-
-/// Section title row shared by the two AI sections.
-class _AiSectionHeader extends StatelessWidget {
-  const _AiSectionHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      title,
-      style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-}
-
-/// Idle-state hint of a display-only AI section: points at the floating AI
-/// entry at the surface's bottom-right (the unified generation trigger).
-class _IdleHintRow extends StatelessWidget {
-  const _IdleHintRow();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      '使用右下角悬浮入口生成',
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
-      ),
     );
   }
 }
@@ -451,36 +256,24 @@ class _IdleHintRow extends StatelessWidget {
 ///   bubble the first tap upgrades it to tap-owned instead of closing (the
 ///   second tap closes), and a tap-owned bubble closes on tap;
 /// - tapping outside the entry closes it;
-/// - selecting a function closes it, scrolls that bottom section into view
-///   and fires exactly one generation — first run and regenerate alike
-///   (generate() no-ops while one is already in flight).
+/// - selecting a function closes the bubble and **navigates** to that
+///   function's content page (`/documents/{id}/summary` /
+///   `/documents/{id}/associations`) — the page itself owns generation
+///   (auto-generate on entry), so opening the detail fires zero LLM calls.
 ///
 /// The hero tag is unique per instance: the full-page detail and the two-pane
 /// pane can be mounted at once (deep-linked detail over a wide documents
 /// page), and shared default tags collide during route hero flights.
-class AiAssistantFab extends ConsumerStatefulWidget {
-  const AiAssistantFab({
-    super.key,
-    required this.documentId,
-    required this.summarySectionKey,
-    required this.associationsSectionKey,
-  });
+class AiAssistantFab extends StatefulWidget {
+  const AiAssistantFab({super.key, required this.documentId});
 
   final String documentId;
 
-  /// [GlobalKey] of the 「AI 摘要」 section, scrolled into view on select.
-  final GlobalKey summarySectionKey;
-
-  /// [GlobalKey] of the 「相关文档」 section, scrolled into view on select.
-  final GlobalKey associationsSectionKey;
-
   @override
-  ConsumerState<AiAssistantFab> createState() => _AiAssistantFabState();
+  State<AiAssistantFab> createState() => _AiAssistantFabState();
 }
 
-class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
-  static const Duration _revealDuration = Duration(milliseconds: 300);
-
+class _AiAssistantFabState extends State<AiAssistantFab> {
   final Object _heroTag = UniqueKey();
 
   bool _open = false;
@@ -532,28 +325,12 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
 
   void _selectSummary() {
     _close();
-    _revealSection(widget.summarySectionKey);
-    ref.read(documentSummaryProvider(widget.documentId).notifier).generate();
+    context.push('/documents/${widget.documentId}/summary');
   }
 
   void _selectAssociations() {
     _close();
-    _revealSection(widget.associationsSectionKey);
-    ref
-        .read(documentAssociationsProvider(widget.documentId).notifier)
-        .generate();
-  }
-
-  /// Scrolls the section with [sectionKey] into view (no-op when it is
-  /// already visible or not mounted).
-  void _revealSection(GlobalKey sectionKey) {
-    final sectionContext = sectionKey.currentContext;
-    if (sectionContext == null) return;
-    Scrollable.ensureVisible(
-      sectionContext,
-      duration: _revealDuration,
-      curve: Curves.easeOut,
-    );
+    context.push('/documents/${widget.documentId}/associations');
   }
 
   @override
@@ -594,7 +371,10 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
 }
 
 /// The expanded bubble card: 「AI 助手」 header with a dismiss affordance,
-/// then one entry per AI function (icon + label + one-line description).
+/// then one entry per AI function (icon + label + one-line description +
+/// navigation chevron — the entries navigate to the content pages, so they
+/// read as links and are sized a bit larger than the in-place menu of the
+/// previous iteration, via AppSizes tokens).
 class _AiBubbleCard extends StatelessWidget {
   const _AiBubbleCard({
     required this.onDismiss,
@@ -673,7 +453,8 @@ class _AiBubbleCard extends StatelessWidget {
 }
 
 /// One selectable row of the bubble: leading icon, label and a one-line
-/// description of what the function does.
+/// description of what the function does, plus a trailing chevron marking
+/// the navigation to that function's content page.
 class _AiBubbleEntry extends StatelessWidget {
   const _AiBubbleEntry({
     required this.icon,
@@ -696,7 +477,7 @@ class _AiBubbleEntry extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: sizes.space16,
-          vertical: sizes.space10,
+          vertical: sizes.space12,
         ),
         child: Row(
           children: [
@@ -719,137 +500,11 @@ class _AiBubbleEntry extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// In-flight row: small spinner + progress copy.
-class _GenerationProgressRow extends StatelessWidget {
-  const _GenerationProgressRow(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final sizes = context.sizes;
-    return Row(
-      children: [
-        SizedBox(
-          width: sizes.spinnerSm,
-          height: sizes.spinnerSm,
-          child: const CircularProgressIndicator(strokeWidth: 2),
-        ),
-        SizedBox(width: sizes.space8),
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Generation error copy: `503 chat_unavailable` gets the friendly copy;
-/// every other failure shows the backend message with a 生成失败 prefix plus
-/// a 重试 affordance (quality-guidelines: backend message verbatim with a
-/// Chinese prefix).
-class _GenerationErrorText extends StatelessWidget {
-  const _GenerationErrorText({required this.error, required this.onRetry});
-
-  final Object error;
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final sizes = context.sizes;
-    final isChatUnavailable = toApiException(error).code == 'chat_unavailable';
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
-            isChatUnavailable
-                ? 'AI 服务暂不可用，请稍后重试'
-                : '生成失败：${toApiException(error).message}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ),
-        if (!isChatUnavailable) ...[
-          SizedBox(width: sizes.space8),
-          TextButton(
-            onPressed: onRetry,
-            style: TextButton.styleFrom(
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-            child: const Text('重试'),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// One related document: title + tags + the LLM reason; the whole tile
-/// pushes that document's detail (go_router name `document-detail`).
-class _AssociationTile extends StatelessWidget {
-  const _AssociationTile({required this.item});
-
-  final AssociationItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final sizes = context.sizes;
-    return InkWell(
-      onTap: () => context.push('/documents/${item.documentId}'),
-      borderRadius: BorderRadius.circular(sizes.radiusSm),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: sizes.space8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item.title,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (item.tags.isNotEmpty)
-              Padding(
-                padding: EdgeInsets.only(top: sizes.space2),
-                child: Wrap(
-                  spacing: sizes.space8,
-                  runSpacing: sizes.space2,
-                  children: [
-                    for (final tag in item.tags)
-                      Text(
-                        '#$tag',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            Padding(
-              padding: EdgeInsets.only(top: sizes.space2),
-              child: Text(
-                item.reason,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
+            SizedBox(width: sizes.space8),
+            Icon(
+              Icons.chevron_right,
+              size: sizes.iconSm,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ],
         ),

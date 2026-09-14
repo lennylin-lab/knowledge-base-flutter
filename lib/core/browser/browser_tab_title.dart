@@ -79,6 +79,10 @@ class _BrowserTabTitleState extends ConsumerState<BrowserTabTitle> {
       switch (segments.length >= 3 ? segments[2] : '') {
         case 'edit':
           page = '编辑文档${_suffix(docTitle)}';
+        case 'summary':
+          page = 'AI 摘要${_suffix(docTitle)}';
+        case 'associations':
+          page = '相关文档${_suffix(docTitle)}';
         default:
           page = '文档详情${_suffix(docTitle)}';
       }
