@@ -324,3 +324,26 @@ Reworked the chat run view to render strictly in event arrival order: ChatState'
 ### Status
 
 [OK] **Completed**
+
+
+## Session 15: 详情页 AI 悬浮入口（收起/气泡双态）
+<!-- trellis-session: v=2 fp=0376ce23daa822f2 -->
+
+**Date**: 2026-09-15
+**Task**: 详情页 AI 悬浮入口（收起/气泡双态）
+**Branch**: `main`
+
+### Summary
+
+把详情页底部 AI 摘要/相关文档的内联触发按钮改为右下角悬浮双态入口：常态收起为常显小按钮，hover 或点击唤出大气泡（TapRegion+MouseRegion，hero tag 防页面/右栏冲突），气泡项点击后关闭气泡、Scrollable.ensureVisible 滚动定位到底部对应分区并触发生成；内联分区改纯展示（闲置提示/生成中/结果/错误重试保留，死胡同规则保持）。修复触摸屏 Web 兼容性鼠标事件导致的首次点击失效（hover-open 状态被 tap 升级而非关闭）。双栏布局下新建 FAB 移入列表栏避让 AI 入口。analyze 干净、243 测试全绿；spec 沉淀 touch-web hover/tap 双路径组件的坑。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e173f1e` | feat(documents): floating AI entry with hover/tap bubble on detail surfaces |
+| `b8636d3` | docs(spec): record touch-web hover/tap pitfall for dual-path widgets |
+
+### Status
+
+[OK] **Completed**

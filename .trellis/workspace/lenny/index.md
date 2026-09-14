@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 14
-- **Last Active**: 2026-09-14
+- **Total Sessions**: 15
+- **Last Active**: 2026-09-15
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~326 | Active |
+| `journal-1.md` | ~349 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 15 | 2026-09-15 | 详情页 AI 悬浮入口（收起/气泡双态） | `e173f1e`, `b8636d3` | `main` |
 | 14 | 2026-09-14 | 文档详情页摘要与关联 UI | `4eefdc5`, `816ac5e` | `main` |
 | 13 | 2026-09-14 | 对齐服务端 document 端点（summary/associations） | `d3d66ad`, `21e67ad` | `main` |
 | 12 | 2026-09-14 | Chat run parts chronological rendering | `51b8518` | `main` |
