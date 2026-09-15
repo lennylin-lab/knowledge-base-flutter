@@ -6,6 +6,7 @@ import '../../core/theme/app_sizes.dart';
 import '../../shared/models/agents_result.dart';
 import '../../shared/models/agents_stream.dart';
 import '../../shared/widgets/format.dart';
+import '../../shared/widgets/markdown_content.dart';
 import 'documents_providers.dart';
 
 /// Content layer of the floating AI bubble (task 09-15-ai-bubble-inline-
@@ -130,8 +131,10 @@ class AiBubbleContentLayer extends ConsumerWidget {
       ],
       if (result != null) ...[
         // Backend answer text renders verbatim — never translated or
-        // trimmed (component-guidelines spec).
-        Text(result.summary),
+        // trimmed (component-guidelines spec). Same shared renderer as the
+        // detail body and chat answers; generated summaries carry no YAML
+        // front matter, so nothing is stripped.
+        MarkdownContent(data: result.summary),
         SizedBox(height: sizes.space4),
         Text(
           '${result.model} · ${formatLatencyMs(result.latencyMs)}',

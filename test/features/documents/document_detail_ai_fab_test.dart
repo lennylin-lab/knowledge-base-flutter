@@ -287,8 +287,9 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    // Verbatim answer text, never translated or trimmed.
-    expect(bubbleText('这是原文摘要，保持原样。'), findsOneWidget);
+    // Verbatim answer text (through the shared MarkdownContent pipeline),
+    // never translated or trimmed.
+    expect(bubbleTextContaining('这是原文摘要，保持原样。'), findsOneWidget);
     expect(bubbleText('glm-4.7 · 1.5 s'), findsOneWidget);
     expect(bubbleText('正在生成摘要…'), findsNothing);
     expect(find.text('重新生成'), findsOneWidget);
@@ -311,12 +312,12 @@ void main() {
 
     await selectEntry(tester, 'AI 摘要');
     expect(repo.summarizeCalls, hasLength(1));
-    expect(bubbleText('已缓存的摘要'), findsOneWidget);
+    expect(bubbleTextContaining('已缓存的摘要'), findsOneWidget);
 
     // Back to the menu layer — the content is gone, the entries are back.
     await tester.tap(bubbleBackButton());
     await tester.pumpAndSettle();
-    expect(bubbleText('已缓存的摘要'), findsNothing);
+    expect(bubbleTextContaining('已缓存的摘要'), findsNothing);
     expect(bubbleEntry('AI 摘要'), findsOneWidget);
     expect(bubbleEntry('相关文档'), findsOneWidget);
 
@@ -324,7 +325,7 @@ void main() {
     await selectEntry(tester, 'AI 摘要');
 
     expect(repo.summarizeCalls, hasLength(1));
-    expect(bubbleText('已缓存的摘要'), findsOneWidget);
+    expect(bubbleTextContaining('已缓存的摘要'), findsOneWidget);
   });
 
   testWidgets('重新生成 refetches and replaces the previous result', (
@@ -354,7 +355,7 @@ void main() {
     await openBubble(tester);
 
     await selectEntry(tester, 'AI 摘要');
-    expect(bubbleText('第一版摘要'), findsOneWidget);
+    expect(bubbleTextContaining('第一版摘要'), findsOneWidget);
     expect(bubbleText('glm-4.7 · 1.5 s'), findsOneWidget);
 
     await tester.tap(find.text('重新生成'));
@@ -362,10 +363,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.summarizeCalls, hasLength(2));
-    expect(bubbleText('第二版摘要'), findsOneWidget);
+    expect(bubbleTextContaining('第二版摘要'), findsOneWidget);
     // Sub-second latency renders as whole milliseconds.
     expect(bubbleText('glm-4.7 · 480 ms'), findsOneWidget);
-    expect(bubbleText('第一版摘要'), findsNothing);
+    expect(bubbleTextContaining('第一版摘要'), findsNothing);
   });
 
   testWidgets('closing and reopening the bubble lands on the menu layer', (
@@ -385,7 +386,7 @@ void main() {
 
     await openBubble(tester);
     await selectEntry(tester, 'AI 摘要');
-    expect(bubbleText('关闭前生成的摘要'), findsOneWidget);
+    expect(bubbleTextContaining('关闭前生成的摘要'), findsOneWidget);
 
     // 收起 dismisses the whole bubble…
     await tester.tap(find.byIcon(Icons.close_outlined));
@@ -396,7 +397,7 @@ void main() {
     await openBubble(tester);
     expect(bubbleEntry('AI 摘要'), findsOneWidget);
     expect(bubbleEntry('相关文档'), findsOneWidget);
-    expect(bubbleText('关闭前生成的摘要'), findsNothing);
+    expect(bubbleTextContaining('关闭前生成的摘要'), findsNothing);
     expect(bubbleBackButton(), findsNothing);
   });
 
@@ -416,7 +417,7 @@ void main() {
 
     await openBubble(tester);
     await selectEntry(tester, 'AI 摘要');
-    expect(bubbleText('返回前的摘要'), findsOneWidget);
+    expect(bubbleTextContaining('返回前的摘要'), findsOneWidget);
 
     // System/browser back: the content layer consumes it.
     await tester.binding.handlePopRoute();
@@ -424,7 +425,7 @@ void main() {
 
     // Back at the menu layer, still on the detail page.
     expect(bubbleEntry('AI 摘要'), findsOneWidget);
-    expect(bubbleText('返回前的摘要'), findsNothing);
+    expect(bubbleTextContaining('返回前的摘要'), findsNothing);
     expect(find.byType(DocumentDetailPage), findsOneWidget);
     expect(find.text('混合检索正文'), findsOneWidget);
 
@@ -573,29 +574,34 @@ void main() {
     expect(tester.getTopLeft(bubbleCard.first).dy, greaterThanOrEqualTo(0));
 
     final viewportRect = tester.getRect(viewport);
-    final textRect = tester.getRect(bubbleText(summary));
+    // Markdown renders one paragraph widget per stub line; the first pins
+    // the content top, the last its tail.
+    final firstRect = tester.getRect(bubbleTextContaining('摘要段落 0'));
     // First content starts inside the viewport…
-    expect(textRect.top, greaterThanOrEqualTo(viewportRect.top - 0.5));
+    expect(firstRect.top, greaterThanOrEqualTo(viewportRect.top - 0.5));
 
-    // …and the rest is reachable by internal scrolling.
-    final position = tester
-        .state<ScrollableState>(
-          find.descendant(
-            of: find.byType(AiAssistantFab),
-            matching: find.byType(Scrollable),
-          ),
-        )
-        .position;
+    // …and the rest is reachable by internal scrolling. The position is
+    // resolved from a direct child of the content layer (the 重新生成
+    // action): every markdown paragraph carries its own internal
+    // EditableText Scrollable, so a fab-wide Scrollable lookup would be
+    // ambiguous.
+    final position = Scrollable.of(
+      tester.element(find.text('重新生成')),
+      axis: Axis.vertical,
+    ).position;
     expect(position.maxScrollExtent, greaterThan(0));
     position.jumpTo(position.maxScrollExtent);
     await tester.pump();
 
-    // Scrolled to the end: the content has moved up and its tail is inside
-    // the viewport.
-    final scrolledRect = tester.getRect(bubbleText(summary));
-    expect(scrolledRect.top, lessThan(textRect.top));
+    // Scrolled to the end: the content has moved up and its tail (the last
+    // paragraph) is inside the viewport.
     expect(
-      scrolledRect.bottom,
+      tester.getRect(bubbleTextContaining('摘要段落 0')).top,
+      lessThan(firstRect.top),
+    );
+    final lastRect = tester.getRect(bubbleTextContaining('摘要段落 119'));
+    expect(
+      lastRect.bottom,
       lessThanOrEqualTo(tester.getRect(viewport).bottom + 0.5),
     );
   });
@@ -655,7 +661,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(bubbleText('流式进度后的摘要'), findsOneWidget);
+    expect(bubbleTextContaining('流式进度后的摘要'), findsOneWidget);
     expect(bubbleText('正在汇总要点'), findsNothing);
     expect(bubbleText('同步生成可能需要数秒'), findsNothing);
   });
@@ -726,7 +732,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.summarizeCalls, hasLength(2));
-    expect(bubbleText('重试后的摘要'), findsOneWidget);
+    expect(bubbleTextContaining('重试后的摘要'), findsOneWidget);
     expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsNothing);
   });
 
@@ -764,7 +770,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.summarizeCalls, hasLength(2));
-    expect(bubbleText('重试后的摘要'), findsOneWidget);
+    expect(bubbleTextContaining('重试后的摘要'), findsOneWidget);
     expect(bubbleText('生成失败：upstream exploded'), findsNothing);
   });
 
