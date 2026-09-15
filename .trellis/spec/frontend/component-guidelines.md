@@ -182,3 +182,10 @@ trade-off record).
   (sticky) instead of toggling closed — see `AiAssistantFab._toggle`
   (`document_detail_page.dart`). Keep hover-dismiss scoped to hover-opened
   state only.
+- A `Positioned` child of a `Stack` receives **unbounded** constraints from
+  `RenderStack`, so `LayoutBuilder` / fraction-of-parent sizing inside it is
+  a silent no-op (`∞ × fraction = ∞`) — a floating panel can grow far outside
+  the surface without any exception thrown. Host such panels with
+  `Positioned.fill` + `Align` (+ `Padding`) so real constraints flow in, and
+  pin the bound with a layout regression test — see the AI bubble host in
+  `DocumentDetailBody` (`document_detail_page.dart`).

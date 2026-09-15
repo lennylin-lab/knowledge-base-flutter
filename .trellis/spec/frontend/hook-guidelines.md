@@ -64,17 +64,22 @@ last `error`):
   not let the stale result land anywhere.
 - The UI shows progress while generating and keeps the trigger affordance
   visible on error (component-guidelines: no error dead-ends).
-- **Dedicated content pages** that consume an on-demand provider (e.g.
-  `/documents/:id/summary`) treat page entry as the explicit trigger:
-  auto-generate once from a post-frame callback when there is no cached
-  result and nothing is in flight (never in `build()`); a cached result
-  renders as-is. Navigate via real routes so back returns to the entry
-  surface; on a content page the inline 重试 must exist for every error
-  branch — there is no floating entry to fall back on.
+- **In-widget content layers** (the AI assistant bubble on the detail page):
+  the bubble is the only AI surface — menu layer (入口) ↔ function content
+  layer, no separate routes. Entry click is the explicit trigger: generate
+  once when there is no cached result and nothing is in flight (never in
+  `build()`), and keep the providers alive while the host surface is open
+  (watch them at the menu layer) so re-entering shows the cache instead of
+  re-billing. A back affordance returns to the menu layer, every dismiss
+  path resets to it, the host page's `PopScope` intercepts system back at
+  the content layer, and every error branch inside the bubble carries an
+  inline 重试 (no fab to fall back on).
 
 Reference implementation: `lib/features/documents/documents_providers.dart`
-(`DocumentSummaryNotifier` / `DocumentAssociationsNotifier`) and
-`lib/features/documents/document_ai_pages.dart`.
+(`DocumentSummaryNotifier` / `DocumentAssociationsNotifier`),
+`lib/features/documents/document_ai_bubble.dart` (content layer) and
+`AiAssistantFab` in `lib/features/documents/document_detail_page.dart`
+(layer switching, keep-alive watch, PopScope wiring).
 
 ---
 
