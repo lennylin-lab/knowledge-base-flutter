@@ -439,3 +439,26 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: 气泡收起保留层状态
+<!-- trellis-session: v=2 fp=3fc756a2c2ecd91a -->
+
+**Date**: 2026-09-15
+**Task**: 气泡收起保留层状态
+**Branch**: `main`
+
+### Summary
+
+气泡收起不再重置到菜单层：卡片经 Offstage 常驻挂载（无绘制/无命中/零占位），层状态与内容滚动位置跨关闭保留，重开继续呈现（缓存结果不重复生成）；仅返回按钮或切换文档重置菜单层。连带修正 PopScope 门控为『内容层且打开才拦截返回』（keep-alive 使关闭停在内容层变为可达，否则系统返回会被静默吞掉）。analyze 干净、290 测试全绿；check PASS（SDK 语义级核实 Offstage 链路与 PopScope 线程）。spec 同步刷新气泡关闭契约。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8bdfb13` | feat(documents): keep bubble layer and scroll across dismiss |
+| `e684994` | docs(spec): bubble dismiss preserves layer instead of resetting |
+
+### Status
+
+[OK] **Completed**
