@@ -416,3 +416,26 @@ Reworked the chat run view to render strictly in event arrival order: ChatState'
 ### Status
 
 [OK] **Completed**
+
+
+## Session 19: 摘要结果 Markdown 渲染
+<!-- trellis-session: v=2 fp=60ad031efbfb57fd -->
+
+**Date**: 2026-09-15
+**Task**: 摘要结果 Markdown 渲染
+**Branch**: `main`
+
+### Summary
+
+AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与详情正文/问答答案同管线，源文本逐字不动，无 front matter 剥离）；关联条目 reason 保持纯文本。气泡摘要测试断言改为 textContaining 容错匹配，高度上限回归测试在 markdown 管线下改用 Scrollable.of(重新生成) 确定性定位内容滚动器并继续钉住 0.9 上限与内部滚动。analyze 干净、285 测试全绿；check PASS（低危备注：选择工具栏点击会收起气泡，属共享 selectable 管线固有行为，留待后续）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d76dd4a` | feat(documents): render the AI summary through the shared markdown pipeline |
+| `ee632cc` | docs(spec): LLM prose renders via shared MarkdownContent |
+
+### Status
+
+[OK] **Completed**
