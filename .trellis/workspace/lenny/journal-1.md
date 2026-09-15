@@ -393,3 +393,26 @@ Reworked the chat run view to render strictly in event arrival order: ChatState'
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: 摘要/关联接口对接 SSE 事件流（issue #1）
+<!-- trellis-session: v=2 fp=2d6a09c877e8c7ee -->
+
+**Date**: 2026-09-15
+**Task**: 摘要/关联接口对接 SSE 事件流（issue #1）
+**Branch**: `main`
+
+### Summary
+
+按 issue #1 与服务端 a16d933 对齐：summary/associations 改为消费 SSE 事件流。抽取通用 SseFrameParser（chat 解析器变为薄封装，57 个 chat 测试零 diff 全绿），新增 sealed 事件模型与 AgentStreamClient（经 ChatTransport POST 无 body，web 走 fetch 流式），仓库保持 Future 签名内部折叠事件流：结果事件载荷与旧 JSON 一致故 DTO 不变，error 事件映射 ApiException，静默断流映射 network_error，流前 404 信封仍走原路径。OnDemandState 增加进度字段（代际守卫丢弃过期进度），气泡消费 summary_progress 文案（map 正在阅读第 x/y 段、reduce 正在汇总要点）。analyze 干净、285 测试全绿；check PASS。spec 沉淀 agent SSE 契约节与进度约定。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6eaae2e` | feat(documents): consume summary/associations as SSE agent streams |
+| `0e9668a` | docs(spec): document agent SSE contract and progress conventions |
+
+### Status
+
+[OK] **Completed**
