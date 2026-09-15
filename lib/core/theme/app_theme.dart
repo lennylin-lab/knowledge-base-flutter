@@ -57,8 +57,8 @@ abstract final class AppTheme {
         scrolledUnderElevation: 1,
         // Hairline under the app bar on every page (导航标题分隔线);
         // outlineVariant matches the VerticalDivider color in the shells.
-        shape: Border.fromBorderSide(
-          BorderSide(color: colorScheme.outlineVariant),
+        shape: Border(
+          bottom: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
       inputDecorationTheme: const InputDecorationTheme(
