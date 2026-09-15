@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Markdown rendering must go through the shared MarkdownContent; AppSizes/copy conventions"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates"}
