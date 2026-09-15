@@ -122,8 +122,9 @@ trade-off record).
   navigate to `DocumentDetailPage`.
 - **Markdown rendering:** use `flutter_markdown_plus`
   (**NOT `flutter_markdown` — that package is discontinued**). Keep the renderer
-  configuration in one shared widget so detail page and chat answers render
-  identically. The shared widget overrides the package's default block spacing
+  configuration in one shared widget so detail page, chat answers, and the AI
+  summary bubble render identically (LLM prose always goes through
+  `MarkdownContent`, never a bare `Text`). The shared widget overrides the package's default block spacing
   (`pPadding` vertical 2 + `blockSpacing` 14) because the defaults
   (zero + 8) sit within ~2px of the body line gap and paragraphs visually
   merge; the two values stack (gap = prev padding + blockSpacing + next
