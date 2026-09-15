@@ -12,6 +12,7 @@ import '../../shared/widgets/resizable_pane.dart';
 import '../../shared/widgets/theme_mode_menu.dart';
 import 'document_detail_page.dart';
 import 'documents_providers.dart';
+import '../../core/auth/auth_logout_button.dart';
 
 /// 文档列表页: keyset-paginated (infinite scroll), server-side tag filter
 /// and per-row `index_status` (三态). All loading / empty / error branches
@@ -127,6 +128,7 @@ class DocumentsPage extends ConsumerWidget {
                 icon: const Icon(Icons.refresh),
                 onPressed: () => ref.read(documentsProvider.notifier).refresh(),
               ),
+              const AuthLogoutButton(),
               const ThemeModeMenu(),
             ],
           ),

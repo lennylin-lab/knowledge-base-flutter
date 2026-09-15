@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/models/agents_result.dart';
 import '../../shared/models/agents_stream.dart';
+import '../auth/auth_controller.dart' show authHeadersBuilderProvider;
 import '../config/app_config.dart';
 import 'api_exception.dart';
 import 'chat_transport.dart';
 import 'chat_transport_stub.dart'
     if (dart.library.js_interop) 'chat_transport_web.dart'
     if (dart.library.io) 'chat_transport_native.dart';
+import 'sse_client.dart' show SseHeadersBuilder;
 import 'sse_parser.dart';
 
 /// Pure incremental parser for the document-agent SSE wire format — the
@@ -83,11 +85,15 @@ class AgentStreamParser {
 /// [ChatTransport] (no request body) and parses the typed event stream with
 /// [AgentStreamParser].
 class AgentStreamClient {
-  AgentStreamClient({required this.baseUrl, ChatTransport? transport})
-    : _transport = transport ?? createChatTransport();
+  AgentStreamClient({
+    required this.baseUrl,
+    ChatTransport? transport,
+    this.headers,
+  }) : _transport = transport ?? createChatTransport();
 
   final String baseUrl;
   final ChatTransport _transport;
+  final SseHeadersBuilder? headers;
 
   /// Run one agent stream ([uri] of `…/summary` or `…/associations`).
   ///
@@ -103,7 +109,12 @@ class AgentStreamClient {
 
     final Stream<Uint8List> bytes;
     try {
-      bytes = await _transport.open(uri, null);
+      final builder = headers;
+      bytes = await _transport.open(
+        uri,
+        null,
+        headers: builder == null ? null : await builder(),
+      );
     } on ApiException catch (e) {
       yield AgentErrorEvent(
         code: e.code,
@@ -151,6 +162,9 @@ class AgentStreamClient {
 
 /// App-wide agent stream client; rebuilt when the configured base URL
 /// changes (same wiring as `sseClientProvider`).
-final agentStreamClientProvider = Provider<AgentStreamClient>(
-  (ref) => AgentStreamClient(baseUrl: ref.watch(appConfigProvider).baseUrl),
-);
+final agentStreamClientProvider = Provider<AgentStreamClient>((ref) {
+  return AgentStreamClient(
+    baseUrl: ref.watch(appConfigProvider).baseUrl,
+    headers: ref.watch(authHeadersBuilderProvider),
+  );
+});

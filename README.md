@@ -9,8 +9,63 @@
 - **混合检索** — BM25 + 向量，命中片段、得分与 ES/向量排名展示
 - **问答 Agent** — SSE 流式答案（Markdown 渲染）+ 引用来源联动
   （答案中 `[n]` 对应下方来源序号，点击跳转文档）
+- **OIDC 登录** — Keycloak 兼容认证（Authorization Code + PKCE），
+  登录门、静默刷新、REST/SSE 全量 Bearer 注入（见「认证（OIDC）」）
 
-> 单用户 MVP：无认证；后端已预留 `owner_id`。UI 中文优先。
+> UI 中文优先。后端未开启 OIDC 时客户端自动进入无认证兼容模式。
+
+---
+
+## 认证（OIDC）
+
+后端设置 `KB_OIDC_ISSUER` 后所有业务路由要求
+`Authorization: Bearer <access_token>`（见后端
+`docs/identity-tenants.md`）。客户端配置与该 issuer 一致即启用登录：
+
+```bash
+flutter run -d chrome \
+  --dart-define=OIDC_ISSUER=http://localhost:8180/realms/kb \
+  --dart-define=OIDC_CLIENT_ID=kb-web
+```
+
+| dart-define | 默认值 | 说明 |
+|---|---|---|
+| `OIDC_ISSUER` | 空（**兼容模式**：不登录、不带 token，等同旧行为） | IdP issuer，须与后端 `KB_OIDC_ISSUER` 逐字一致 |
+| `OIDC_CLIENT_ID` | `kb-web` | public client（PKCE S256） |
+| `OIDC_REDIRECT_URI` | 按平台 | Web `<origin>/auth/callback`；Windows `http://localhost:8182/auth/callback`；Android `http://127.0.0.1:8182/auth/callback` |
+| `OIDC_SCOPES` | `openid` | access token 必须携带 `sub` |
+
+也可在 `shared_preferences` 中持久化覆盖（键 `oidc.issuer` 等，
+优先级：持久化 > dart-define > 平台默认）。
+
+**流程**（自实现 OIDC 协议客户端，无第三方 OAuth 依赖）：
+登录门 → 系统浏览器跳转 IdP 授权页（Authorization Code + PKCE S256 +
+state）→ 回调捕获 → code 换 token → 会话持久化（native
+`flutter_secure_storage`，web `shared_preferences`）→ 静默刷新
+（单飞，REST 401 自动重试一次）。token 端点经 OIDC discovery 获取，
+不硬编码 Keycloak 路径。
+
+**Keycloak 客户端白名单**（`kb-web` 的 Valid redirect URIs / Web origins）：
+
+| 平台 | redirect URI |
+|---|---|
+| Web（开发） | `http://localhost:<port>/*`（与 `--web-port` 一致；`http://127.0.0.1:<port>/*` 同理） |
+| Windows | `http://localhost:8182/*` |
+| Android | `http://127.0.0.1:8182/*` |
+
+**平台注意**：
+
+- **Web**：RFC 6454/OAuth 禁止 redirect URI 带片段，客户端已启用
+  path URL 策略（`usePathUrlStrategy`）——自托管 `build/web` 时需为
+  非 asset 路径回退 `index.html`（开发可直接用仓库根目录的
+  `python3 serve_web_dev.py`）；IdP 的 Web origins 需含应用来源
+  （token/discovery 跨域）。
+- **Android 模拟器**：issuer 是后端验签用的字面值（通常
+  `localhost:8180`），模拟器内访问宿主机需
+  `adb reverse tcp:8180 tcp:8180`（后端端口同理）。
+- **native 回环**：登录期间本地 `HttpServer` 监听 8182 端口接收
+  IdP 重定向（RFC 8252 §7.6），浏览器访问回环不涉及 Android 明文
+  流量策略，Windows 也不会触发防火墙提示。
 
 ---
 
@@ -89,7 +144,7 @@ flutter run -d chrome   # 默认请求 http://localhost:8000
 
 ```bash
 flutter analyze   # 零 error/warning
-flutter test      # 126 个测试：SSE parser、错误信封、DTO round-trip、
+flutter test      # 330 个测试：SSE parser、错误信封、DTO round-trip、OIDC 协议/会话、
                   # repository/providers/pages（文档/搜索/问答）
 ```
 
@@ -100,7 +155,7 @@ flutter test      # 126 个测试：SSE parser、错误信封、DTO round-trip�
     `index_status: pending/failed`，搜索/问答返回 502 `search_index_error`
     / `llm_provider_error`（前端已按错误信封优雅呈现）
   - 配置凭据后运行后端仓库的 `uv run python -m app.cli reindex` 补索引
-- 问答为单轮无状态（无会话历史 API）；多 Agent / 多轮 / 认证 / 离线缓存
+- 问答为单轮无状态（无会话历史 API）；多 Agent / 多轮 / 离线缓存
   属 Phase 2，不在本版
 - iOS / macOS / Linux 平台目录未创建
 

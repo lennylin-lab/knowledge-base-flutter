@@ -11,6 +11,7 @@ import '../../shared/widgets/markdown_content.dart';
 import '../../shared/widgets/resizable_pane.dart';
 import '../../shared/widgets/theme_mode_menu.dart';
 import 'chat_providers.dart';
+import '../../core/auth/auth_logout_button.dart';
 
 /// 问答页：多轮会话式流式问答。
 ///
@@ -147,6 +148,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 icon: const Icon(Icons.history),
                 onPressed: () => context.push('/chat/sessions'),
               ),
+              const AuthLogoutButton(),
               const ThemeModeMenu(),
             ],
           ),

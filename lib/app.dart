@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/auth/auth_callback_page.dart';
+import 'core/auth/auth_gate.dart';
 import 'core/browser/browser_tab_title.dart';
 import 'core/layout/layout_preferences.dart';
 import 'core/theme/app_sizes.dart';
@@ -32,12 +34,34 @@ class App extends ConsumerWidget {
   /// three-tab state is kept while they are shown. Static segments (`new`)
   /// are declared before the dynamic one (`:id`). All AI content renders
   /// inside the detail surface's floating bubble — there are no AI routes.
+  ///
+  /// No explicit `initialLocation`: on web it would override the incoming
+  /// deep link (e.g. the OIDC `/auth/callback` redirect) with `/documents`
+  /// at cold start. `/` redirects to `/documents` instead, so non-web
+  /// launches and bare `/` land on the documents tab while a real deep
+  /// link always wins.
   static GoRouter buildRouter() => GoRouter(
-    initialLocation: '/documents',
+    redirect: (context, state) =>
+        state.matchedLocation == '/' ? '/documents' : null,
     routes: [
+      // OIDC redirect landing (web): outside the shell — the user may still
+      // be signed out when it runs; AuthGate lets the path through.
+      GoRoute(
+        path: '/',
+        redirect: (context, state) => '/documents',
+      ),
+      GoRoute(
+        path: '/auth/callback',
+        name: 'auth-callback',
+        builder: (context, state) => AuthCallbackPage(
+          code: state.uri.queryParameters['code'],
+          state: state.uri.queryParameters['state'],
+          error: state.uri.queryParameters['error'],
+        ),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
-            _AdaptiveShell(navigationShell: navigationShell),
+            AuthGate(child: _AdaptiveShell(navigationShell: navigationShell)),
         branches: [
           StatefulShellBranch(
             routes: [

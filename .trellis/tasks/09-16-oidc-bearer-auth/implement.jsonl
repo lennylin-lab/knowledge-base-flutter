@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend stack, key facts (base URL defaults, CORS, Chinese-first copy), platform scope"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Feature-first layout rules, core/ dependency direction, platform rules (no new platform dirs)"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Riverpod provider patterns and naming for the new AuthController/providers"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "State categories; AuthController should follow the Notifier conventions"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Forbidden/required patterns (no ad-hoc HTTP outside repositories, error envelope in one place), testing bar, analyze/test gates"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Auth header flows through config/network/providers/UI layers"}
