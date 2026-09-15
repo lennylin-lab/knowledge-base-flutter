@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/09-15-agent-sse-alignment/research-agent-sse-contract.md", "reason": "Server-verified SSE event contract + client SSE inventory + design decisions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Chat SSE state machine section and noAutomaticRetry test scopes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO conventions for the new agent stream events"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "OnDemandGenerationNotifier pattern (guards unchanged, additive progress)"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates"}
