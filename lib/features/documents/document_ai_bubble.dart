@@ -15,8 +15,9 @@ import 'documents_providers.dart';
 
 /// The two-layer in-widget navigation of the AI bubble: the default
 /// 「AI 助手」 menu, or one function's content layer (opened by clicking the
-/// matching menu entry; back returns to the menu). Closing the bubble always
-/// resets to [menu].
+/// matching menu entry; back returns to the menu). The layer survives
+/// bubble dismissal (keep-alive) — only the 返回 affordance and a document
+/// switch reset it to [menu].
 enum AiBubbleLayer { menu, summary, associations }
 
 /// Header copy of each layer — the menu title and the content-layer

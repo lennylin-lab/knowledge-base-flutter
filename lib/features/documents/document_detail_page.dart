@@ -36,27 +36,43 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
   /// Two-layer navigation state of this page's AI bubble, owned here so the
   /// [PopScope] below can gate system/browser back on it: with the bubble's
   /// content layer open, back returns the bubble to its menu layer instead
-  /// of leaving the detail page (PRD). Closing the bubble resets the layer
-  /// to menu, so [AiBubbleLayer.menu] also means "bubble closed".
+  /// of leaving the detail page (PRD). The layer survives bubble dismissal
+  /// (keep-alive, see [AiAssistantFab]) — only the 返回 affordance or a
+  /// document switch resets it to [AiBubbleLayer.menu].
   final ValueNotifier<AiBubbleLayer> _aiBubbleLayer = ValueNotifier(
     AiBubbleLayer.menu,
   );
 
+  /// Whether the AI bubble is currently expanded. The fab is the single
+  /// writer (see [AiAssistantFab.openNav]); this page only reads it. It
+  /// keeps the [PopScope] gate honest now that the layer outlives the
+  /// bubble: only an *open* content layer consumes back — a closed bubble
+  /// pops the page as usual, whatever layer it is parked on.
+  final ValueNotifier<bool> _aiBubbleOpen = ValueNotifier(false);
+
   @override
   void initState() {
     super.initState();
-    // canPop is read during build — rebuild whenever the fab moves layers.
+    // canPop is read during build — rebuild whenever either gate input
+    // changes (fab moves layers / bubble is summoned or dismissed).
     _aiBubbleLayer.addListener(_onAiBubbleLayerChanged);
+    _aiBubbleOpen.addListener(_onAiBubbleOpenChanged);
   }
 
   void _onAiBubbleLayerChanged() {
     if (mounted) setState(() {});
   }
 
+  void _onAiBubbleOpenChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _aiBubbleLayer.removeListener(_onAiBubbleLayerChanged);
+    _aiBubbleOpen.removeListener(_onAiBubbleOpenChanged);
     _aiBubbleLayer.dispose();
+    _aiBubbleOpen.dispose();
     super.dispose();
   }
 
@@ -75,8 +91,10 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
 
     return PopScope(
       // Only an open content layer blocks the pop — and the pop then means
-      // "back to the menu layer", so the page stays.
-      canPop: _aiBubbleLayer.value == AiBubbleLayer.menu,
+      // "back to the menu layer", so the page stays. A closed bubble pops
+      // the page even when it is parked on a content layer (keep-alive).
+      canPop:
+          _aiBubbleLayer.value == AiBubbleLayer.menu || !_aiBubbleOpen.value,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         _aiBubbleLayer.value = AiBubbleLayer.menu;
@@ -114,6 +132,7 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
           data: (document) => DocumentDetailBody(
             document: document,
             aiBubbleLayer: _aiBubbleLayer,
+            aiBubbleOpen: _aiBubbleOpen,
           ),
         ),
       ),
@@ -203,13 +222,16 @@ void _showToast(BuildContext context, String message) {
 /// content in the body itself: all AI content lives inside the entry's
 /// bubble, on its in-widget menu/content layers. [aiBubbleLayer] shares the
 /// bubble's two-layer navigation with the owning surface (the full page's
-/// PopScope back gate); the pane leaves it null.
+/// PopScope back gate), [aiBubbleOpen] the expanded state — together they
+/// gate system back (open content layer consumes it); the pane leaves both
+/// null.
 class DocumentDetailBody extends StatelessWidget {
   const DocumentDetailBody({
     super.key,
     required this.document,
     this.titleTrailing,
     this.aiBubbleLayer,
+    this.aiBubbleOpen,
   });
 
   final DocumentReadDetail document;
@@ -217,6 +239,8 @@ class DocumentDetailBody extends StatelessWidget {
   final Widget? titleTrailing;
 
   final ValueNotifier<AiBubbleLayer>? aiBubbleLayer;
+
+  final ValueNotifier<bool>? aiBubbleOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -293,6 +317,7 @@ class DocumentDetailBody extends StatelessWidget {
               child: AiAssistantFab(
                 documentId: document.id,
                 layerNav: aiBubbleLayer,
+                openNav: aiBubbleOpen,
               ),
             ),
           ),
@@ -321,8 +346,13 @@ class DocumentDetailBody extends StatelessWidget {
 ///   bubble the first tap upgrades it to tap-owned instead of closing (the
 ///   second tap closes), and a tap-owned bubble closes on tap;
 /// - tapping outside the entry closes it;
-/// - every dismiss path resets the bubble to the menu layer for the next
-///   open.
+/// - every dismiss path keeps the current layer (and the content's scroll
+///   position) alive for the next open: the card stays mounted behind
+///   [Offstage] while closed, so the next summon continues presenting
+///   exactly where the user was, with the cached result and no refetch.
+///   Reset to the menu layer happens only via the 返回 affordance or a
+///   document switch (a [documentId] change resets the layer and closes
+///   the bubble).
 ///
 /// Tapping a menu entry is explicit intent: the bubble switches to that
 /// function's content layer and generates exactly once when uncached and
@@ -330,7 +360,9 @@ class DocumentDetailBody extends StatelessWidget {
 /// isGenerating guard blocks double fires). A cached result shows as-is:
 /// the on-demand providers are watched here even at the menu layer, so they
 /// stay alive while the detail surface is open and re-entering a content
-/// layer never re-bills. Opening a detail surface still fires zero LLM
+/// layer never re-bills. Re-opening a dismissed bubble never generates —
+/// an in-flight generation keeps running (and keeps its live progress)
+/// across the dismiss. Opening a detail surface still fires zero LLM
 /// calls (the providers fetch nothing on build).
 ///
 /// Sizing: the bubble stays [AppSizes.aiBubbleWidth] wide but grows taller
@@ -344,7 +376,12 @@ class DocumentDetailBody extends StatelessWidget {
 /// pane can be mounted at once (deep-linked detail over a wide documents
 /// page), and shared default tags collide during route hero flights.
 class AiAssistantFab extends ConsumerStatefulWidget {
-  const AiAssistantFab({super.key, required this.documentId, this.layerNav});
+  const AiAssistantFab({
+    super.key,
+    required this.documentId,
+    this.layerNav,
+    this.openNav,
+  });
 
   final String documentId;
 
@@ -352,6 +389,13 @@ class AiAssistantFab extends ConsumerStatefulWidget {
   /// gate system back on it); when null the fab owns a private one (the
   /// two-pane pane needs no back gate).
   final ValueNotifier<AiBubbleLayer>? layerNav;
+
+  /// Shared expanded state (page-owned, so the PopScope gate can tell an
+  /// open content layer — back consumed — from a closed bubble parked on a
+  /// content layer — page pops); when null the fab publishes nowhere (the
+  /// pane needs no back gate). The fab is the single writer; the owner only
+  /// reads it.
+  final ValueNotifier<bool>? openNav;
 
   @override
   ConsumerState<AiAssistantFab> createState() => _AiAssistantFabState();
@@ -365,6 +409,10 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
   late ValueNotifier<AiBubbleLayer> _layerNav;
   bool _ownsLayerNav = false;
 
+  /// Mirrors [_open] onto the owner's shared notifier (write-only, see
+  /// [AiAssistantFab.openNav]); null publishes nowhere.
+  ValueNotifier<bool>? _openNav;
+
   bool _open = false;
 
   /// Whether the current expansion was summoned by hover (then the pointer
@@ -375,6 +423,7 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
   void initState() {
     super.initState();
     _attachLayerNav(widget.layerNav);
+    _attachOpenNav(widget.openNav);
   }
 
   @override
@@ -384,6 +433,26 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
       _layerNav.removeListener(_onLayerChanged);
       if (_ownsLayerNav) _layerNav.dispose();
       _attachLayerNav(widget.layerNav);
+    }
+    if (oldWidget.openNav != widget.openNav) {
+      _attachOpenNav(widget.openNav);
+    }
+    if (oldWidget.documentId != widget.documentId) {
+      // Document switch: the two-pane pane swaps documents in place while
+      // this State survives. The presentation resets — bubble closed, menu
+      // layer — so the next open starts fresh for the new document. Writing
+      // the notifiers mid-build is safe here because the pane (the only
+      // surface that can switch documents under a live fab) passes no
+      // shared notifiers: their only listener is this State, a descendant
+      // of the element currently building, which markNeedsBuild allows.
+      if (_open) {
+        _open = false;
+        _openedByHover = false;
+      }
+      _openNav?.value = false;
+      if (_layerNav.value != AiBubbleLayer.menu) {
+        _layerNav.value = AiBubbleLayer.menu;
+      }
     }
   }
 
@@ -396,6 +465,13 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
       _ownsLayerNav = true;
     }
     _layerNav.addListener(_onLayerChanged);
+  }
+
+  void _attachOpenNav(ValueNotifier<bool>? external) {
+    _openNav = external;
+    // Publish the current state; on first attach this is a no-op write
+    // (false == false notifies nothing).
+    _openNav?.value = _open;
   }
 
   void _onLayerChanged() {
@@ -415,6 +491,7 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
       _open = true;
       _openedByHover = true;
     });
+    _openNav?.value = true;
   }
 
   void _openByTap() {
@@ -423,16 +500,22 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
       _open = true;
       _openedByHover = false;
     });
+    _openNav?.value = true;
   }
 
   void _close() {
     if (!_open) return;
+    // Keep-alive (PRD): no layer reset here — the layer (and the content's
+    // scroll position) survives every dismiss path for the next open; only
+    // the 返回 affordance and a document switch reset to the menu layer.
+    // TapRegion.onTapOutside funnels here too, and this early return keeps
+    // the always-mounted card from producing spurious dismissals while
+    // closed.
     setState(() {
       _open = false;
       _openedByHover = false;
-      // Every dismiss path resets to the menu layer for the next open.
-      _layerNav.value = AiBubbleLayer.menu;
     });
+    _openNav?.value = false;
   }
 
   void _toggle() {
@@ -479,8 +562,8 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
   }
 
   /// A related-document item was tapped: navigating to another document's
-  /// detail closes the bubble (back at the menu layer when the user
-  /// returns).
+  /// detail closes the bubble — a plain dismissal, so the layer stays
+  /// parked (reset to menu happens only via 返回 or a document switch).
   void _openDocument(String documentId) {
     _close();
     context.push('/documents/$documentId');
@@ -512,19 +595,28 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if (_open) ...[
-                  // Two height bounds: at most the configured fraction of
-                  // the hosting surface's height (ConstrainedBox), and
-                  // never more than the space left above the round button
-                  // (Flexible) — the bubble can never overflow the pane or
-                  // page; overflow content scrolls inside the bubble.
-                  Flexible(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight:
-                            constraints.maxHeight *
-                            sizes.aiBubbleMaxHeightFraction,
-                      ),
+                // Keep-alive host: the card is **always mounted**; Offstage
+                // hides it while closed — the subtree stays laid out (its
+                // Element/State, and with it the content layer's scroll
+                // offset, survive every dismiss) but is not painted, not
+                // hit-testable, carries no semantics, and sizes to zero in
+                // this Column, so the collapsed layout stays fab-only and
+                // taps outside the round button pass through to the body.
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight:
+                          constraints.maxHeight *
+                          sizes.aiBubbleMaxHeightFraction,
+                    ),
+                    child: Offstage(
+                      offstage: !_open,
+                      // Two height bounds: at most the configured fraction
+                      // of the hosting surface's height (ConstrainedBox),
+                      // and never more than the space left above the round
+                      // button (Flexible) — the bubble can never overflow
+                      // the pane or page; overflow content scrolls inside
+                      // the bubble.
                       child: _AiBubbleCard(
                         documentId: widget.documentId,
                         layer: _layerNav.value,
@@ -538,8 +630,11 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
                       ),
                     ),
                   ),
-                  SizedBox(height: sizes.space12),
-                ],
+                ),
+                // Only while open: the gap between bubble and round button
+                // (the offstage card takes no room, so the collapsed state
+                // still renders exactly the fab).
+                if (_open) SizedBox(height: sizes.space12),
                 FloatingActionButton(
                   heroTag: _heroTag,
                   tooltip: 'AI 助手',
