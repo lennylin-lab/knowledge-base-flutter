@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gate: flutter analyze + flutter test, forbidden patterns checklist"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify provider conventions (no watch-of-auth-state in apiClientProvider, read in callbacks only)"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Verify module placement under core/auth and dependency direction"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify AuthState/Notifier conventions"}

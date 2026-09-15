@@ -326,6 +326,20 @@ void main() {
 
     expect(repo.summarizeCalls, hasLength(1));
     expect(bubbleTextContaining('已缓存的摘要'), findsOneWidget);
+
+    // 返回 is the menu-layer reset — and keep-alive preserves the menu
+    // layer exactly like a content layer: back to the menu, dismiss,
+    // reopen — still the menu.
+    await tester.tap(bubbleBackButton());
+    await tester.pumpAndSettle();
+    expect(bubbleEntry('AI 摘要'), findsOneWidget);
+    expect(bubbleEntry('相关文档'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close_outlined));
+    await tester.pumpAndSettle();
+    await openBubble(tester);
+    expect(bubbleEntry('AI 摘要'), findsOneWidget);
+    expect(bubbleEntry('相关文档'), findsOneWidget);
+    expect(bubbleTextContaining('已缓存的摘要'), findsNothing);
   });
 
   testWidgets('重新生成 refetches and replaces the previous result', (
@@ -369,13 +383,12 @@ void main() {
     expect(bubbleTextContaining('第一版摘要'), findsNothing);
   });
 
-  testWidgets('closing and reopening the bubble lands on the menu layer', (
-    tester,
-  ) async {
+  testWidgets('dismiss (收起) keeps the layer alive: reopening shows the same '
+      'content layer with the cached result and zero new calls', (tester) async {
     final repo = repoWithDoc('# 设计笔记');
     repo.summarizeHandler = (id) async => const SummaryResult(
       documentId: 'doc-1',
-      summary: '关闭前生成的摘要',
+      summary: '收起前后都在的摘要',
       model: 'glm-4.7',
       latencyMs: 1500,
     );
@@ -386,19 +399,189 @@ void main() {
 
     await openBubble(tester);
     await selectEntry(tester, 'AI 摘要');
-    expect(bubbleTextContaining('关闭前生成的摘要'), findsOneWidget);
+    expect(bubbleTextContaining('收起前后都在的摘要'), findsOneWidget);
+    expect(repo.summarizeCalls, ['doc-1']);
 
-    // 收起 dismisses the whole bubble…
+    // 收起 visually dismisses the bubble…
     await tester.tap(find.byIcon(Icons.close_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('AI 助手'), findsNothing);
+    expect(find.text('AI 摘要'), findsNothing);
+    expect(bubbleTextContaining('收起前后都在的摘要'), findsNothing);
+    // …but the card stays mounted offstage (keep-alive): the content layer
+    // — and with it the scroll position — survives the dismiss.
+    expect(find.text('AI 摘要', skipOffstage: false), findsOneWidget);
+    expect(
+      find.textContaining('收起前后都在的摘要', skipOffstage: false),
+      findsOneWidget,
+    );
 
-    // …and reopening lands on the menu layer, not the content layer.
+    // Reopening lands directly back on the content layer: cached result as
+    // it was, no refetch, no menu detour.
     await openBubble(tester);
-    expect(bubbleEntry('AI 摘要'), findsOneWidget);
-    expect(bubbleEntry('相关文档'), findsOneWidget);
-    expect(bubbleTextContaining('关闭前生成的摘要'), findsNothing);
-    expect(bubbleBackButton(), findsNothing);
+    expect(bubbleTextContaining('收起前后都在的摘要'), findsOneWidget);
+    expect(bubbleBackButton(), findsOneWidget);
+    expect(bubbleText('生成这篇文档的内容摘要'), findsNothing);
+    expect(repo.summarizeCalls, ['doc-1']);
+  });
+
+  testWidgets('every dismiss path keeps the content layer across reopen '
+      '(toggle / outside tap / hover exit)', (tester) async {
+    final repo = repoWithDoc('# 设计笔记\n\n混合检索正文');
+    repo.summarizeHandler = (id) async => const SummaryResult(
+      documentId: 'doc-1',
+      summary: '路径无关的缓存摘要',
+      model: 'glm-4.7',
+      latencyMs: 1500,
+    );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+
+    // Same content layer after each reopen, and still exactly one call.
+    Future<void> expectContentLayerKept() async {
+      expect(bubbleTextContaining('路径无关的缓存摘要'), findsOneWidget);
+      expect(bubbleBackButton(), findsOneWidget);
+      expect(bubbleText('生成这篇文档的内容摘要'), findsNothing);
+      expect(repo.summarizeCalls, hasLength(1));
+    }
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    await tester.pump();
+
+    // Set up the shared keep-alive state: content layer, result cached.
+    await openBubble(tester);
+    await selectEntry(tester, 'AI 摘要');
+    await expectContentLayerKept();
+
+    // Path 1 — round-button toggle.
+    await tester.tap(floatingButton());
+    await tester.pumpAndSettle();
+    expect(find.text('AI 摘要'), findsNothing);
+    await openBubble(tester);
+    await expectContentLayerKept();
+
+    // Path 2 — tap outside the entry.
+    await tester.tap(find.text('混合检索正文'));
+    await tester.pumpAndSettle();
+    expect(find.text('AI 摘要'), findsNothing);
+    await openBubble(tester);
+    await expectContentLayerKept();
+
+    // Path 3 — a hover-opened bubble follows the pointer out. A tap-owned
+    // bubble ignores pointer exits, so park it closed first (toggle).
+    await tester.tap(floatingButton());
+    await tester.pumpAndSettle();
+    await gesture.moveTo(tester.getCenter(floatingButton()));
+    await tester.pumpAndSettle();
+    // Hover summoned the bubble straight onto the preserved layer.
+    await expectContentLayerKept();
+    await gesture.moveTo(Offset.zero);
+    await tester.pumpAndSettle();
+    expect(find.text('AI 摘要'), findsNothing);
+    await openBubble(tester);
+    await expectContentLayerKept();
+
+    await gesture.removePointer();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('scroll position survives dismiss: reopen restores the content '
+      'offset', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repo = repoWithDoc('# 设计笔记');
+    // Tall enough that the internal scroll is clearly engaged.
+    final summary = List.generate(120, (i) => '摘要段落 $i。').join('\n\n');
+    repo.summarizeHandler = (id) async => SummaryResult(
+      documentId: id,
+      summary: summary,
+      model: 'glm-4.7',
+      latencyMs: 900,
+    );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+    await selectEntry(tester, 'AI 摘要');
+
+    // Scroll the summary to the end. The position is resolved from a direct
+    // child of the content layer (the 重新生成 action): every markdown
+    // paragraph carries its own internal EditableText Scrollable, so a
+    // fab-wide Scrollable lookup would be ambiguous (see the height-bound
+    // regression test below).
+    final position = Scrollable.of(
+      tester.element(find.text('重新生成')),
+      axis: Axis.vertical,
+    ).position;
+    expect(position.maxScrollExtent, greaterThan(0));
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    final scrolledTo = position.pixels;
+    expect(scrolledTo, greaterThan(0));
+
+    // Dismiss (toggle: the bubble is tap-owned)…
+    await tester.tap(floatingButton());
+    await tester.pumpAndSettle();
+    expect(find.text('重新生成'), findsNothing);
+
+    // …reopen: the same offset is still in place.
+    await openBubble(tester);
+    expect(bubbleTextContaining('摘要段落 0'), findsOneWidget);
+    final restored = Scrollable.of(
+      tester.element(find.text('重新生成')),
+      axis: Axis.vertical,
+    ).position;
+    expect(restored.pixels, scrolledTo);
+    expect(restored.maxScrollExtent, greaterThan(0));
+  });
+
+  testWidgets('in-flight generation survives dismiss: reopen shows live '
+      'progress without a second call', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    final pending = Completer<SummaryResult>();
+    repo.summarizeHandler = (id) => pending.future;
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, 'AI 摘要');
+    expect(bubbleText('正在生成摘要…'), findsOneWidget);
+    expect(repo.summarizeCalls, ['doc-1']);
+
+    // Dismiss mid-generation — bounded pumps: the spinner keeps animating
+    // in the offstage card, so pumpAndSettle would never settle.
+    await tester.tap(find.byIcon(Icons.close_outlined));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('正在生成摘要…'), findsNothing);
+
+    // Reopen: the same generation is still running and its live progress
+    // shows; reopening never re-triggers, so still exactly one call.
+    await tester.tap(floatingButton());
+    await tester.pump();
+    await tester.pump();
+    expect(bubbleText('正在生成摘要…'), findsOneWidget);
+    expect(repo.summarizeCalls, ['doc-1']);
+
+    pending.complete(
+      const SummaryResult(
+        documentId: 'doc-1',
+        summary: '收起期间完成的摘要',
+        model: 'glm-4.7',
+        latencyMs: 1500,
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(bubbleTextContaining('收起期间完成的摘要'), findsOneWidget);
+    expect(repo.summarizeCalls, ['doc-1']);
   });
 
   testWidgets('system back at the content layer returns to the menu layer; '
@@ -449,6 +632,38 @@ void main() {
     await tester.pumpAndSettle();
 
     // Unchanged behavior: the detail page pops back to the list.
+    expect(find.byType(DocumentDetailPage), findsNothing);
+    expect(find.text('设计笔记'), findsOneWidget);
+  });
+
+  testWidgets('system back with the bubble closed on a content layer still '
+      'pops the page (keep-alive must not consume back)', (tester) async {
+    final repo = repoWithDoc('# 设计笔记\n\n混合检索正文');
+    repo.summarizeHandler = (id) async => const SummaryResult(
+      documentId: 'doc-1',
+      summary: '停在内容层的摘要',
+      model: 'glm-4.7',
+      latencyMs: 1500,
+    );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+
+    await openBubble(tester);
+    await selectEntry(tester, 'AI 摘要');
+    expect(bubbleTextContaining('停在内容层的摘要'), findsOneWidget);
+
+    // 收起 parks the bubble closed on the content layer (keep-alive)…
+    await tester.tap(find.byIcon(Icons.close_outlined));
+    await tester.pumpAndSettle();
+    expect(bubbleTextContaining('停在内容层的摘要'), findsNothing);
+
+    // …closed means unchanged: system back pops the page — the hidden
+    // layer must not consume it.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
     expect(find.byType(DocumentDetailPage), findsNothing);
     expect(find.text('设计笔记'), findsOneWidget);
   });
@@ -819,5 +1034,72 @@ void main() {
     expect(repo.listAssociationsCalls, hasLength(2));
     expect(bubbleText('重试后的关联'), findsOneWidget);
     expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsNothing);
+  });
+
+  testWidgets('document switch (pane selection) closes the bubble and resets '
+      'it to the menu layer', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final baseA = documentRead(id: 'doc-a', title: '甲文档');
+    final baseB = documentRead(id: 'doc-b', title: '乙文档');
+    final repo = StubDocumentsRepository();
+    repo.listHandler = (cursor, limit, tags) async =>
+        DocumentPage(items: [baseA, baseB], nextCursor: null);
+    repo.getHandler = (id) async =>
+        documentReadDetail(id == 'doc-a' ? baseA : baseB, content: '正文$id');
+    repo.summarizeHandler = (id) async => SummaryResult(
+      documentId: id,
+      summary: '$id 的摘要',
+      model: 'glm-4.7',
+      latencyMs: 1500,
+    );
+
+    // The pane title duplicates the list-row text, so list taps are scoped.
+    Finder listItem(String title) => find.descendant(
+      of: find.byType(ListView),
+      matching: find.text(title),
+    );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+
+    // Load both documents once, so the second pass over 甲文档 (below)
+    // swaps the pane's detail data in place — the didUpdateWidget
+    // document-switch path with a live fab State.
+    await tester.tap(listItem('甲文档'));
+    await tester.pumpAndSettle();
+    await tester.tap(listItem('乙文档'));
+    await tester.pumpAndSettle();
+    expect(repo.getCalls, ['doc-a', 'doc-b']);
+
+    // Back on 甲文档: switch to the content layer and leave the bubble OPEN…
+    await tester.tap(listItem('甲文档'));
+    await tester.pumpAndSettle();
+    await openBubble(tester);
+    await selectEntry(tester, 'AI 摘要');
+    expect(bubbleTextContaining('doc-a 的摘要'), findsOneWidget);
+    expect(repo.summarizeCalls, ['doc-a']);
+
+    // …then switch documents: the fab closes AND resets to the menu layer.
+    await tester.tap(listItem('乙文档'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('AI 摘要'), findsNothing);
+    expect(floatingButton(), findsOneWidget);
+    // The still-mounted card is parked at the menu layer (its entry rows
+    // are back, the old content layer is gone), not visible.
+    expect(find.text('AI 助手', skipOffstage: false), findsOneWidget);
+    expect(find.textContaining('doc-a 的摘要', skipOffstage: false), findsNothing);
+
+    // Reopening starts at the menu; selecting 摘要 generates for the new
+    // document (details stay cached — no refetch on the switch).
+    await openBubble(tester);
+    expect(bubbleEntry('AI 摘要'), findsOneWidget);
+    expect(bubbleEntry('相关文档'), findsOneWidget);
+    await selectEntry(tester, 'AI 摘要');
+    expect(repo.summarizeCalls, ['doc-a', 'doc-b']);
+    expect(bubbleTextContaining('doc-b 的摘要'), findsOneWidget);
+    expect(repo.getCalls, ['doc-a', 'doc-b']);
   });
 }

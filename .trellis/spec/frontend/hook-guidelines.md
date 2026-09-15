@@ -75,10 +75,13 @@ last `error`):
   once when there is no cached result and nothing is in flight (never in
   `build()`), and keep the providers alive while the host surface is open
   (watch them at the menu layer) so re-entering shows the cache instead of
-  re-billing. A back affordance returns to the menu layer, every dismiss
-  path resets to it, the host page's `PopScope` intercepts system back at
-  the content layer, and every error branch inside the bubble carries an
-  inline 重试 (no fab to fall back on).
+  re-billing. Dismissing the bubble **preserves the current layer and the
+  content scroll position** (the card stays mounted behind `Offstage`, so
+  reopen continues presenting — cached result, no refetch); only the 返回
+  affordance or a document switch resets to the menu layer. The host page's
+  `PopScope` intercepts system back **only while the bubble is open on a
+  content layer** (closed-at-content must still pop); every error branch
+  inside the bubble carries an inline 重试 (no fab to fall back on).
 
 Reference implementation: `lib/features/documents/documents_providers.dart`
 (`DocumentSummaryNotifier` / `DocumentAssociationsNotifier`),

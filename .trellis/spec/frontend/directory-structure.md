@@ -59,6 +59,16 @@ Rules:
    backend's `src/app/schemas/` and are shared by all features.
 3. `core/network/` must not import from `features/` or `shared/widgets/`
    (dependency direction: features → core/shared).
+4. `core/auth/` (OIDC/session) may import `core/config` and
+   `core/network/api_exception.dart`; conversely `core/network` providers
+   (`api_client.dart`, `sse_client.dart`, `agent_stream_client.dart`) may
+   import `core/auth` only to wire the auth resolvers/header builders —
+   file-level imports stay acyclic, `ref.watch` of auth state in
+   `apiClientProvider` is forbidden (dio must not rebuild per token).
+5. Flutter web uses the **path URL strategy** (`usePathUrlStrategy()` in
+   `main()`) — OAuth redirect URIs forbid fragments, so hash-mode URLs
+   (`/#/route`) cannot carry the OIDC callback; serving `build/web`
+   requires an SPA fallback for non-asset paths.
 
 ---
 

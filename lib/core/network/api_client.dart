@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/auth_controller.dart';
 import '../config/app_config.dart';
 import 'api_exception.dart';
 
@@ -98,12 +99,22 @@ ApiException toApiException(Object error) {
   return const ApiException(code: 'internal_error', message: '发生未知错误');
 }
 
+/// Resolves an access token lazily: normal requests use the cached-if-valid
+/// token, the 401-retry path forces a refresh. Null ⇒ no Authorization
+/// header (unauthenticated / compat mode).
+typedef TokenResolver = Future<String?> Function();
+
 /// The app's configured HTTP entry point: a [Dio] instance with sane
-/// timeouts and an interceptor that decodes every error into
-/// [ApiException] (attached to `DioException.error`) in one place.
+/// timeouts and interceptors that (a) attach the OIDC bearer token and
+/// retry once after a forced refresh on 401, and (b) decode every error
+/// into [ApiException] (attached to `DioException.error`) in one place.
 class ApiClient {
-  ApiClient({required this.baseUrl, Dio? dio})
-    : dio =
+  ApiClient({
+    required this.baseUrl,
+    Dio? dio,
+    TokenResolver? tokenResolver,
+    TokenResolver? refreshResolver,
+  }) : dio =
           dio ??
           Dio(
             BaseOptions(
@@ -114,6 +125,11 @@ class ApiClient {
                   status != null && status >= 200 && status < 300,
             ),
           ) {
+    // Auth first (on both sides), so a resolved 401 retry never reaches the
+    // envelope mapper and envelope enrichment happens after auth decisions.
+    if (tokenResolver != null) {
+      this.dio.interceptors.add(_authInterceptor(tokenResolver, refreshResolver));
+    }
     this.dio.interceptors.add(
       InterceptorsWrapper(
         onError: (error, handler) {
@@ -125,6 +141,43 @@ class ApiClient {
     );
   }
 
+  Interceptor _authInterceptor(
+    TokenResolver tokenResolver,
+    TokenResolver? refreshResolver,
+  ) {
+    return InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await tokenResolver();
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
+      onError: (error, handler) async {
+        final requestOptions = error.requestOptions;
+        final alreadyRetried = requestOptions.extra['kbAuthRetried'] == true;
+        if (error.response?.statusCode != 401 ||
+            alreadyRetried ||
+            refreshResolver == null) {
+          return handler.next(error);
+        }
+        final token = await refreshResolver();
+        if (token == null) {
+          // Refresh failed (session cleared) — surface the original 401.
+          return handler.next(error);
+        }
+        try {
+          requestOptions.extra['kbAuthRetried'] = true;
+          requestOptions.headers['Authorization'] = 'Bearer $token';
+          final response = await dio.fetch<dynamic>(requestOptions);
+          handler.resolve(response);
+        } on DioException catch (retryError) {
+          handler.next(retryError);
+        }
+      },
+    );
+  }
+
   final String baseUrl;
   final Dio dio;
 
@@ -133,8 +186,25 @@ class ApiClient {
 
 /// App-wide API client; rebuilt (via `ref.watch`) whenever the configured
 /// base URL changes.
+///
+/// The auth resolvers are only wired when OIDC is enabled (compat mode
+/// keeps the client byte-for-byte headerless). They `ref.read` the auth
+/// controller per request — the client must NOT rebuild on auth state
+/// changes, so `ref.watch` stays away from the controller here.
 final apiClientProvider = Provider<ApiClient>((ref) {
-  final client = ApiClient(baseUrl: ref.watch(appConfigProvider).baseUrl);
+  final enabled = ref.watch(authEnabledProvider);
+  final client = ApiClient(
+    baseUrl: ref.watch(appConfigProvider).baseUrl,
+    tokenResolver: enabled
+        ? () async => ref
+              .read(authControllerProvider.notifier)
+              .getValidAccessToken()
+        : null,
+    refreshResolver: enabled
+        ? () async =>
+              ref.read(authControllerProvider.notifier).refreshAccessToken()
+        : null,
+  );
   ref.onDispose(() => client.close());
   return client;
 });

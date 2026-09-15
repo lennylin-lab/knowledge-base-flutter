@@ -439,3 +439,48 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: 气泡收起保留层状态
+<!-- trellis-session: v=2 fp=3fc756a2c2ecd91a -->
+
+**Date**: 2026-09-15
+**Task**: 气泡收起保留层状态
+**Branch**: `main`
+
+### Summary
+
+气泡收起不再重置到菜单层：卡片经 Offstage 常驻挂载（无绘制/无命中/零占位），层状态与内容滚动位置跨关闭保留，重开继续呈现（缓存结果不重复生成）；仅返回按钮或切换文档重置菜单层。连带修正 PopScope 门控为『内容层且打开才拦截返回』（keep-alive 使关闭停在内容层变为可达，否则系统返回会被静默吞掉）。analyze 干净、290 测试全绿；check PASS（SDK 语义级核实 Offstage 链路与 PopScope 线程）。spec 同步刷新气泡关闭契约。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8bdfb13` | feat(documents): keep bubble layer and scroll across dismiss |
+| `e684994` | docs(spec): bubble dismiss preserves layer instead of resetting |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 21: Keycloak OIDC 登录对接（issue #2）
+<!-- trellis-session: v=2 fp=oidc-bearer-auth -->
+
+**Date**: 2026-09-16
+**Task**: 09-16-oidc-bearer-auth
+**Branch**: `feat/oidc-bearer-auth`
+
+### Summary
+
+对接后端 Keycloak 兼容 OIDC（issue #2）：自实现协议客户端（discovery/PKCE S256/换码/刷新，不依赖 appauth 以保 Windows）；Web 整页重定向 + `/auth/callback` 路由，native 回环 HttpServer（RFC 8252, 8182 端口）+ url_launcher；会话持久化（secure_storage / web prefs）、单飞刷新、REST 401 单次重试、ChatTransport 全线 Bearer；登录门只包 Shell，空 issuer 兼容模式行为不变。**关键发现**：Flutter Web 默认 hash URL 策略，OAuth 回调（禁止片段）永远进不了路由器 → `usePathUrlStrategy()` + SPA fallback（serve_web_dev.py）。实测本地 Keycloak 全链路通过（登录→换码→文档列表带 Bearer 渲染+退出按钮）；analyze 干净、330 测试全绿；trellis-check PASS。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| (feat/oidc-bearer-auth) | feat(auth): Keycloak OIDC login with Bearer token on API/SSE |
+
+### Status
+
+[OK] **Completed** (PR #3, closes issue #2 on merge)

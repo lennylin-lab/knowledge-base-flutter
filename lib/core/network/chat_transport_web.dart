@@ -27,24 +27,35 @@ class WebChatTransport implements ChatTransport {
   static const bool _forceDio = bool.fromEnvironment('KB_SSE_VIA_DIO');
 
   @override
-  Future<Stream<Uint8List>> open(Uri uri, String? jsonBody) async {
+  Future<Stream<Uint8List>> open(
+    Uri uri,
+    String? jsonBody, {
+    Map<String, String>? headers,
+  }) async {
     if (_forceDio) {
       // Debug escape hatch (dart-define) — works even without an injected
       // dio, `_openViaDio` falls back to a fresh instance.
-      return _openViaDio(uri, jsonBody);
+      return _openViaDio(uri, jsonBody, headers);
     }
-    return _openViaFetch(uri, jsonBody);
+    return _openViaFetch(uri, jsonBody, headers);
   }
 
-  Future<Stream<Uint8List>> _openViaFetch(Uri uri, String? jsonBody) async {
+  Future<Stream<Uint8List>> _openViaFetch(
+    Uri uri,
+    String? jsonBody,
+    Map<String, String>? headers,
+  ) async {
     // HeadersInit is an opaque JSObject — a plain object with string
     // properties. setProperty comes from dart:js_interop_unsafe.
-    final headers = JSObject()
+    final requestHeaders = JSObject()
       ..setProperty('Accept'.toJS, 'text/event-stream'.toJS);
     // A bodyless POST (agent endpoints) carries no content type.
     if (jsonBody != null) {
-      headers.setProperty('Content-Type'.toJS, 'application/json'.toJS);
+      requestHeaders.setProperty('Content-Type'.toJS, 'application/json'.toJS);
     }
+    headers?.forEach(
+      (name, value) => requestHeaders.setProperty(name.toJS, value.toJS),
+    );
 
     final web.Response response;
     try {
@@ -53,7 +64,7 @@ class WebChatTransport implements ChatTransport {
             uri.toString().toJS,
             web.RequestInit(
               method: 'POST',
-              headers: headers,
+              headers: requestHeaders,
               // Null body: the request is sent without a payload.
               body: jsonBody?.toJS,
             ),
@@ -123,7 +134,11 @@ class WebChatTransport implements ChatTransport {
     return controller.stream;
   }
 
-  Future<Stream<Uint8List>> _openViaDio(Uri uri, String? jsonBody) async {
+  Future<Stream<Uint8List>> _openViaDio(
+    Uri uri,
+    String? jsonBody,
+    Map<String, String>? headers,
+  ) async {
     final dio = _dio ?? Dio();
     try {
       final response = await dio.post<String>(
@@ -134,6 +149,7 @@ class WebChatTransport implements ChatTransport {
           headers: {
             'Accept': 'text/event-stream',
             'Content-Type': 'application/json',
+            ...?headers,
           },
         ),
       );

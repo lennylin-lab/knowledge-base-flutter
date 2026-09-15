@@ -45,6 +45,11 @@ dependencies:
   web: ^1.1.1
   re_highlight: ^0.0.3
   markdown: ^7.3.1
+  crypto: ^3.0.7
+  url_launcher: ^6.3.2
+  flutter_secure_storage: ^11.1.1
+  flutter_web_plugins:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:
