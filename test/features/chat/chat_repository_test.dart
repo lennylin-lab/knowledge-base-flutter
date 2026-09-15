@@ -25,7 +25,7 @@ class _FakeTransport implements ChatTransport {
   String? lastBody;
 
   @override
-  Future<Stream<Uint8List>> open(Uri uri, String jsonBody) async {
+  Future<Stream<Uint8List>> open(Uri uri, String? jsonBody) async {
     lastUri = uri;
     lastBody = jsonBody;
     final error = openError;

@@ -27,7 +27,7 @@ class WebChatTransport implements ChatTransport {
   static const bool _forceDio = bool.fromEnvironment('KB_SSE_VIA_DIO');
 
   @override
-  Future<Stream<Uint8List>> open(Uri uri, String jsonBody) async {
+  Future<Stream<Uint8List>> open(Uri uri, String? jsonBody) async {
     if (_forceDio) {
       // Debug escape hatch (dart-define) — works even without an injected
       // dio, `_openViaDio` falls back to a fresh instance.
@@ -36,19 +36,27 @@ class WebChatTransport implements ChatTransport {
     return _openViaFetch(uri, jsonBody);
   }
 
-  Future<Stream<Uint8List>> _openViaFetch(Uri uri, String jsonBody) async {
+  Future<Stream<Uint8List>> _openViaFetch(Uri uri, String? jsonBody) async {
     // HeadersInit is an opaque JSObject — a plain object with string
     // properties. setProperty comes from dart:js_interop_unsafe.
     final headers = JSObject()
-      ..setProperty('Content-Type'.toJS, 'application/json'.toJS)
       ..setProperty('Accept'.toJS, 'text/event-stream'.toJS);
+    // A bodyless POST (agent endpoints) carries no content type.
+    if (jsonBody != null) {
+      headers.setProperty('Content-Type'.toJS, 'application/json'.toJS);
+    }
 
     final web.Response response;
     try {
       response = await web.window
           .fetch(
             uri.toString().toJS,
-            web.RequestInit(method: 'POST', headers: headers, body: jsonBody.toJS),
+            web.RequestInit(
+              method: 'POST',
+              headers: headers,
+              // Null body: the request is sent without a payload.
+              body: jsonBody?.toJS,
+            ),
           )
           .toDart;
     } catch (_) {
@@ -115,7 +123,7 @@ class WebChatTransport implements ChatTransport {
     return controller.stream;
   }
 
-  Future<Stream<Uint8List>> _openViaDio(Uri uri, String jsonBody) async {
+  Future<Stream<Uint8List>> _openViaDio(Uri uri, String? jsonBody) async {
     final dio = _dio ?? Dio();
     try {
       final response = await dio.post<String>(

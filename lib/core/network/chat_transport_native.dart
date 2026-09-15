@@ -26,7 +26,7 @@ class NativeChatTransport implements ChatTransport {
   final Dio _dio;
 
   @override
-  Future<Stream<Uint8List>> open(Uri uri, String jsonBody) async {
+  Future<Stream<Uint8List>> open(Uri uri, String? jsonBody) async {
     try {
       final response = await _dio.post<ResponseBody>(
         uri.toString(),
@@ -35,7 +35,8 @@ class NativeChatTransport implements ChatTransport {
           responseType: ResponseType.stream,
           headers: {
             'Accept': 'text/event-stream',
-            'Content-Type': 'application/json',
+            // A bodyless POST (agent endpoints) carries no content type.
+            if (jsonBody != null) 'Content-Type': 'application/json',
           },
         ),
       );

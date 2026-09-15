@@ -9,8 +9,9 @@ import '../../shared/models/chat.dart';
 class Utf8StreamDecoder {
   final _buffer = _StringSink();
 
-  late final ByteConversionSink _sink =
-      const Utf8Decoder(allowMalformed: true).startChunkedConversion(_buffer);
+  late final ByteConversionSink _sink = const Utf8Decoder(
+    allowMalformed: true,
+  ).startChunkedConversion(_buffer);
 
   /// Feed raw bytes; returns the text they completed (possibly empty).
   String add(List<int> bytes) {
@@ -54,53 +55,61 @@ class _StringSink implements Sink<String> {
   }
 }
 
-/// Pure incremental parser for the chat SSE wire format — no IO, fully unit
-/// testable. Feed decoded text chunks with [push]; the returned list holds
-/// the events those chunks completed.
+/// One completed SSE wire frame: the `event:` field name (null when the
+/// frame carried no `event:` line) and the raw `data` payload (multi-line
+/// `data` fields joined with `\n`, empty string when none).
+///
+/// Deliberately untyped — JSON decoding and event typing are the caller's
+/// job, so chat and the document-agent streams share one framing discipline.
+class SseFrame {
+  const SseFrame(this.event, this.data);
+
+  final String? event;
+
+  final String data;
+}
+
+/// Pure incremental parser for the SSE wire *framing* — no IO, no JSON, fully
+/// unit testable. Feed decoded text chunks with [push]; the returned list
+/// holds the frames those chunks completed.
 ///
 /// Implemented rules:
-/// - events are terminated by a blank line; `\n`, `\r\n` and lone `\r` all
+/// - frames are terminated by a blank line; `\n`, `\r\n` and lone `\r` all
 ///   count as line terminators, even when the pair is split across chunks;
+/// - every blank line completes a frame (possibly field-less — callers
+///   typically ignore frames without an event name or data);
 /// - `event:` / `data:` field lines; multi-line `data` joins with `\n`;
 ///   the single optional space after `:` is stripped;
-/// - comments (`:`-prefixed lines), `id:` and `retry:` are ignored;
-/// - unknown event names (e.g. keep-alive `ping` frames) are ignored;
-/// - frames with non-JSON `data` are ignored, never thrown;
-/// - everything after a terminal `done`/`error` event is ignored;
+/// - comments (`:`-prefixed lines) and `id:` / `retry:` lines are ignored;
 /// - [close] discards an unterminated trailing frame, per the SSE spec.
-class SseChatParser {
+class SseFrameParser {
   String _buffer = '';
   String? _eventName;
   final _dataLines = <String>[];
-  bool _terminated = false;
 
-  /// Whether a terminal `done`/`error` event has already been emitted.
-  bool get isTerminated => _terminated;
-
-  /// Feed one decoded text chunk; returns the events it completed.
-  List<ChatEvent> push(String chunk) {
+  /// Feed one decoded text chunk; returns the frames it completed.
+  List<SseFrame> push(String chunk) {
     if (chunk.isEmpty) return const [];
     _buffer += chunk;
     return _drain();
   }
 
   /// Signal end of stream. An unterminated trailing frame is discarded.
-  List<ChatEvent> close() => const [];
+  List<SseFrame> close() => const [];
 
-  List<ChatEvent> _drain() {
-    final events = <ChatEvent>[];
+  List<SseFrame> _drain() {
+    final frames = <SseFrame>[];
     while (true) {
       final line = _nextLine();
       if (line == null) break;
       if (line.isEmpty) {
-        final event = _dispatch();
-        if (event != null) events.add(event);
+        frames.add(_dispatch());
         continue;
       }
       if (line.startsWith(':')) continue; // comment (keep-alive ping)
       _consumeField(line);
     }
-    return events;
+    return frames;
   }
 
   /// Extracts the first complete line from [_buffer], or `null` while no
@@ -145,18 +154,54 @@ class SseChatParser {
     }
   }
 
-  /// Emits the accumulated frame as a [ChatEvent], or `null` when the frame
-  /// is ignorable (post-terminal, unnamed, non-JSON, unknown event).
-  ChatEvent? _dispatch() {
+  /// Completes the accumulated frame (and resets the accumulator).
+  SseFrame _dispatch() {
     final name = _eventName;
     _eventName = null;
     final data = _dataLines.join('\n');
     _dataLines.clear();
-    if (_terminated || name == null || data.isEmpty) return null;
+    return SseFrame(name, data);
+  }
+}
+
+/// Pure incremental parser for the chat SSE wire format — no IO, fully unit
+/// testable. Feed decoded text chunks with [push]; the returned list holds
+/// the events those chunks completed.
+///
+/// Framing lives in [SseFrameParser]; this class adds the chat event typing:
+/// - unknown event names (e.g. keep-alive `ping` frames) are ignored;
+/// - frames with non-JSON `data` are ignored, never thrown;
+/// - everything after a terminal `done`/`error` event is ignored.
+class SseChatParser {
+  final _frames = SseFrameParser();
+  bool _terminated = false;
+
+  /// Whether a terminal `done`/`error` event has already been emitted.
+  bool get isTerminated => _terminated;
+
+  /// Feed one decoded text chunk; returns the events it completed.
+  List<ChatEvent> push(String chunk) {
+    final events = <ChatEvent>[];
+    for (final frame in _frames.push(chunk)) {
+      final event = _decode(frame);
+      if (event != null) events.add(event);
+    }
+    return events;
+  }
+
+  /// Signal end of stream. An unterminated trailing frame is discarded.
+  List<ChatEvent> close() => const [];
+
+  /// Decodes one completed frame into a [ChatEvent], or `null` when the
+  /// frame is ignorable (post-terminal, unnamed, non-JSON, unknown event).
+  ChatEvent? _decode(SseFrame frame) {
+    if (_terminated) return null;
+    final name = frame.event;
+    if (name == null || frame.data.isEmpty) return null;
 
     final Map<String, dynamic> json;
     try {
-      final decoded = jsonDecode(data);
+      final decoded = jsonDecode(frame.data);
       if (decoded is! Map<String, dynamic>) return null;
       json = decoded;
     } on FormatException {

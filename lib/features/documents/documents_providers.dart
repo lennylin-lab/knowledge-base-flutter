@@ -1,15 +1,21 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/network/agent_stream_client.dart';
 import '../../core/network/api_client.dart';
 import '../../shared/models/agents_result.dart';
+import '../../shared/models/agents_stream.dart';
 import '../../shared/models/document.dart';
 import 'documents_repository.dart';
 
-/// Documents repository wired to the app-wide API client; override this in
-/// tests (provider-guidelines spec).
+/// Documents repository wired to the app-wide API client + agent stream
+/// client (both rebuilt when the base URL changes); override this in tests
+/// (provider-guidelines spec).
 final documentsRepositoryProvider = Provider<DocumentsRepository>(
-  (ref) => DocumentsRepository(ref.watch(apiClientProvider)),
+  (ref) => DocumentsRepository(
+    ref.watch(apiClientProvider),
+    agentStream: ref.watch(agentStreamClientProvider),
+  ),
 );
 
 /// Selected tag filters; empty set means "all documents". The actual
@@ -201,22 +207,34 @@ final documentDetailProvider =
     });
 
 /// On-demand AI generation state for one document (summary or
-/// associations): the last successful [result], an [isGenerating] flag, and
-/// the raw [error] of the last failed attempt. Nothing is fetched on build —
-/// both endpoints are synchronous LLM calls whose results are not persisted
-/// server-side, so generation is always an explicit user action. A failed
-/// attempt keeps the previous [result] visible and exposes the raw error,
-/// which the UI maps to Chinese copy (hook-guidelines: providers let
-/// [ApiException] propagate).
+/// associations): the last successful [result], an [isGenerating] flag, the
+/// raw [error] of the last failed attempt, and the latest streamed
+/// [progress] line while generating (summary streams only — the
+/// associations stream has no progress events, so it stays null there).
+/// Nothing is fetched on build — both endpoints are synchronous LLM calls
+/// whose results are not persisted server-side, so generation is always an
+/// explicit user action. A failed attempt keeps the previous [result]
+/// visible and exposes the raw error, which the UI maps to Chinese copy
+/// (hook-guidelines: providers let [ApiException] propagate).
 @immutable
 class OnDemandState<T> {
-  const OnDemandState({this.result, this.isGenerating = false, this.error});
+  const OnDemandState({
+    this.result,
+    this.isGenerating = false,
+    this.error,
+    this.progress,
+  });
 
   final T? result;
 
   final bool isGenerating;
 
   final Object? error;
+
+  /// Latest `summary_progress` of the in-flight generation; null before the
+  /// first progress event and on every terminal state (success, failure,
+  /// new generation).
+  final SummaryProgress? progress;
 }
 
 /// Shared generate state machine behind [documentSummaryProvider] and
@@ -228,8 +246,9 @@ abstract class OnDemandGenerationNotifier<T>
     extends Notifier<OnDemandState<T>> {
   int _generation = 0;
 
-  /// The repository call this notifier drives.
-  Future<T> fetch();
+  /// The repository call this notifier drives; streamed progress (summary
+  /// only on the wire) is reported through [onProgress].
+  Future<T> fetch({void Function(SummaryProgress progress)? onProgress});
 
   @override
   OnDemandState<T> build() {
@@ -239,13 +258,25 @@ abstract class OnDemandGenerationNotifier<T>
   }
 
   /// Runs one generation; the UI's single entry point (buttons, 重试,
-  /// 重新生成 all land here).
+  /// 重新生成 all land here). Progress events update [OnDemandState.progress]
+  /// in place; the field is cleared again by every terminal write.
   Future<void> generate() async {
     if (state.isGenerating) return;
     final generation = _generation;
     state = OnDemandState<T>(result: state.result, isGenerating: true);
     try {
-      final result = await fetch();
+      final result = await fetch(
+        onProgress: (progress) {
+          // A superseded generation's late progress must not clobber the
+          // newer state (same stale-guard as the terminal writes below).
+          if (_generation != generation) return;
+          state = OnDemandState<T>(
+            result: state.result,
+            isGenerating: true,
+            progress: progress,
+          );
+        },
+      );
       if (_generation != generation) return;
       state = OnDemandState<T>(result: result);
     } catch (error) {
@@ -263,13 +294,19 @@ class DocumentSummaryNotifier
   final String documentId;
 
   @override
-  Future<SummaryResult> fetch() =>
-      ref.read(documentsRepositoryProvider).summarize(documentId);
+  Future<SummaryResult> fetch({
+    void Function(SummaryProgress progress)? onProgress,
+  }) => ref
+      .read(documentsRepositoryProvider)
+      .summarize(documentId, onProgress: onProgress);
 }
 
 final documentSummaryProvider =
-    NotifierProvider.family<DocumentSummaryNotifier, OnDemandState<SummaryResult>,
-        String>(DocumentSummaryNotifier.new);
+    NotifierProvider.family<
+      DocumentSummaryNotifier,
+      OnDemandState<SummaryResult>,
+      String
+    >(DocumentSummaryNotifier.new);
 
 /// LLM-curated related documents of one document, generated on demand.
 class DocumentAssociationsNotifier
@@ -279,11 +316,16 @@ class DocumentAssociationsNotifier
   final String documentId;
 
   @override
-  Future<AssociationsResult> fetch() =>
-      ref.read(documentsRepositoryProvider).listAssociations(documentId);
+  Future<AssociationsResult> fetch({
+    void Function(SummaryProgress progress)? onProgress,
+  }) => ref
+      .read(documentsRepositoryProvider)
+      .listAssociations(documentId, onProgress: onProgress);
 }
 
-final documentAssociationsProvider = NotifierProvider.family<
-    DocumentAssociationsNotifier,
-    OnDemandState<AssociationsResult>,
-    String>(DocumentAssociationsNotifier.new);
+final documentAssociationsProvider =
+    NotifierProvider.family<
+      DocumentAssociationsNotifier,
+      OnDemandState<AssociationsResult>,
+      String
+    >(DocumentAssociationsNotifier.new);

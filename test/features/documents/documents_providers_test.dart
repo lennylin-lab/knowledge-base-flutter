@@ -6,6 +6,7 @@ import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
 import 'stub_documents_repository.dart';
@@ -268,6 +269,181 @@ void main() {
 
       final state = container.read(documentSummaryProvider('doc-1'));
       expect(state.result, isNull);
+      expect(state.error, isNull);
+    });
+  });
+
+  group('on-demand streamed progress (documentSummaryProvider)', () {
+    ProviderContainer containerFor(StubDocumentsRepository repo) {
+      final container = ProviderContainer(
+        overrides: [documentsRepositoryProvider.overrideWithValue(repo)],
+        retry: noAutomaticRetry,
+      );
+      addTearDown(container.dispose);
+      container.listen(documentSummaryProvider('doc-1'), (_, _) {});
+      return container;
+    }
+
+    SummaryResult resultOf(String text) => SummaryResult(
+      documentId: 'doc-1',
+      summary: text,
+      model: 'glm-4.7',
+      latencyMs: 1500,
+    );
+
+    test('progress updates during generation and clears on success', () async {
+      final repo = StubDocumentsRepository();
+      final pending = Completer<SummaryResult>();
+      repo.summarizeHandler = (id) => pending.future;
+      repo.summarizeProgressHandler = (id, report) {
+        report(
+          const SummaryProgress(
+            phase: 'map_pass',
+            passIndex: 1,
+            passesTotal: 3,
+          ),
+        );
+        report(
+          const SummaryProgress(
+            phase: 'reduce_pass',
+            passIndex: 3,
+            passesTotal: 3,
+          ),
+        );
+      };
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      final run = notifier.generate();
+      await container.pump();
+
+      // Latest progress wins; the generation is still in flight.
+      final generating = container.read(documentSummaryProvider('doc-1'));
+      expect(generating.isGenerating, isTrue);
+      expect(generating.progress?.phase, 'reduce_pass');
+      expect(generating.progress?.passIndex, 3);
+      expect(generating.progress?.passesTotal, 3);
+
+      pending.complete(resultOf('摘要'));
+      await run;
+
+      final done = container.read(documentSummaryProvider('doc-1'));
+      expect(done.result?.summary, '摘要');
+      expect(done.isGenerating, isFalse);
+      expect(done.error, isNull);
+      expect(done.progress, isNull, reason: 'terminal state clears progress');
+    });
+
+    test('progress clears on failure too (result kept, error set)', () async {
+      final repo = StubDocumentsRepository();
+      repo.summarizeHandler = (id) async {
+        throw const ApiException(
+          code: 'chat_unavailable',
+          message: 'No API key configured',
+          statusCode: 503,
+        );
+      };
+      repo.summarizeProgressHandler = (id, report) => report(
+        const SummaryProgress(phase: 'map_pass', passIndex: 1, passesTotal: 2),
+      );
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      await notifier.generate();
+
+      final failed = container.read(documentSummaryProvider('doc-1'));
+      expect(failed.error, isA<ApiException>());
+      expect(failed.isGenerating, isFalse);
+      expect(failed.progress, isNull);
+    });
+
+    test('a new generation starts with progress cleared', () async {
+      final repo = StubDocumentsRepository();
+      var firstRun = true;
+      final pending = Completer<SummaryResult>();
+      repo.summarizeHandler = (id) =>
+          firstRun ? Future.value(resultOf('第一版')) : pending.future;
+      repo.summarizeProgressHandler = (id, report) {
+        if (!firstRun) {
+          return; // the second generation reports nothing (yet)
+        }
+        report(
+          const SummaryProgress(
+            phase: 'map_pass',
+            passIndex: 1,
+            passesTotal: 2,
+          ),
+        );
+      };
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      await notifier.generate();
+      expect(
+        container.read(documentSummaryProvider('doc-1')).progress,
+        isNull,
+      );
+
+      firstRun = false;
+      final second = notifier.generate();
+      await container.pump();
+
+      final regenerating = container.read(documentSummaryProvider('doc-1'));
+      expect(regenerating.isGenerating, isTrue);
+      expect(
+        regenerating.progress,
+        isNull,
+        reason: "a new generation must not show the previous run's progress",
+      );
+
+      pending.complete(resultOf('第二版'));
+      await second;
+      expect(
+        container.read(documentSummaryProvider('doc-1')).result?.summary,
+        '第二版',
+      );
+    });
+
+    test('a superseded generation drops its late progress', () async {
+      final repo = StubDocumentsRepository();
+      final pending = Completer<SummaryResult>();
+      final reports = <void Function(SummaryProgress)>[];
+      repo.summarizeHandler = (id) => pending.future;
+      repo.summarizeProgressHandler = (id, report) => reports.add(report);
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      final stale = notifier.generate();
+      await container.pump();
+
+      // The provider rebuilds mid-flight (generation bump).
+      container.invalidate(documentSummaryProvider('doc-1'));
+      await container.pump();
+
+      // The stale stream reports progress late — it must be dropped.
+      for (final report in reports) {
+        report(
+          const SummaryProgress(
+            phase: 'reduce_pass',
+            passIndex: 2,
+            passesTotal: 2,
+          ),
+        );
+      }
+      pending.complete(resultOf('过期摘要'));
+      await stale;
+
+      final state = container.read(documentSummaryProvider('doc-1'));
+      expect(state.result, isNull);
+      expect(state.progress, isNull);
       expect(state.error, isNull);
     });
   });

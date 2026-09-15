@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 import 'package:knowledge_base_flutter/shared/models/api_error.dart';
 import 'package:knowledge_base_flutter/shared/models/chat.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
@@ -326,6 +327,94 @@ void main() {
       });
       expect(empty.associations, isEmpty);
       assertRoundTrip(empty, (m) => m.toJson(), AssociationsResult.fromJson);
+    });
+  });
+
+  group('Agent stream events', () {
+    test('AgentRunStarted round-trips snake_case wire keys', () {
+      final model = AgentRunStarted.fromJson({
+        'run_id': '11111111-1111-1111-1111-111111111111',
+        'kind': 'summary',
+        'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+      });
+      expect(model.runId, '11111111-1111-1111-1111-111111111111');
+      expect(model.kind, 'summary');
+      assertRoundTrip(model, (m) => m.toJson(), AgentRunStarted.fromJson);
+      final encoded = jsonEncode(model.toJson());
+      expect(encoded, contains('"run_id"'));
+      expect(encoded, contains('"document_id"'));
+    });
+
+    test('SummaryProgress round-trips 1-based pass counters', () {
+      final model = SummaryProgress.fromJson({
+        'phase': 'map_pass',
+        'pass_index': 1,
+        'passes_total': 2,
+      });
+      expect(model.phase, 'map_pass');
+      expect(model.passIndex, 1);
+      expect(model.passesTotal, 2);
+      assertRoundTrip(model, (m) => m.toJson(), SummaryProgress.fromJson);
+      expect(jsonEncode(model.toJson()), contains('"pass_index":1'));
+    });
+
+    test('AgentErrorEvent round-trips code/message and omits a null status',
+        () {
+      final model = AgentErrorEvent.fromJson({
+        'code': 'llm_provider_error',
+        'message': 'provider boom',
+      });
+      assertRoundTrip(model, (m) => m.toJson(), AgentErrorEvent.fromJson);
+      // The synthesized pre-stream failure carries its HTTP status out of
+      // band (includeIfNull: false keeps it off the wire shape).
+      const withStatus = AgentErrorEvent(
+        code: 'not_found',
+        message: 'gone',
+        statusCode: 404,
+      );
+      expect(withStatus.toJson()['status_code'], 404);
+      expect(jsonEncode(model.toJson()), isNot(contains('status_code')));
+    });
+
+    test('agent events are a sealed hierarchy (exhaustive matching)', () {
+      const List<AgentStreamEvent> events = [
+        AgentRunStarted(runId: 'r', kind: 'summary', documentId: 'd'),
+        SummaryProgress(phase: 'map_pass', passIndex: 1, passesTotal: 2),
+        AgentSummaryEvent(
+          SummaryResult(
+            documentId: 'd',
+            summary: 's',
+            model: 'm',
+            latencyMs: 1,
+          ),
+        ),
+        AgentAssociationsEvent(
+          AssociationsResult(
+            documentId: 'd',
+            associations: [],
+            model: 'm',
+            latencyMs: 1,
+          ),
+        ),
+        AgentDoneEvent(),
+        AgentErrorEvent(code: 'network_error', message: 'x'),
+      ];
+      final names = events.map((e) => switch (e) {
+            AgentRunStarted() => 'run_started',
+            SummaryProgress() => 'summary_progress',
+            AgentSummaryEvent() => 'summary',
+            AgentAssociationsEvent() => 'associations',
+            AgentDoneEvent() => 'done',
+            AgentErrorEvent() => 'error',
+          });
+      expect(names, [
+        'run_started',
+        'summary_progress',
+        'summary',
+        'associations',
+        'done',
+        'error',
+      ]);
     });
   });
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/agents_result.dart';
+import '../../shared/models/agents_stream.dart';
 import '../../shared/widgets/format.dart';
 import 'documents_providers.dart';
 
@@ -26,6 +27,17 @@ extension AiBubbleLayerTitle on AiBubbleLayer {
     AiBubbleLayer.associations => '相关文档',
   };
 }
+
+/// In-flight copy for the summary content layer, mapped from the latest
+/// streamed progress: `map_pass` reads chunk by chunk, `reduce_pass`
+/// condenses the notes, anything before/unknown keeps the generic hint.
+String _summaryProgressLabel(SummaryProgress? progress) =>
+    switch (progress?.phase) {
+      'map_pass' when progress != null =>
+        '正在阅读第 ${progress.passIndex}/${progress.passesTotal} 段',
+      'reduce_pass' => '正在汇总要点',
+      _ => '正在生成摘要…',
+    };
 
 /// The bubble's content body for one function layer: watches the matching
 /// on-demand generation provider and renders every state — generating
@@ -96,7 +108,9 @@ class AiBubbleContentLayer extends ConsumerWidget {
     final result = state.result;
     return [
       if (state.isGenerating) ...[
-        const _GenerationProgressRow('正在生成摘要…'),
+        // Live streamed progress line (map/reduce copy) once the first
+        // summary_progress event arrived; the generic hint before that.
+        _GenerationProgressRow(_summaryProgressLabel(state.progress)),
         SizedBox(height: sizes.space4),
         Text(
           '同步生成可能需要数秒',

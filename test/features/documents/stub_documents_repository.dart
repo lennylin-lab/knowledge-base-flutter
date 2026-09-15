@@ -1,5 +1,6 @@
 import 'package:knowledge_base_flutter/features/documents/documents_repository.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
 /// In-memory [DocumentsRepository] for widget tests: handlers decide the
@@ -14,6 +15,7 @@ class StubDocumentsRepository implements DocumentsRepository {
     this.deleteHandler,
     this.summarizeHandler,
     this.listAssociationsHandler,
+    this.summarizeProgressHandler,
   });
 
   Future<DocumentPage> Function(String? cursor, int limit, List<String> tags)?
@@ -25,6 +27,12 @@ class StubDocumentsRepository implements DocumentsRepository {
   Future<void> Function(String id)? deleteHandler;
   Future<SummaryResult> Function(String id)? summarizeHandler;
   Future<AssociationsResult> Function(String id)? listAssociationsHandler;
+
+  /// Optional streamed progress: invoked with a report callback right
+  /// before [summarizeHandler] runs, so tests can drive the notifier's
+  /// progress lifecycle the way the SSE stream would.
+  void Function(String id, void Function(SummaryProgress) report)?
+  summarizeProgressHandler;
 
   final List<({String? cursor, int limit, List<String> tags})> listCalls = [];
   final List<String> getCalls = [];
@@ -89,8 +97,15 @@ class StubDocumentsRepository implements DocumentsRepository {
   }
 
   @override
-  Future<SummaryResult> summarize(String id) async {
+  Future<SummaryResult> summarize(
+    String id, {
+    void Function(SummaryProgress progress)? onProgress,
+  }) async {
     summarizeCalls.add(id);
+    final progress = summarizeProgressHandler;
+    if (progress != null) {
+      progress(id, (p) => onProgress?.call(p));
+    }
     final handler = summarizeHandler;
     if (handler == null) {
       throw StateError(
@@ -101,7 +116,10 @@ class StubDocumentsRepository implements DocumentsRepository {
   }
 
   @override
-  Future<AssociationsResult> listAssociations(String id) async {
+  Future<AssociationsResult> listAssociations(
+    String id, {
+    void Function(SummaryProgress progress)? onProgress,
+  }) async {
     listAssociationsCalls.add(id);
     final handler = listAssociationsHandler;
     if (handler == null) {

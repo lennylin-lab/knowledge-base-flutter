@@ -10,6 +10,7 @@ import 'package:knowledge_base_flutter/core/retry_policy.dart';
 import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
 import 'stub_documents_repository.dart';
@@ -597,6 +598,96 @@ void main() {
       scrolledRect.bottom,
       lessThanOrEqualTo(tester.getRect(viewport).bottom + 0.5),
     );
+  });
+
+  testWidgets('summary generating row shows the streamed progress copy '
+      '(map_pass → reduce_pass), cleared once the result lands', (
+    tester,
+  ) async {
+    final repo = repoWithDoc('# 设计笔记');
+    final pending = Completer<SummaryResult>();
+    final reports = <void Function(SummaryProgress)>[];
+    repo.summarizeHandler = (id) => pending.future;
+    repo.summarizeProgressHandler = (id, report) => reports.add(report);
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, 'AI 摘要');
+
+    // Before the first progress event the generic hint shows.
+    expect(bubbleText('正在生成摘要…'), findsOneWidget);
+
+    // map_pass progress → live copy with the 1-based pass counter.
+    reports.single(
+      const SummaryProgress(phase: 'map_pass', passIndex: 1, passesTotal: 3),
+    );
+    await tester.pump();
+    expect(bubbleText('正在阅读第 1/3 段'), findsOneWidget);
+    expect(bubbleText('正在生成摘要…'), findsNothing);
+
+    // Later progress replaces the line (latest event wins).
+    reports.single(
+      const SummaryProgress(phase: 'map_pass', passIndex: 2, passesTotal: 3),
+    );
+    await tester.pump();
+    expect(bubbleText('正在阅读第 2/3 段'), findsOneWidget);
+    expect(bubbleText('正在阅读第 1/3 段'), findsNothing);
+
+    reports.single(
+      const SummaryProgress(phase: 'reduce_pass', passIndex: 3, passesTotal: 3),
+    );
+    await tester.pump();
+    expect(bubbleText('正在汇总要点'), findsOneWidget);
+    // The generic "takes seconds" hint stays alongside the progress line.
+    expect(bubbleText('同步生成可能需要数秒'), findsOneWidget);
+
+    pending.complete(
+      const SummaryResult(
+        documentId: 'doc-1',
+        summary: '流式进度后的摘要',
+        model: 'glm-4.7',
+        latencyMs: 1500,
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(bubbleText('流式进度后的摘要'), findsOneWidget);
+    expect(bubbleText('正在汇总要点'), findsNothing);
+    expect(bubbleText('同步生成可能需要数秒'), findsNothing);
+  });
+
+  testWidgets('associations generation keeps the generic spinner hint (no '
+      'progress copy)', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    final pending = Completer<AssociationsResult>();
+    repo.listAssociationsHandler = (id) => pending.future;
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, '相关文档');
+
+    expect(bubbleText('正在生成关联…'), findsOneWidget);
+    expect(bubbleTextContaining('正在阅读'), findsNothing);
+    expect(bubbleTextContaining('正在汇总'), findsNothing);
+
+    pending.complete(
+      const AssociationsResult(
+        documentId: 'doc-1',
+        associations: [],
+        model: 'glm-4.7',
+        latencyMs: 900,
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(bubbleText('未找到相关文档'), findsOneWidget);
   });
 
   testWidgets('summary 503 chat_unavailable renders the friendly copy with an '

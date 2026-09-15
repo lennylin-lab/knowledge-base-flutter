@@ -4,9 +4,12 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:knowledge_base_flutter/core/network/agent_stream_client.dart';
 import 'package:knowledge_base_flutter/core/network/api_client.dart';
 import 'package:knowledge_base_flutter/core/network/api_exception.dart';
+import 'package:knowledge_base_flutter/core/network/chat_transport.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_repository.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
 /// One canned HTTP response drained from the adapter queue per request.
@@ -141,6 +144,52 @@ const associationsResultJson = {
   final client = ApiClient(baseUrl: 'http://localhost:8000', dio: dio);
   return (DocumentsRepository(client), adapter);
 }
+
+/// Scripted byte-stream transport for the agent SSE endpoints: `open`
+/// records the request and hands out a controller-driven stream so each
+/// test drives chunks, errors and end-of-stream explicitly (the same
+/// pattern as test/core/network/sse_client_test.dart).
+class _ScriptedTransport implements ChatTransport {
+  final _controller = StreamController<Uint8List>();
+  ApiException? openError;
+
+  Uri? lastUri;
+  String? lastBody;
+
+  @override
+  Future<Stream<Uint8List>> open(Uri uri, String? jsonBody) async {
+    lastUri = uri;
+    lastBody = jsonBody;
+    final error = openError;
+    if (error != null) throw error;
+    return _controller.stream;
+  }
+
+  void addWire(String wire) =>
+      _controller.add(Uint8List.fromList(utf8.encode(wire)));
+
+  void closeStream() => _controller.close();
+}
+
+(DocumentsRepository, _ScriptedTransport) _makeAgentRepo() {
+  final dio = Dio();
+  final client = ApiClient(baseUrl: 'http://localhost:8000', dio: dio);
+  final transport = _ScriptedTransport();
+  final repo = DocumentsRepository(
+    client,
+    agentStream: AgentStreamClient(
+      baseUrl: client.baseUrl,
+      transport: transport,
+    ),
+  );
+  return (repo, transport);
+}
+
+/// One SSE frame with `\r\n` line endings, as sse-starlette emits them.
+String sseFrame(String event, String data) =>
+    'event: $event\r\n'
+    'data: $data\r\n'
+    '\r\n';
 
 void main() {
   group('list', () {
@@ -332,111 +381,242 @@ void main() {
     });
   });
 
-  group('summarize', () {
-    test('posts no body to /documents/{id}/summary and parses SummaryResult',
-        () async {
-      final (repo, adapter) = _makeRepo([
-        _CannedResponse(200, jsonEncode(summaryResultJson)),
-      ]);
+  group('summarize (agent SSE stream)', () {
+    const docId = '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01';
 
-      final result =
-          await repo.summarize('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+    test(
+      'posts no body to /documents/{id}/summary and folds the stream into '
+      'SummaryResult, reporting progress in wire order',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+        final progress = <SummaryProgress>[];
 
-      expect(result.documentId, summaryResultJson['document_id']);
-      expect(result.summary, summaryResultJson['summary']);
-      expect(result.model, 'glm-4.7');
-      expect(result.latencyMs, 1234.5);
+        final future = repo.summarize(docId, onProgress: progress.add);
+        // Let open() resolve before driving the scripted stream.
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-1","kind":"summary","document_id":"$docId"}',
+          ) +
+              sseFrame(
+                'summary_progress',
+                '{"phase":"map_pass","pass_index":1,"passes_total":2}',
+              ) +
+              sseFrame(
+                'summary_progress',
+                '{"phase":"map_pass","pass_index":2,"passes_total":2}',
+              ) +
+              sseFrame(
+                'summary_progress',
+                '{"phase":"reduce_pass","pass_index":2,"passes_total":2}',
+              ) +
+              sseFrame('summary', jsonEncode(summaryResultJson)) +
+              sseFrame(
+                'done',
+                '{"run_id":"r-1","outcome":"success","latency_ms":1250.0}',
+              ),
+        );
+        transport.closeStream();
 
-      final request = adapter.requests.single;
-      expect(request.method, 'POST');
-      expect(
-        request.path,
-        '/api/v1/documents/0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01/summary',
-      );
-      expect(request.queryParameters, isEmpty);
-      expect(request.body, isNull,
-          reason: 'the server handler takes only the path UUID');
-    });
+        final result = await future;
+        expect(result.documentId, summaryResultJson['document_id']);
+        expect(result.summary, summaryResultJson['summary']);
+        expect(result.model, 'glm-4.7');
+        expect(result.latencyMs, 1234.5);
 
-    test('503 chat_unavailable envelope surfaces as ApiException', () async {
-      final (repo, _) = _makeRepo([
-        const _CannedResponse(
-          503,
-          '{"error": {"code": "chat_unavailable", '
-              '"message": "LLM provider is not configured", "details": {}}}',
+        expect(
+          progress.map((p) => '${p.phase}:${p.passIndex}/${p.passesTotal}'),
+          ['map_pass:1/2', 'map_pass:2/2', 'reduce_pass:2/2'],
+        );
+
+        expect(
+          transport.lastUri.toString(),
+          'http://localhost:8000/api/v1/documents/$docId/summary',
+        );
+        expect(
+          transport.lastBody,
+          isNull,
+          reason: 'the server handler takes only the path UUID',
+        );
+      },
+    );
+
+    test(
+      'a terminal error event surfaces as ApiException(code, message)',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+
+        final future = repo.summarize(docId);
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-1","kind":"summary","document_id":"$docId"}',
+          ) +
+              sseFrame(
+                'error',
+                '{"code":"llm_provider_error","message":"provider exploded"}',
+              ),
+        );
+        transport.closeStream();
+
+        await expectLater(
+          future,
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.code, 'code', 'llm_provider_error')
+                .having((e) => e.message, 'message', 'provider exploded'),
+          ),
+        );
+      },
+    );
+
+    test('503 chat_unavailable surfaces as ApiException', () async {
+      final (repo, transport) = _makeAgentRepo();
+
+      final future = repo.summarize(docId);
+      await Future<void>.delayed(Duration.zero);
+      transport.addWire(
+        sseFrame(
+          'error',
+          '{"code":"chat_unavailable",'
+              '"message":"LLM provider is not configured"}',
         ),
-      ]);
+      );
+      transport.closeStream();
 
       await expectLater(
-        repo.summarize('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01'),
+        future,
         throwsA(
           isA<ApiException>()
-              .having((e) => e.code, 'code', 'chat_unavailable')
-              .having((e) => e.statusCode, 'statusCode', 503),
+              .having((e) => e.code, 'code', 'chat_unavailable'),
         ),
       );
     });
+
+    test('a stream that ends without a result is a network_error', () async {
+      final (repo, transport) = _makeAgentRepo();
+
+      final future = repo.summarize(docId);
+      await Future<void>.delayed(Duration.zero);
+      transport.addWire(
+        sseFrame(
+          'run_started',
+          '{"run_id":"r-1","kind":"summary","document_id":"$docId"}',
+        ),
+      );
+      transport.closeStream();
+
+      await expectLater(
+        future,
+        throwsA(
+          isA<ApiException>().having((e) => e.code, 'code', 'network_error'),
+        ),
+      );
+    });
+
+    test(
+      'pre-stream 404 envelope surfaces as ApiException(not_found)',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+        transport.openError = const ApiException(
+          code: 'not_found',
+          message: 'Document not found',
+          statusCode: 404,
+        );
+
+        await expectLater(
+          repo.summarize(docId),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.code, 'code', 'not_found')
+                .having((e) => e.statusCode, 'statusCode', 404)
+                .having((e) => e.isNotFound, 'isNotFound', true),
+          ),
+        );
+      },
+    );
   });
 
-  group('listAssociations', () {
+  group('listAssociations (agent SSE stream)', () {
+    const docId = '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01';
+
     test(
-        'posts no body to /documents/{id}/associations and parses '
-        'AssociationsResult', () async {
-      final (repo, adapter) = _makeRepo([
-        _CannedResponse(200, jsonEncode(associationsResultJson)),
-      ]);
+      'posts no body to /documents/{id}/associations and folds the stream '
+      'into AssociationsResult',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
 
-      final result =
-          await repo.listAssociations('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+        final future = repo.listAssociations(docId);
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-2","kind":"associations","document_id":"$docId"}',
+          ) +
+              sseFrame('associations', jsonEncode(associationsResultJson)) +
+              sseFrame(
+                'done',
+                '{"run_id":"r-2","outcome":"success","latency_ms":2360.0}',
+              ),
+        );
+        transport.closeStream();
 
-      expect(result.documentId, associationsResultJson['document_id']);
-      expect(result.model, 'glm-4.7');
-      expect(result.latencyMs, 2345.0);
-      expect(result.associations, hasLength(1));
-      expect(result.associations.single.documentId,
-          '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f');
-      expect(result.associations.single.title, 'Riverpod 迁移笔记');
-      expect(result.associations.single.tags, ['flutter', 'dart']);
-      expect(result.associations.single.reason, '共享状态管理的迁移经验。');
-      expect(result.associations.single.signal, 'tag_overlap');
+        final result = await future;
+        expect(result.documentId, associationsResultJson['document_id']);
+        expect(result.model, 'glm-4.7');
+        expect(result.latencyMs, 2345.0);
+        expect(result.associations, hasLength(1));
+        expect(
+          result.associations.single.documentId,
+          '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+        );
+        expect(result.associations.single.title, 'Riverpod 迁移笔记');
+        expect(result.associations.single.tags, ['flutter', 'dart']);
+        expect(result.associations.single.reason, '共享状态管理的迁移经验。');
+        expect(result.associations.single.signal, 'tag_overlap');
 
-      final request = adapter.requests.single;
-      expect(request.method, 'POST');
-      expect(
-        request.path,
-        '/api/v1/documents/0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01/associations',
-      );
-      expect(request.queryParameters, isEmpty);
-      expect(request.body, isNull,
-          reason: 'the server handler takes only the path UUID');
-    });
+        expect(
+          transport.lastUri.toString(),
+          'http://localhost:8000/api/v1/documents/$docId/associations',
+        );
+        expect(
+          transport.lastBody,
+          isNull,
+          reason: 'the server handler takes only the path UUID',
+        );
+      },
+    );
 
     test('parses an empty associations list', () async {
-      final (repo, _) = _makeRepo([
-        const _CannedResponse(
-          200,
-          '{"document_id": "0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01", '
-              '"associations": [], "model": "glm-4.7", "latency_ms": 12.0}',
+      final (repo, transport) = _makeAgentRepo();
+
+      final future = repo.listAssociations(docId);
+      await Future<void>.delayed(Duration.zero);
+      transport.addWire(
+        sseFrame(
+          'associations',
+          '{"document_id":"$docId","associations":[],"model":"glm-4.7",'
+              '"latency_ms":12.0}',
         ),
-      ]);
+      );
+      transport.closeStream();
 
-      final result =
-          await repo.listAssociations('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
-
+      final result = await future;
       expect(result.associations, isEmpty);
     });
 
     test('503 chat_unavailable envelope surfaces as ApiException', () async {
-      final (repo, _) = _makeRepo([
-        const _CannedResponse(
-          503,
-          '{"error": {"code": "chat_unavailable", '
-              '"message": "LLM provider is not configured", "details": {}}}',
-        ),
-      ]);
+      final (repo, transport) = _makeAgentRepo();
+      transport.openError = const ApiException(
+        code: 'chat_unavailable',
+        message: 'LLM provider is not configured',
+        statusCode: 503,
+      );
 
       await expectLater(
-        repo.listAssociations('0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01'),
+        repo.listAssociations(docId),
         throwsA(
           isA<ApiException>()
               .having((e) => e.code, 'code', 'chat_unavailable')
