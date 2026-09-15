@@ -370,3 +370,26 @@ Reworked the chat run view to render strictly in event arrival order: ChatState'
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: AI 气泡内聚（菜单/内容双层导航）
+<!-- trellis-session: v=2 fp=33e93fd35772606e -->
+
+**Date**: 2026-09-15
+**Task**: AI 气泡内聚（菜单/内容双层导航）
+**Branch**: `main`
+
+### Summary
+
+撤销两条 AI 内容页路由：所有 AI 内容只在右下角悬浮气泡内展示，气泡内做菜单层↔内容层双层导航（ValueNotifier 层状态，返回回菜单，关闭重置菜单层），进入内容层未缓存即生成一次、菜单层持续 watch 保持缓存不重复计费；气泡增高并以 Positioned.fill+Align 修复 Stack 定位无界约束导致的高度上限空转（实测 16k px 溢出），加最大高度 0.9 与内部滚动及双面回归钉；PopScope 让系统返回在内容层先回菜单层。分析干净、245 测试全绿；check 初判 FAIL 修复后通过。spec 沉淀气泡内聚模式与 Stack Positioned 无界约束陷阱。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6bcae5f` | feat(documents): inline AI bubble layers replace routed content pages |
+| `97f8262` | docs(spec): in-bubble on-demand pattern, stack positioned-constraints pitfall |
+
+### Status
+
+[OK] **Completed**

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-09-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~372 | Active |
+| `journal-1.md` | ~395 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-09-15 | AI 气泡内聚（菜单/内容双层导航） | `6bcae5f`, `97f8262` | `main` |
 | 16 | 2026-09-15 | AI 助手两层路由（气泡入口→内容页） | `3db2efa`, `17b4b53` | `main` |
 | 15 | 2026-09-15 | 详情页 AI 悬浮入口（收起/气泡双态） | `e173f1e`, `b8636d3` | `main` |
 | 14 | 2026-09-14 | 文档详情页摘要与关联 UI | `4eefdc5`, `816ac5e` | `main` |
