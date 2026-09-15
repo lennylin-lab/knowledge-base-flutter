@@ -64,6 +64,11 @@ last `error`):
   not let the stale result land anywhere.
 - The UI shows progress while generating and keeps the trigger affordance
   visible on error (component-guidelines: no error dead-ends).
+- `generate()` consumes the agent SSE stream through the repository's
+  `onProgress` callback; `OnDemandState.progress` is additive state cleared
+  on every terminal write, and progress callbacks pass the same generation
+  guard as terminal writes (a superseded generation's late progress is
+  dropped).
 - **In-widget content layers** (the AI assistant bubble on the detail page):
   the bubble is the only AI surface — menu layer (入口) ↔ function content
   layer, no separate routes. Entry click is the explicit trigger: generate

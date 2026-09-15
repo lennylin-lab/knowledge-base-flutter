@@ -26,7 +26,8 @@
 | `DocumentReadDetail` | `DocumentReadDetail` | extends read + `content` |
 | `DocumentPage` | `DocumentPage` | `items` + `nextCursor` (nullable = end) |
 | `SearchResponse` / `SearchHit` | same names | `esRank` and `vectorRank` both nullable (`int \| None` per backend `SearchHit` — a per-leg rank is absent when that leg missed the chunk) |
-| `SummaryResult` / `AssociationItem` / `AssociationsResult` | same names (backend `schemas/agents.py`) | all fields required; `latency_ms` is float on the wire → Dart `double` (decode via `(as num).toDouble()` so integral JSON values work); served by `POST /documents/{id}/summary` and `POST /documents/{id}/associations`, no request body |
+| `SummaryResult` / `AssociationItem` / `AssociationsResult` | same names (backend `schemas/agents.py`) | all fields required; `latency_ms` is float on the wire → Dart `double` (decode via `(as num).toDouble()` so integral JSON values work); served by `POST /documents/{id}/summary` and `POST /documents/{id}/associations` — **SSE streams** (see state-management.md), result payloads flat = the old JSON bodies |
+| agent stream events (`agents_stream.dart`, backend `schemas/agent_stream.py`) | `AgentRunStarted` / `SummaryProgress` / `AgentSummaryEvent` / `AgentAssociationsEvent` / `AgentDoneEvent` / `AgentErrorEvent` | sealed union; result events wrap the existing result DTOs; `kind`/`phase` stay raw wire strings (no enum sentinel — unknown phase → generic UI hint); `AgentErrorEvent.statusCode` is off-wire only (`includeIfNull: false`) |
 | chat SSE payloads | `RunStarted`, `SourcesEvent`, `AnswerDelta`, `ChatDone`, `ChatErrorEvent` | |
 | error envelope | `ApiErrorEnvelope` / `ApiError` | `code`, `message`, `details` map |
 

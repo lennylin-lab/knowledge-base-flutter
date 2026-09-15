@@ -125,6 +125,36 @@ in `shared/models/chat.dart`.
 
 ---
 
+## Document Agent SSE (summary / associations)
+
+Both document-agent endpoints stream `text/event-stream` over the **same wire
+discipline as chat** (issue #1 / server commit a16d933). Event order
+(server `schemas/agent_stream.py`; backend error-handling spec):
+
+```
+run_started → [summary_progress …] (summary only) → summary|associations → done
+failure after HTTP 200: … → error (terminal; stream closes)
+```
+
+- Result events carry the old **flat** `SummaryResult` / `AssociationsResult`
+  payloads — the DTOs did not change.
+- The repository folds the stream into `Future<Result>` (+
+  `onProgress(SummaryProgress)`): terminal `error` → `ApiException(code,
+  message)`; stream ending without a result → `ApiException(network_error)`;
+  pre-stream 404/401/403 envelopes keep the normal path (the server primes
+  document validation before the first event).
+- Framing lives in the shared `SseFrameParser` (`sse_parser.dart`); chat's
+  parser is a typed wrapper on it — one wire discipline for chat + agent
+  streams. Web streaming goes through `ChatTransport` only (never dio
+  `ResponseType.stream`).
+- `summary_progress` is informational: map passes + one reduce
+  (`pass_index == passes_total`), emitted even for single-chunk documents;
+  cache hits emit none. UI copy: map → 「正在阅读第 x/y 段」, reduce →
+  「正在汇总要点」. Progress writes go through the same generation guard as
+  terminal writes — a superseded generation's late progress must be dropped.
+
+---
+
 ## Common Mistakes
 
 - Sending `session_id: null` on the wire — omit it (`includeIfNull: false` on
