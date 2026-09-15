@@ -484,3 +484,25 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed** (PR #3, closes issue #2 on merge)
+
+
+## Session 22: Keycloak OIDC 登录对接（issue #2）
+<!-- trellis-session: v=2 fp=eab6058cdbf8eb5e -->
+
+**Date**: 2026-09-16
+**Task**: Keycloak OIDC 登录对接（issue #2）
+**Branch**: `main`
+
+### Summary
+
+对接后端 Keycloak 兼容 OIDC（issue #2，PR #3 已合并）：自实现协议客户端（discovery/PKCE S256/换码/刷新，不依赖 appauth 以保 Windows 支持）；Web 整页重定向 + /auth/callback 路由（sessionStorage 暂存 PKCE 事务），native 回环 HttpServer（RFC 8252，8182 端口）+ url_launcher；会话持久化（flutter_secure_storage / web shared_preferences）、单飞刷新、REST 401 单次重试、ChatTransport 全线 Bearer；登录门只包 Shell，空 issuer 兼容模式行为不变。关键发现：Flutter Web 默认 hash URL 策略导致 OAuth 回调（禁止片段）进不了路由器，启用 usePathUrlStrategy() + SPA fallback 修复。本地 Keycloak 全链路实测通过（登录→换码→文档列表带 Bearer 渲染）；analyze 干净、330 测试全绿；trellis-check PASS；spec 增补 auth↔network 导入方向与 path URL 策略约定。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c80b726` | feat(auth): Keycloak OIDC login with Bearer token on API/SSE |
+
+### Status
+
+[OK] **Completed**
