@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/app.dart';
 import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
-import 'package:knowledge_base_flutter/features/documents/document_ai_pages.dart';
 import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
@@ -25,42 +24,42 @@ Future<void> pumpApp(WidgetTester tester, StubDocumentsRepository repo) async {
 }
 
 void main() {
-  testWidgets('renders rows with title/tags and the three index_status states', (
-    tester,
-  ) async {
-    final repo =
-        StubDocumentsRepository()
-          ..listHandler = (cursor, limit, tags) async => DocumentPage(
-            items: [
-              documentRead(
-                id: 'a',
-                title: '待索引文档',
-                indexStatus: IndexStatus.pending,
-              ),
-              documentRead(
-                id: 'b',
-                title: '索引失败文档',
-                indexStatus: IndexStatus.failed,
-              ),
-              documentRead(id: 'c', title: '正常文档'),
-            ],
-            nextCursor: null,
-          );
+  testWidgets(
+    'renders rows with title/tags and the three index_status states',
+    (tester) async {
+      final repo = StubDocumentsRepository()
+        ..listHandler = (cursor, limit, tags) async => DocumentPage(
+          items: [
+            documentRead(
+              id: 'a',
+              title: '待索引文档',
+              indexStatus: IndexStatus.pending,
+            ),
+            documentRead(
+              id: 'b',
+              title: '索引失败文档',
+              indexStatus: IndexStatus.failed,
+            ),
+            documentRead(id: 'c', title: '正常文档'),
+          ],
+          nextCursor: null,
+        );
 
-    await pumpApp(tester, repo);
-    await tester.pump(); // first frame, provider starts fetching
-    // Bounded pumps instead of pumpAndSettle: the pending chip's spinner
-    // animates indefinitely.
-    await tester.pump(const Duration(milliseconds: 300));
+      await pumpApp(tester, repo);
+      await tester.pump(); // first frame, provider starts fetching
+      // Bounded pumps instead of pumpAndSettle: the pending chip's spinner
+      // animates indefinitely.
+      await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('待索引文档'), findsOneWidget);
-    expect(find.text('索引失败文档'), findsOneWidget);
-    expect(find.text('正常文档'), findsOneWidget);
-    // pending → spinner + 索引中; failed → error chip; done → nothing.
-    expect(find.text('索引中'), findsOneWidget);
-    expect(find.text('索引失败'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-  });
+      expect(find.text('待索引文档'), findsOneWidget);
+      expect(find.text('索引失败文档'), findsOneWidget);
+      expect(find.text('正常文档'), findsOneWidget);
+      // pending → spinner + 索引中; failed → error chip; done → nothing.
+      expect(find.text('索引中'), findsOneWidget);
+      expect(find.text('索引失败'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    },
+  );
 
   testWidgets('loads the next keyset page when scrolled near the end', (
     tester,
@@ -69,17 +68,16 @@ void main() {
       25,
       (i) => documentRead(id: 'id-$i', title: '文档 $i'),
     );
-    final repo =
-        StubDocumentsRepository()
-          ..listHandler = (cursor, limit, tags) async {
-            if (cursor == null) {
-              return DocumentPage(items: pageOne, nextCursor: 'cursor-1');
-            }
-            return DocumentPage(
-              items: [documentRead(id: 'id-25', title: '文档 25')],
-              nextCursor: null,
-            );
-          };
+    final repo = StubDocumentsRepository()
+      ..listHandler = (cursor, limit, tags) async {
+        if (cursor == null) {
+          return DocumentPage(items: pageOne, nextCursor: 'cursor-1');
+        }
+        return DocumentPage(
+          items: [documentRead(id: 'id-25', title: '文档 25')],
+          nextCursor: null,
+        );
+      };
 
     await pumpApp(tester, repo);
     await tester.pumpAndSettle();
@@ -114,13 +112,11 @@ void main() {
   testWidgets('shows the error pane with Chinese copy and retries', (
     tester,
   ) async {
-    final repo =
-        StubDocumentsRepository()
-          ..listHandler =
-              (cursor, limit, tags) async => throw const ApiException(
-                code: 'network_error',
-                message: '网络连接异常，请检查网络后重试',
-              );
+    final repo = StubDocumentsRepository()
+      ..listHandler = (cursor, limit, tags) async => throw const ApiException(
+        code: 'network_error',
+        message: '网络连接异常，请检查网络后重试',
+      );
 
     await pumpApp(tester, repo);
     await tester.pumpAndSettle();
@@ -137,15 +133,14 @@ void main() {
   testWidgets('tag filter multi-selects and ANDs tags server-side', (
     tester,
   ) async {
-    final repo =
-        StubDocumentsRepository()
-          ..listHandler = (cursor, limit, tags) async => DocumentPage(
-            items: [
-              documentRead(id: 'a', title: '甲文档', tags: ['flutter']),
-              documentRead(id: 'b', title: '乙文档', tags: ['dart']),
-            ],
-            nextCursor: null,
-          );
+    final repo = StubDocumentsRepository()
+      ..listHandler = (cursor, limit, tags) async => DocumentPage(
+        items: [
+          documentRead(id: 'a', title: '甲文档', tags: ['flutter']),
+          documentRead(id: 'b', title: '乙文档', tags: ['dart']),
+        ],
+        nextCursor: null,
+      );
 
     await pumpApp(tester, repo);
     await tester.pumpAndSettle();
@@ -183,11 +178,9 @@ void main() {
   testWidgets('renders the empty state for an empty first page', (
     tester,
   ) async {
-    final repo =
-        StubDocumentsRepository()
-          ..listHandler =
-              (cursor, limit, tags) async =>
-                  const DocumentPage(items: [], nextCursor: null);
+    final repo = StubDocumentsRepository()
+      ..listHandler = (cursor, limit, tags) async =>
+          const DocumentPage(items: [], nextCursor: null);
 
     await pumpApp(tester, repo);
     await tester.pumpAndSettle();
@@ -209,19 +202,17 @@ void main() {
     }
 
     StubDocumentsRepository repoWithDetail() {
-      final repo =
-          StubDocumentsRepository()
-            ..listHandler = (cursor, limit, tags) async => DocumentPage(
-              items: [documentRead(id: 'a', title: '甲文档')],
-              nextCursor: null,
-            );
+      final repo = StubDocumentsRepository()
+        ..listHandler = (cursor, limit, tags) async => DocumentPage(
+          items: [documentRead(id: 'a', title: '甲文档')],
+          nextCursor: null,
+        );
       // Separate statement: a trailing `..getHandler` cascade would bind to
       // the DocumentPage inside the listHandler closure, not the repo.
-      repo.getHandler =
-          (id) async => documentReadDetail(
-            documentRead(id: id, title: '甲文档'),
-            content: '正文片段甲内容',
-          );
+      repo.getHandler = (id) async => documentReadDetail(
+        documentRead(id: id, title: '甲文档'),
+        content: '正文片段甲内容',
+      );
       return repo;
     }
 
@@ -251,72 +242,138 @@ void main() {
       expect(repo.getCalls, ['a']);
     });
 
-    testWidgets('the pane floating AI entry navigates to the summary content '
-        'page; back restores /documents with the pane selection', (
-      tester,
-    ) async {
-      final repo =
-          repoWithDetail()
-            ..summarizeHandler =
-                (id) async => const SummaryResult(
-                  documentId: 'a',
-                  summary: '面板入口后的摘要',
-                  model: 'glm-4.7',
-                  latencyMs: 1200,
-                );
+    testWidgets('the pane floating AI entry renders the summary inside its '
+        'bubble without routing; back returns to the menu', (tester) async {
+      final repo = repoWithDetail()
+        ..summarizeHandler = (id) async => const SummaryResult(
+          documentId: 'a',
+          summary: '面板入口后的摘要',
+          model: 'glm-4.7',
+          latencyMs: 1200,
+        );
       await pumpWide(tester, repo);
 
       await tester.tap(find.text('甲文档'));
       await tester.pumpAndSettle();
 
       // The floating entry lives inside the pane's own bounds; opening the
-      // bubble and selecting 「AI 摘要」 navigates to the content page, which
-      // covers the branch content area and auto-generates once.
-      final fabButton = find.descendant(
-        of: find.byType(AiAssistantFab),
-        matching: find.byType(FloatingActionButton),
-      );
-      await tester.tap(fabButton);
-      await tester.pumpAndSettle();
+      // bubble and selecting 「AI 摘要」 switches to the content layer inside
+      // the bubble — no route push, the pane stays.
+      final fab = find.byType(AiAssistantFab);
       await tester.tap(
-        find.descendant(of: find.byType(AiAssistantFab), matching: find.text('AI 摘要')),
+        find.descendant(of: fab, matching: find.byType(FloatingActionButton)),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: fab, matching: find.text('AI 摘要')));
+      await tester.pump();
       await tester.pumpAndSettle();
 
-      expect(find.byType(DocumentSummaryPage), findsOneWidget);
+      expect(find.byType(DocumentDetailPage), findsNothing);
+      expect(find.byType(DocumentDetailPane), findsOneWidget);
       expect(repo.summarizeCalls, ['a']);
-      expect(find.text('面板入口后的摘要'), findsOneWidget);
-      expect(find.text('glm-4.7 · 1.2 s'), findsOneWidget);
-      // The pane's entry (and its bubble) is gone under the content page —
-      // 「AI 助手」 itself is the content card's branding header now.
-      expect(find.byType(AiAssistantFab), findsNothing);
       expect(
+        find.descendant(of: fab, matching: find.text('面板入口后的摘要')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: fab, matching: find.text('glm-4.7 · 1.2 s')),
+        findsOneWidget,
+      );
+
+      // Back affordance returns to the menu layer; the pane is untouched.
+      await tester.tap(
         find.descendant(
           of: find.byType(AiAssistantFab),
-          matching: find.text('AI 摘要'),
+          matching: find.byTooltip('返回'),
         ),
-        findsNothing,
       );
-
-      // Back pops the content page; the documents page returns with the
-      // pane selection (and its floating AI entry) preserved.
-      await tester.tap(find.descendant(
-        of: find.byType(DocumentSummaryPage),
-        matching: find.byType(BackButton),
-      ));
       await tester.pumpAndSettle();
 
-      expect(find.byType(DocumentSummaryPage), findsNothing);
+      expect(
+        find.descendant(of: fab, matching: find.text('面板入口后的摘要')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: fab, matching: find.text('AI 摘要')),
+        findsOneWidget,
+      );
       expect(find.byType(DocumentDetailPane), findsOneWidget);
       expect(find.text('正文片段甲内容'), findsOneWidget);
+    });
+
+    testWidgets('pane bubble: long association lists are height-bounded and '
+        'scroll inside the bubble', (tester) async {
+      final repo = repoWithDetail()
+        ..listAssociationsHandler = (id) async => AssociationsResult(
+          documentId: id,
+          associations: [
+            for (var i = 0; i < 60; i++)
+              AssociationItem(
+                documentId: 'rel-$i',
+                title: '相关文档 $i',
+                tags: const [],
+                reason: '理由 $i。',
+                signal: 'tag_overlap',
+              ),
+          ],
+          model: 'glm-4.7',
+          latencyMs: 900,
+        );
+      await pumpWide(tester, repo);
+
+      await tester.tap(find.text('甲文档'));
+      await tester.pumpAndSettle();
+
+      final fab = find.byType(AiAssistantFab);
+      await tester.tap(
+        find.descendant(of: fab, matching: find.byType(FloatingActionButton)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: fab, matching: find.text('相关文档')));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      final viewport = find.descendant(
+        of: fab,
+        matching: find.byType(SingleChildScrollView),
+      );
+      expect(viewport, findsOneWidget);
+      final bubbleCard = find.ancestor(
+        of: viewport,
+        matching: find.byType(Material),
+      );
+
+      // Same bounded-hosting contract as the full-page detail: the pane's
+      // bubble never grows past the configured fraction of the surface and
+      // stays on screen.
+      const surfaceHeight = 800.0;
+      final bubbleHeight = tester.getSize(bubbleCard.first).height;
+      expect(bubbleHeight, lessThanOrEqualTo(surfaceHeight * 0.9));
+      expect(bubbleHeight, greaterThan(surfaceHeight * 0.3));
+      expect(tester.getTopLeft(bubbleCard.first).dy, greaterThanOrEqualTo(0));
+
+      final position = tester
+          .state<ScrollableState>(
+            find.descendant(of: fab, matching: find.byType(Scrollable)),
+          )
+          .position;
+      expect(position.maxScrollExtent, greaterThan(0));
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pump();
+
+      // The last association is reachable, inside the bounded viewport.
+      final viewportRect = tester.getRect(viewport);
+      final lastTile = tester.getRect(
+        find.descendant(of: fab, matching: find.text('相关文档 59')),
+      );
+      expect(lastTile.top, greaterThanOrEqualTo(viewportRect.top - 0.5));
+      expect(lastTile.bottom, lessThanOrEqualTo(viewportRect.bottom + 0.5));
     });
 
     testWidgets('deleting from the pane returns to the placeholder', (
       tester,
     ) async {
-      final repo =
-          repoWithDetail()
-            ..deleteHandler = (id) async {};
+      final repo = repoWithDetail()..deleteHandler = (id) async {};
       await pumpWide(tester, repo);
 
       await tester.tap(find.text('甲文档'));

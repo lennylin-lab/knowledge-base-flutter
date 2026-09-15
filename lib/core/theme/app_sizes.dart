@@ -49,9 +49,10 @@ class AppSizes extends ThemeExtension<AppSizes> {
   double get radiusLg => 24 * scale;
   double get aiBubbleWidth => 280 * scale;
 
-  /// Wide content bubble of the AI content pages (AI 摘要 / 相关文档) —
-  /// clearly larger than the entry menu bubble ([aiBubbleWidth]).
-  double get aiContentBubbleWidth => 560 * scale;
+  /// Max height of the expanded AI bubble as a fraction of the hosting
+  /// surface's height (dimensionless — a layout bound, not a scaled
+  /// metric). Content beyond it scrolls inside the bubble.
+  double get aiBubbleMaxHeightFraction => 0.9;
   double get cardGapV => 4 * scale;
   double get cardGapVWide => 6 * scale;
   double get pagePadH => 16 * scale;
@@ -99,5 +100,6 @@ extension AppSizesX on BuildContext {
   /// Responsive sizing tokens of the ambient theme. Falls back to the
   /// unscaled baseline when the ambient theme carries no [AppSizes]
   /// (e.g. widget tests pumping shared widgets on a plain MaterialApp).
-  AppSizes get sizes => Theme.of(this).extension<AppSizes>() ?? const AppSizes(1.0);
+  AppSizes get sizes =>
+      Theme.of(this).extension<AppSizes>() ?? const AppSizes(1.0);
 }

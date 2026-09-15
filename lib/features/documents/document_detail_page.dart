@@ -9,6 +9,7 @@ import '../../shared/utils/markdown_front_matter.dart';
 import '../../shared/widgets/expandable_tag_wrap.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/markdown_content.dart';
+import 'document_ai_bubble.dart';
 import 'documents_providers.dart';
 
 /// 文档详情页: renders Markdown body (front matter stripped) with edit / delete.
@@ -21,8 +22,7 @@ class DocumentDetailPage extends ConsumerStatefulWidget {
   final String documentId;
 
   @override
-  ConsumerState<DocumentDetailPage> createState() =>
-      _DocumentDetailPageState();
+  ConsumerState<DocumentDetailPage> createState() => _DocumentDetailPageState();
 }
 
 class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
@@ -32,6 +32,33 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
   /// just triggered, not a "deleted elsewhere" surprise, and must not toast
   /// / pop a second time on top of the 已删除 flow.
   bool _deleting = false;
+
+  /// Two-layer navigation state of this page's AI bubble, owned here so the
+  /// [PopScope] below can gate system/browser back on it: with the bubble's
+  /// content layer open, back returns the bubble to its menu layer instead
+  /// of leaving the detail page (PRD). Closing the bubble resets the layer
+  /// to menu, so [AiBubbleLayer.menu] also means "bubble closed".
+  final ValueNotifier<AiBubbleLayer> _aiBubbleLayer = ValueNotifier(
+    AiBubbleLayer.menu,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // canPop is read during build — rebuild whenever the fab moves layers.
+    _aiBubbleLayer.addListener(_onAiBubbleLayerChanged);
+  }
+
+  void _onAiBubbleLayerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _aiBubbleLayer.removeListener(_onAiBubbleLayerChanged);
+    _aiBubbleLayer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,45 +73,55 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
       if (context.canPop()) context.pop();
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          detailAsync.value?.title ?? '文档详情',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          IconButton(
-            tooltip: '编辑',
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: detailAsync.hasValue
-                ? () => context.push('/documents/${widget.documentId}/edit')
-                : null,
+    return PopScope(
+      // Only an open content layer blocks the pop — and the pop then means
+      // "back to the menu layer", so the page stays.
+      canPop: _aiBubbleLayer.value == AiBubbleLayer.menu,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _aiBubbleLayer.value = AiBubbleLayer.menu;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            detailAsync.value?.title ?? '文档详情',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          IconButton(
-            tooltip: '删除',
-            icon: const Icon(Icons.delete_outline),
-            onPressed: detailAsync.hasValue ? _confirmDelete : null,
-          ),
-        ],
-      ),
-      body: detailAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _DetailErrorPane(
-          isNotFound: toApiException(error).isNotFound,
-          message: '加载失败：${toApiException(error).message}',
-          onRetry: () =>
-              ref.invalidate(documentDetailProvider(widget.documentId)),
+          actions: [
+            IconButton(
+              tooltip: '编辑',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: detailAsync.hasValue
+                  ? () => context.push('/documents/${widget.documentId}/edit')
+                  : null,
+            ),
+            IconButton(
+              tooltip: '删除',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: detailAsync.hasValue ? _confirmDelete : null,
+            ),
+          ],
         ),
-        data: (document) => DocumentDetailBody(document: document),
+        body: detailAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => _DetailErrorPane(
+            isNotFound: toApiException(error).isNotFound,
+            message: '加载失败：${toApiException(error).message}',
+            onRetry: () =>
+                ref.invalidate(documentDetailProvider(widget.documentId)),
+          ),
+          data: (document) => DocumentDetailBody(
+            document: document,
+            aiBubbleLayer: _aiBubbleLayer,
+          ),
+        ),
       ),
     );
   }
 
   Future<void> _confirmDelete() async {
-    final document = ref
-        .read(documentDetailProvider(widget.documentId))
-        .value;
+    final document = ref.read(documentDetailProvider(widget.documentId)).value;
     final confirmed = await showDeleteConfirmDialog(
       context,
       document?.title ?? '',
@@ -159,22 +196,27 @@ void _showToast(BuildContext context, String message) {
 ///
 /// Besides the scrolling content, the body hosts the unified floating AI
 /// entry ([AiAssistantFab]) anchored bottom-right **within this body's own
-/// bounds** — so the full page and the pane each get their own entry. It only
-/// exists while detail data renders (loading / error panes replace the body),
-/// and its collapsed form is just the small round button, so it neither
-/// blocks body scrolling nor traps clicks elsewhere. There is no AI content
-/// in the body itself: the bubble items navigate to the dedicated content
-/// pages (`/documents/{id}/summary` / `/documents/{id}/associations`).
+/// bounds** — so the full page and the pane each get their own entry. It
+/// only exists while detail data renders (loading / error panes replace the
+/// body), and its collapsed form is just the small round button, so it
+/// neither blocks body scrolling nor traps clicks elsewhere. There is no AI
+/// content in the body itself: all AI content lives inside the entry's
+/// bubble, on its in-widget menu/content layers. [aiBubbleLayer] shares the
+/// bubble's two-layer navigation with the owning surface (the full page's
+/// PopScope back gate); the pane leaves it null.
 class DocumentDetailBody extends StatelessWidget {
   const DocumentDetailBody({
     super.key,
     required this.document,
     this.titleTrailing,
+    this.aiBubbleLayer,
   });
 
   final DocumentReadDetail document;
 
   final Widget? titleTrailing;
+
+  final ValueNotifier<AiBubbleLayer>? aiBubbleLayer;
 
   @override
   Widget build(BuildContext context) {
@@ -226,17 +268,34 @@ class DocumentDetailBody extends StatelessWidget {
                     ),
                   ),
                 Divider(height: sizes.space32),
-                MarkdownContent(
-                  data: stripYamlFrontMatter(document.content),
-                ),
+                MarkdownContent(data: stripYamlFrontMatter(document.content)),
               ],
             ),
           ),
         ),
-        Positioned(
-          right: sizes.space16,
-          bottom: sizes.space16,
-          child: AiAssistantFab(documentId: document.id),
+        // Bottom-right anchor, sized to leave room for the bubble above the
+        // round button: the entry is hosted in a **bounded** region — a
+        // plain `Positioned(right:, bottom:)` would hand the fab unbounded
+        // constraints (RenderStack lets positioned children overflow), so
+        // the bubble's max-height bound and internal scroll could never
+        // engage. `Positioned.fill` + `Align` gives the fab the surface's
+        // real constraints while keeping the bottom-right placement and the
+        // 16px insets; the Align itself is transparent to hit testing, so
+        // taps and scrolling outside the bubble/FAB reach the body below.
+        Positioned.fill(
+          child: Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: sizes.space16,
+                bottom: sizes.space16,
+              ),
+              child: AiAssistantFab(
+                documentId: document.id,
+                layerNav: aiBubbleLayer,
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -245,8 +304,14 @@ class DocumentDetailBody extends StatelessWidget {
 
 /// Unified floating AI entry (收起/气泡双态), anchored bottom-right of a
 /// detail surface by [DocumentDetailBody]. Collapsed: a small always-visible
-/// round button (tooltip 「AI 助手」). Expanded: a bubble card listing the
-/// two AI functions.
+/// round button (tooltip 「AI 助手」). Expanded: a bubble card with **two
+/// in-widget layers** (PRD — there are no AI content pages):
+/// - menu layer (default): the 「AI 助手」 header + one entry per function;
+/// - content layer per function: a back affordance (arrow + function title)
+///   returning to the menu, plus that function's generation content from
+///   [AiBubbleContentLayer] (progress, verbatim result + 「{model} ·
+///   {latency}」 + 重新生成， related-document list, empty copy, errors with
+///   an inline 重试 — the dead-end rule holds on every branch).
 ///
 /// Summon/dismiss behavior (test-pinned, PRD):
 /// - mouse hover opens the bubble (desktop/web);
@@ -256,31 +321,93 @@ class DocumentDetailBody extends StatelessWidget {
 ///   bubble the first tap upgrades it to tap-owned instead of closing (the
 ///   second tap closes), and a tap-owned bubble closes on tap;
 /// - tapping outside the entry closes it;
-/// - selecting a function closes the bubble and **navigates** to that
-///   function's content page (`/documents/{id}/summary` /
-///   `/documents/{id}/associations`) — the page itself owns generation
-///   (auto-generate on entry), so opening the detail fires zero LLM calls.
+/// - every dismiss path resets the bubble to the menu layer for the next
+///   open.
+///
+/// Tapping a menu entry is explicit intent: the bubble switches to that
+/// function's content layer and generates exactly once when uncached and
+/// idle (from the tap callback — never in build; the notifier's own
+/// isGenerating guard blocks double fires). A cached result shows as-is:
+/// the on-demand providers are watched here even at the menu layer, so they
+/// stay alive while the detail surface is open and re-entering a content
+/// layer never re-bills. Opening a detail surface still fires zero LLM
+/// calls (the providers fetch nothing on build).
+///
+/// Sizing: the bubble stays [AppSizes.aiBubbleWidth] wide but grows taller
+/// to host content; its height is bounded by [LayoutBuilder] — at most
+/// [AppSizes.aiBubbleMaxHeightFraction] of the hosting surface's height and
+/// never more than the space above the round button ([Flexible]) — so it
+/// can never overflow the pane or page, with the content layer scrolling
+/// internally.
 ///
 /// The hero tag is unique per instance: the full-page detail and the two-pane
 /// pane can be mounted at once (deep-linked detail over a wide documents
 /// page), and shared default tags collide during route hero flights.
-class AiAssistantFab extends StatefulWidget {
-  const AiAssistantFab({super.key, required this.documentId});
+class AiAssistantFab extends ConsumerStatefulWidget {
+  const AiAssistantFab({super.key, required this.documentId, this.layerNav});
 
   final String documentId;
 
+  /// Shared layer navigation (page-owned, so the detail page's PopScope can
+  /// gate system back on it); when null the fab owns a private one (the
+  /// two-pane pane needs no back gate).
+  final ValueNotifier<AiBubbleLayer>? layerNav;
+
   @override
-  State<AiAssistantFab> createState() => _AiAssistantFabState();
+  ConsumerState<AiAssistantFab> createState() => _AiAssistantFabState();
 }
 
-class _AiAssistantFabState extends State<AiAssistantFab> {
+class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
   final Object _heroTag = UniqueKey();
+
+  /// Single source of truth for the current layer; the fab repaints on its
+  /// changes — including when the page's PopScope resets it to menu.
+  late ValueNotifier<AiBubbleLayer> _layerNav;
+  bool _ownsLayerNav = false;
 
   bool _open = false;
 
   /// Whether the current expansion was summoned by hover (then the pointer
   /// leaving closes it again) or by tap (then only explicit dismissal does).
   bool _openedByHover = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _attachLayerNav(widget.layerNav);
+  }
+
+  @override
+  void didUpdateWidget(AiAssistantFab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.layerNav != widget.layerNav) {
+      _layerNav.removeListener(_onLayerChanged);
+      if (_ownsLayerNav) _layerNav.dispose();
+      _attachLayerNav(widget.layerNav);
+    }
+  }
+
+  void _attachLayerNav(ValueNotifier<AiBubbleLayer>? external) {
+    if (external != null) {
+      _layerNav = external;
+      _ownsLayerNav = false;
+    } else {
+      _layerNav = ValueNotifier(AiBubbleLayer.menu);
+      _ownsLayerNav = true;
+    }
+    _layerNav.addListener(_onLayerChanged);
+  }
+
+  void _onLayerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _layerNav.removeListener(_onLayerChanged);
+    if (_ownsLayerNav) _layerNav.dispose();
+    super.dispose();
+  }
 
   void _openByHover() {
     if (_open) return;
@@ -303,6 +430,8 @@ class _AiAssistantFabState extends State<AiAssistantFab> {
     setState(() {
       _open = false;
       _openedByHover = false;
+      // Every dismiss path resets to the menu layer for the next open.
+      _layerNav.value = AiBubbleLayer.menu;
     });
   }
 
@@ -323,19 +452,51 @@ class _AiAssistantFabState extends State<AiAssistantFab> {
     _openByTap();
   }
 
-  void _selectSummary() {
-    _close();
-    context.push('/documents/${widget.documentId}/summary');
+  /// Menu entry click = explicit intent: switch to the content layer and
+  /// generate exactly once when uncached and idle (tap callback, never in
+  /// build; the provider state keeps the single-call contract).
+  void _selectLayer(AiBubbleLayer layer) {
+    _layerNav.value = layer;
+    if (layer == AiBubbleLayer.summary) {
+      _generateOnceSummary();
+    } else if (layer == AiBubbleLayer.associations) {
+      _generateOnceAssociations();
+    }
   }
 
-  void _selectAssociations() {
-    _close();
-    context.push('/documents/${widget.documentId}/associations');
+  void _generateOnceSummary() {
+    final provider = documentSummaryProvider(widget.documentId);
+    final state = ref.read(provider);
+    if (state.result != null || state.isGenerating) return;
+    ref.read(provider.notifier).generate();
   }
+
+  void _generateOnceAssociations() {
+    final provider = documentAssociationsProvider(widget.documentId);
+    final state = ref.read(provider);
+    if (state.result != null || state.isGenerating) return;
+    ref.read(provider.notifier).generate();
+  }
+
+  /// A related-document item was tapped: navigating to another document's
+  /// detail closes the bubble (back at the menu layer when the user
+  /// returns).
+  void _openDocument(String documentId) {
+    _close();
+    context.push('/documents/$documentId');
+  }
+
+  void _backToMenu() => _layerNav.value = AiBubbleLayer.menu;
 
   @override
   Widget build(BuildContext context) {
     final sizes = context.sizes;
+    // Keep both on-demand providers alive while the detail surface is open
+    // (watched even at the menu layer, which renders no content): layer
+    // switches then reuse the cache without re-billing. build() of the
+    // notifiers fetches nothing, so this stays a zero-call surface.
+    ref.watch(documentSummaryProvider(widget.documentId));
+    ref.watch(documentAssociationsProvider(widget.documentId));
     return TapRegion(
       onTapOutside: (_) => _close(),
       child: MouseRegion(
@@ -345,51 +506,84 @@ class _AiAssistantFabState extends State<AiAssistantFab> {
           // tap-opened one (touch path) stays until explicitly dismissed.
           if (_openedByHover) _close();
         },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (_open) ...[
-              _AiBubbleCard(
-                onDismiss: _close,
-                onSelectSummary: _selectSummary,
-                onSelectAssociations: _selectAssociations,
-              ),
-              SizedBox(height: sizes.space12),
-            ],
-            FloatingActionButton(
-              heroTag: _heroTag,
-              tooltip: 'AI 助手',
-              onPressed: _toggle,
-              child: const Icon(Icons.auto_awesome),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (_open) ...[
+                  // Two height bounds: at most the configured fraction of
+                  // the hosting surface's height (ConstrainedBox), and
+                  // never more than the space left above the round button
+                  // (Flexible) — the bubble can never overflow the pane or
+                  // page; overflow content scrolls inside the bubble.
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight:
+                            constraints.maxHeight *
+                            sizes.aiBubbleMaxHeightFraction,
+                      ),
+                      child: _AiBubbleCard(
+                        documentId: widget.documentId,
+                        layer: _layerNav.value,
+                        onDismiss: _close,
+                        onBackToMenu: _backToMenu,
+                        onSelectSummary: () =>
+                            _selectLayer(AiBubbleLayer.summary),
+                        onSelectAssociations: () =>
+                            _selectLayer(AiBubbleLayer.associations),
+                        onOpenDocument: _openDocument,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: sizes.space12),
+                ],
+                FloatingActionButton(
+                  heroTag: _heroTag,
+                  tooltip: 'AI 助手',
+                  onPressed: _toggle,
+                  child: const Icon(Icons.auto_awesome),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-/// The expanded bubble card: 「AI 助手」 header with a dismiss affordance,
-/// then one entry per AI function (icon + label + one-line description +
-/// navigation chevron — the entries navigate to the content pages, so they
-/// read as links and are sized a bit larger than the in-place menu of the
-/// previous iteration, via AppSizes tokens).
+/// The expanded bubble card. Menu layer: 「AI 助手」 header with a dismiss
+/// affordance, then one entry per AI function. Content layer: the same
+/// dismiss affordance plus a back row (arrow + the function title — back to
+/// the menu layer), then that function's content ([AiBubbleContentLayer]).
 class _AiBubbleCard extends StatelessWidget {
   const _AiBubbleCard({
+    required this.documentId,
+    required this.layer,
     required this.onDismiss,
+    required this.onBackToMenu,
     required this.onSelectSummary,
     required this.onSelectAssociations,
+    required this.onOpenDocument,
   });
 
+  final String documentId;
+  final AiBubbleLayer layer;
+
   final VoidCallback onDismiss;
+  final VoidCallback onBackToMenu;
   final VoidCallback onSelectSummary;
   final VoidCallback onSelectAssociations;
+  final ValueChanged<String> onOpenDocument;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sizes = context.sizes;
+    final inMenu = layer == AiBubbleLayer.menu;
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
       clipBehavior: Clip.antiAlias,
@@ -403,22 +597,31 @@ class _AiBubbleCard extends StatelessWidget {
           children: [
             Padding(
               padding: EdgeInsets.fromLTRB(
-                sizes.space16,
+                inMenu ? sizes.space16 : sizes.space4,
                 sizes.space12,
                 sizes.space4,
                 sizes.space12,
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    size: sizes.iconSm,
-                    color: theme.colorScheme.primary,
-                  ),
-                  SizedBox(width: sizes.space8),
+                  if (inMenu) ...[
+                    Icon(
+                      Icons.auto_awesome,
+                      size: sizes.iconSm,
+                      color: theme.colorScheme.primary,
+                    ),
+                    SizedBox(width: sizes.space8),
+                  ] else
+                    // Back affordance of the content layer: returns to the
+                    // menu layer (system back mirrors it via PopScope).
+                    IconButton(
+                      tooltip: '返回',
+                      icon: const Icon(Icons.arrow_back_outlined),
+                      onPressed: onBackToMenu,
+                    ),
                   Expanded(
                     child: Text(
-                      'AI 助手',
+                      layer.title,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -432,19 +635,28 @@ class _AiBubbleCard extends StatelessWidget {
                 ],
               ),
             ),
-            _AiBubbleEntry(
-              icon: Icons.summarize_outlined,
-              label: 'AI 摘要',
-              description: '生成这篇文档的内容摘要',
-              onTap: onSelectSummary,
-            ),
-            _AiBubbleEntry(
-              icon: Icons.library_books_outlined,
-              label: '相关文档',
-              description: '查找与本文相关的文档',
-              onTap: onSelectAssociations,
-            ),
-            SizedBox(height: sizes.space4),
+            if (inMenu) ...[
+              _AiBubbleEntry(
+                icon: Icons.summarize_outlined,
+                label: AiBubbleLayer.summary.title,
+                description: '生成这篇文档的内容摘要',
+                onTap: onSelectSummary,
+              ),
+              _AiBubbleEntry(
+                icon: Icons.library_books_outlined,
+                label: AiBubbleLayer.associations.title,
+                description: '查找与本文相关的文档',
+                onTap: onSelectAssociations,
+              ),
+              SizedBox(height: sizes.space4),
+            ] else
+              Flexible(
+                child: AiBubbleContentLayer(
+                  documentId: documentId,
+                  layer: layer,
+                  onOpenDocument: onOpenDocument,
+                ),
+              ),
           ],
         ),
       ),
@@ -637,9 +849,7 @@ class DocumentDetailPane extends ConsumerWidget {
     );
     if (!confirmed || !context.mounted) return;
     try {
-      await ref
-          .read(documentsProvider.notifier)
-          .deleteDocument(documentId);
+      await ref.read(documentsProvider.notifier).deleteDocument(documentId);
       if (!context.mounted) return;
       _showToast(context, '已删除');
       ref.read(selectedDocumentIdProvider.notifier).clear();

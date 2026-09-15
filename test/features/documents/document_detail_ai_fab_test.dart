@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/app.dart';
+import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
-import 'package:knowledge_base_flutter/features/documents/document_ai_pages.dart';
 import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
@@ -16,10 +16,10 @@ import 'stub_documents_repository.dart';
 
 /// Widget tests for the floating AI entry (collapsed round button + expanded
 /// bubble) of [DocumentDetailBody] (rendered by both the full page and the
-/// two-pane pane). Selecting a bubble item navigates to the corresponding
-/// content page ([DocumentSummaryPage] / [DocumentAssociationsPage]) — the
-/// body itself carries no AI sections, and opening a document fires zero LLM
-/// calls (generation lives entirely on the content pages).
+/// two-pane pane). The bubble carries two in-widget layers — menu ↔ content
+/// — and there are no AI routes: all content renders inside the bubble.
+/// Opening a document fires zero LLM calls; generation starts only on an
+/// explicit menu-entry click, exactly once when uncached.
 Future<void> pumpApp(WidgetTester tester, StubDocumentsRepository repo) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -35,9 +35,8 @@ StubDocumentsRepository repoWithDoc(String content) {
   // Separate statements: a trailing cascade would bind to the expression
   // inside the listHandler closure (same hazard documents_page_test notes).
   final repo = StubDocumentsRepository();
-  repo.listHandler =
-      (cursor, limit, tags) async =>
-          DocumentPage(items: [base], nextCursor: null);
+  repo.listHandler = (cursor, limit, tags) async =>
+      DocumentPage(items: [base], nextCursor: null);
   repo.getHandler = (id) async => documentReadDetail(base, content: content);
   return repo;
 }
@@ -54,10 +53,29 @@ Finder floatingButton() => find.descendant(
   matching: find.byType(FloatingActionButton),
 );
 
-/// A bubble entry ('AI 摘要' / '相关文档') scoped to the floating entry.
+/// A menu entry label ('AI 摘要' / '相关文档') scoped to the floating entry.
+/// Note: the content layer's header reuses the function title, so content
+/// assertions should match result/copy texts instead.
 Finder bubbleEntry(String label) => find.descendant(
   of: find.byType(AiAssistantFab),
   matching: find.text(label),
+);
+
+/// Text inside the floating entry's bubble (scoped assertions for content-
+/// layer states — everything AI now renders inside the bubble).
+Finder bubbleText(String text) =>
+    find.descendant(of: find.byType(AiAssistantFab), matching: find.text(text));
+
+/// Text containing [containing] inside the floating entry's bubble.
+Finder bubbleTextContaining(String containing) => find.descendant(
+  of: find.byType(AiAssistantFab),
+  matching: find.textContaining(containing),
+);
+
+/// The content layer's back affordance (返回), scoped to the entry.
+Finder bubbleBackButton() => find.descendant(
+  of: find.byType(AiAssistantFab),
+  matching: find.byTooltip('返回'),
 );
 
 /// Opens the bubble with a tap (the touch path) and settles.
@@ -66,17 +84,13 @@ Future<void> openBubble(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// The full navigation trigger: opens the bubble and selects an entry, then
-/// pumps past the route transition. The content page auto-generates on entry
-/// (post-frame callback), so the generating state renders on the pushed page;
-/// tests that await a completed result settle explicitly afterwards.
-Future<void> navigateFromBubble(WidgetTester tester, String label) async {
-  await openBubble(tester);
+/// Selects a menu entry (touch path): switches to the content layer and
+/// fires the single generate. Bounded pumps — the in-flight spinner animates
+/// indefinitely; tests settle only after a real result/error has landed.
+Future<void> selectEntry(WidgetTester tester, String label) async {
   await tester.tap(bubbleEntry(label));
-  await tester.pump(); // selection closes the bubble, route push starts
-  // Page mounts, post-frame callback fires the single auto-generate.
-  await tester.pump(const Duration(milliseconds: 400));
-  await tester.pump(); // generating row renders on the content page
+  await tester.pump(); // layer switch renders
+  await tester.pump(); // generation state (or its immediate result) renders
 }
 
 void main() {
@@ -95,13 +109,9 @@ void main() {
     expect(find.byType(AiAssistantFab), findsOneWidget);
     expect(floatingButton(), findsOneWidget);
     expect(find.text('AI 助手'), findsNothing);
-    // The bottom display sections are gone entirely (moved to the content
-    // pages behind the bubble).
     expect(find.text('使用右下角悬浮入口生成'), findsNothing);
     expect(find.text('正在生成摘要…'), findsNothing);
     expect(find.text('正在生成关联…'), findsNothing);
-    expect(find.byType(DocumentSummaryPage), findsNothing);
-    expect(find.byType(DocumentAssociationsPage), findsNothing);
     // The markdown content is not blocked by the floating entry.
     expect(find.text('混合检索正文'), findsOneWidget);
   });
@@ -135,7 +145,9 @@ void main() {
     expect(repo.listAssociationsCalls, isEmpty);
   });
 
-  testWidgets('tapping outside the entry closes an open bubble', (tester) async {
+  testWidgets('tapping outside the entry closes an open bubble', (
+    tester,
+  ) async {
     final repo = repoWithDoc('# 设计笔记\n\n混合检索正文');
 
     await pumpApp(tester, repo);
@@ -185,7 +197,9 @@ void main() {
   });
 
   testWidgets('a tap-opened bubble survives a mouse pointer exit; a tap '
-      'upgrades a hover-opened bubble instead of closing', (tester) async {
+      'upgrades a hover-opened bubble instead of closing (touch-web pin)', (
+    tester,
+  ) async {
     final repo = repoWithDoc('# 设计笔记');
 
     await pumpApp(tester, repo);
@@ -238,31 +252,29 @@ void main() {
     expect(repo.summarizeCalls, isEmpty);
   });
 
-  testWidgets('selecting AI 摘要 closes the bubble, navigates to the summary '
-      'content page and auto-generates exactly once there', (tester) async {
-    final repo = repoWithDoc('# 设计笔记');
+  testWidgets('entry click shows the content layer inside the bubble (no '
+      'route push) and generates exactly once', (tester) async {
+    final repo = repoWithDoc('# 设计笔记\n\n混合检索正文');
     final pending = Completer<SummaryResult>();
     repo.summarizeHandler = (id) => pending.future;
 
     await pumpApp(tester, repo);
     await tester.pumpAndSettle();
     await openDetail(tester);
+    await openBubble(tester);
 
-    await navigateFromBubble(tester, 'AI 摘要');
+    await selectEntry(tester, 'AI 摘要');
 
-    // Navigation, not in-place generation: the content page is on top and
-    // it fired exactly one auto-generate. The bubble entries only exist
-    // while the bubble is open, so their absence proves the selection
-    // closed the bubble (「AI 助手」 itself reappears as the content card's
-    // branding header, and the detail body's entry may still be in the
-    // tree beneath the covering route during its transition).
-    expect(bubbleEntry('AI 摘要'), findsNothing);
-    expect(find.byType(DocumentSummaryPage), findsOneWidget);
+    // In-bubble content layer, not a route: the detail page is still on top
+    // and the generating state renders inside the floating entry.
+    expect(find.byType(DocumentDetailPage), findsOneWidget);
+    expect(find.text('混合检索正文'), findsOneWidget);
+    expect(bubbleText('正在生成摘要…'), findsOneWidget);
+    expect(bubbleText('同步生成可能需要数秒'), findsOneWidget);
     expect(repo.summarizeCalls, ['doc-1']);
-    expect(find.text('正在生成摘要…'), findsOneWidget);
-    expect(find.text('同步生成可能需要数秒'), findsOneWidget);
+    // The back affordance of the content layer is showing.
+    expect(bubbleBackButton(), findsOneWidget);
 
-    // Bounded pumps: the spinner animates until the result lands.
     pending.complete(
       const SummaryResult(
         documentId: 'doc-1',
@@ -275,40 +287,440 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verbatim answer text, never translated or trimmed.
-    expect(find.text('这是原文摘要，保持原样。'), findsOneWidget);
-    expect(find.text('glm-4.7 · 1.5 s'), findsOneWidget);
-    expect(find.text('正在生成摘要…'), findsNothing);
+    expect(bubbleText('这是原文摘要，保持原样。'), findsOneWidget);
+    expect(bubbleText('glm-4.7 · 1.5 s'), findsOneWidget);
+    expect(bubbleText('正在生成摘要…'), findsNothing);
     expect(find.text('重新生成'), findsOneWidget);
   });
 
-  testWidgets('selecting 相关文档 navigates to the associations content page '
-      'and auto-generates exactly once there', (tester) async {
+  testWidgets('back affordance returns to the menu layer; re-entering shows '
+      'the cached result without refetch', (tester) async {
     final repo = repoWithDoc('# 设计笔记');
-    final pending = Completer<AssociationsResult>();
-    repo.listAssociationsHandler = (id) => pending.future;
+    repo.summarizeHandler = (id) async => const SummaryResult(
+      documentId: 'doc-1',
+      summary: '已缓存的摘要',
+      model: 'glm-4.7',
+      latencyMs: 1500,
+    );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, 'AI 摘要');
+    expect(repo.summarizeCalls, hasLength(1));
+    expect(bubbleText('已缓存的摘要'), findsOneWidget);
+
+    // Back to the menu layer — the content is gone, the entries are back.
+    await tester.tap(bubbleBackButton());
+    await tester.pumpAndSettle();
+    expect(bubbleText('已缓存的摘要'), findsNothing);
+    expect(bubbleEntry('AI 摘要'), findsOneWidget);
+    expect(bubbleEntry('相关文档'), findsOneWidget);
+
+    // Re-enter: the cached result renders as-is, no second fetch.
+    await selectEntry(tester, 'AI 摘要');
+
+    expect(repo.summarizeCalls, hasLength(1));
+    expect(bubbleText('已缓存的摘要'), findsOneWidget);
+  });
+
+  testWidgets('重新生成 refetches and replaces the previous result', (
+    tester,
+  ) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.summarizeHandler = (id) async {
+      if (repo.summarizeCalls.length == 1) {
+        return const SummaryResult(
+          documentId: 'doc-1',
+          summary: '第一版摘要',
+          model: 'glm-4.7',
+          latencyMs: 1500,
+        );
+      }
+      return const SummaryResult(
+        documentId: 'doc-1',
+        summary: '第二版摘要',
+        model: 'glm-4.7',
+        latencyMs: 480,
+      );
+    };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, 'AI 摘要');
+    expect(bubbleText('第一版摘要'), findsOneWidget);
+    expect(bubbleText('glm-4.7 · 1.5 s'), findsOneWidget);
+
+    await tester.tap(find.text('重新生成'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(repo.summarizeCalls, hasLength(2));
+    expect(bubbleText('第二版摘要'), findsOneWidget);
+    // Sub-second latency renders as whole milliseconds.
+    expect(bubbleText('glm-4.7 · 480 ms'), findsOneWidget);
+    expect(bubbleText('第一版摘要'), findsNothing);
+  });
+
+  testWidgets('closing and reopening the bubble lands on the menu layer', (
+    tester,
+  ) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.summarizeHandler = (id) async => const SummaryResult(
+      documentId: 'doc-1',
+      summary: '关闭前生成的摘要',
+      model: 'glm-4.7',
+      latencyMs: 1500,
+    );
 
     await pumpApp(tester, repo);
     await tester.pumpAndSettle();
     await openDetail(tester);
 
-    await navigateFromBubble(tester, '相关文档');
+    await openBubble(tester);
+    await selectEntry(tester, 'AI 摘要');
+    expect(bubbleText('关闭前生成的摘要'), findsOneWidget);
 
-    expect(find.byType(DocumentAssociationsPage), findsOneWidget);
-    expect(find.byType(DocumentSummaryPage), findsNothing);
+    // 收起 dismisses the whole bubble…
+    await tester.tap(find.byIcon(Icons.close_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('AI 助手'), findsNothing);
+
+    // …and reopening lands on the menu layer, not the content layer.
+    await openBubble(tester);
+    expect(bubbleEntry('AI 摘要'), findsOneWidget);
+    expect(bubbleEntry('相关文档'), findsOneWidget);
+    expect(bubbleText('关闭前生成的摘要'), findsNothing);
+    expect(bubbleBackButton(), findsNothing);
+  });
+
+  testWidgets('system back at the content layer returns to the menu layer; '
+      'the page stays (PopScope)', (tester) async {
+    final repo = repoWithDoc('# 设计笔记\n\n混合检索正文');
+    repo.summarizeHandler = (id) async => const SummaryResult(
+      documentId: 'doc-1',
+      summary: '返回前的摘要',
+      model: 'glm-4.7',
+      latencyMs: 1500,
+    );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+
+    await openBubble(tester);
+    await selectEntry(tester, 'AI 摘要');
+    expect(bubbleText('返回前的摘要'), findsOneWidget);
+
+    // System/browser back: the content layer consumes it.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Back at the menu layer, still on the detail page.
+    expect(bubbleEntry('AI 摘要'), findsOneWidget);
+    expect(bubbleText('返回前的摘要'), findsNothing);
+    expect(find.byType(DocumentDetailPage), findsOneWidget);
+    expect(find.text('混合检索正文'), findsOneWidget);
+
+    // A second system back now pops the page (menu layer = normal back).
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(DocumentDetailPage), findsNothing);
+    expect(find.text('混合检索正文'), findsNothing);
+  });
+
+  testWidgets('system back with the bubble closed pops the page as before', (
+    tester,
+  ) async {
+    final repo = repoWithDoc('# 设计笔记\n\n混合检索正文');
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Unchanged behavior: the detail page pops back to the list.
+    expect(find.byType(DocumentDetailPage), findsNothing);
+    expect(find.text('设计笔记'), findsOneWidget);
+  });
+
+  testWidgets('association items render title/tags/reason; tapping one pushes '
+      'that document detail and closes the bubble', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.listAssociationsHandler = (id) async {
+      return const AssociationsResult(
+        documentId: 'doc-1',
+        associations: [
+          AssociationItem(
+            documentId: 'doc-2',
+            title: 'Riverpod 迁移笔记',
+            tags: ['flutter', 'dart'],
+            reason: '共享 Riverpod 迁移要点。',
+            signal: 'tag_overlap',
+          ),
+        ],
+        model: 'glm-4.7',
+        latencyMs: 900,
+      );
+    };
+    // The pushed detail of doc-2 resolves from the same stub; doc-1 (the
+    // document under test) must keep resolving too.
+    final docTwo = documentRead(id: 'doc-2', title: '关联文档');
+    final fallbackGet = repo.getHandler;
+    repo.getHandler = (id) async {
+      if (id == 'doc-2') return documentReadDetail(docTwo, content: '正文二');
+      return fallbackGet!(id);
+    };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, '相关文档');
+
     expect(repo.listAssociationsCalls, ['doc-1']);
-    expect(find.text('正在生成关联…'), findsOneWidget);
+    expect(bubbleText('Riverpod 迁移笔记'), findsOneWidget);
+    expect(bubbleText('#flutter'), findsOneWidget);
+    expect(bubbleText('#dart'), findsOneWidget);
+    expect(bubbleText('共享 Riverpod 迁移要点。'), findsOneWidget);
 
-    pending.complete(
-      const AssociationsResult(
+    // Tap the item → the document-detail route for doc-2, bubble closed.
+    await tester.tap(bubbleText('Riverpod 迁移笔记'));
+    await tester.pumpAndSettle();
+
+    expect(repo.getCalls, contains('doc-2'));
+    expect(find.byType(DocumentDetailPage), findsOneWidget);
+    expect(find.text('正文二'), findsOneWidget);
+    expect(bubbleText('共享 Riverpod 迁移要点。'), findsNothing);
+    // doc-2's own floating entry is present, collapsed again.
+    expect(find.byType(AiAssistantFab), findsOneWidget);
+    expect(floatingButton(), findsOneWidget);
+  });
+
+  testWidgets('empty association result shows 未找到相关文档 inside the bubble', (
+    tester,
+  ) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.listAssociationsHandler = (id) async {
+      return const AssociationsResult(
         documentId: 'doc-1',
         associations: [],
         model: 'glm-4.7',
         latencyMs: 900,
-      ),
+      );
+    };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, '相关文档');
+
+    expect(bubbleText('未找到相关文档'), findsOneWidget);
+  });
+
+  testWidgets('long content: the bubble is height-bounded by the surface and '
+      'the content scrolls inside it', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repo = repoWithDoc('# 设计笔记');
+    // Far more text than any bubble can show at once — the unbounded-
+    // constraints regression rendered this ~16000px tall, overflowing the
+    // surface upward.
+    final summary = List.generate(120, (i) => '摘要段落 $i。').join('\n\n');
+    repo.summarizeHandler = (id) async => SummaryResult(
+      documentId: id,
+      summary: summary,
+      model: 'glm-4.7',
+      latencyMs: 900,
     );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+    await selectEntry(tester, 'AI 摘要');
+
+    final viewport = find.descendant(
+      of: find.byType(AiAssistantFab),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(viewport, findsOneWidget);
+    // The bubble card is the scroll view's Material ancestor.
+    final bubbleCard = find.ancestor(
+      of: viewport,
+      matching: find.byType(Material),
+    );
+
+    // Bounded: tall enough that the cap is clearly engaged, but never
+    // taller than the configured fraction of the surface — and its top
+    // edge stays on screen.
+    const surfaceHeight = 900.0;
+    final bubbleHeight = tester.getSize(bubbleCard.first).height;
+    expect(bubbleHeight, lessThanOrEqualTo(surfaceHeight * 0.9));
+    expect(bubbleHeight, greaterThan(surfaceHeight * 0.4));
+    expect(tester.getTopLeft(bubbleCard.first).dy, greaterThanOrEqualTo(0));
+
+    final viewportRect = tester.getRect(viewport);
+    final textRect = tester.getRect(bubbleText(summary));
+    // First content starts inside the viewport…
+    expect(textRect.top, greaterThanOrEqualTo(viewportRect.top - 0.5));
+
+    // …and the rest is reachable by internal scrolling.
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byType(AiAssistantFab),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .position;
+    expect(position.maxScrollExtent, greaterThan(0));
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+
+    // Scrolled to the end: the content has moved up and its tail is inside
+    // the viewport.
+    final scrolledRect = tester.getRect(bubbleText(summary));
+    expect(scrolledRect.top, lessThan(textRect.top));
+    expect(
+      scrolledRect.bottom,
+      lessThanOrEqualTo(tester.getRect(viewport).bottom + 0.5),
+    );
+  });
+
+  testWidgets('summary 503 chat_unavailable renders the friendly copy with an '
+      'inline 重试 and retry succeeds', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.summarizeHandler = (id) async {
+      if (repo.summarizeCalls.length == 1) {
+        throw const ApiException(
+          code: 'chat_unavailable',
+          message: 'No API key configured',
+          statusCode: 503,
+        );
+      }
+      return const SummaryResult(
+        documentId: 'doc-1',
+        summary: '重试后的摘要',
+        model: 'glm-4.7',
+        latencyMs: 1500,
+      );
+    };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, 'AI 摘要');
+
+    expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsOneWidget);
+    expect(bubbleTextContaining('生成失败'), findsNothing);
+    // Dead-end rule: the retry stays one tap away right here.
+    expect(find.text('重试'), findsOneWidget);
+
+    await tester.tap(find.text('重试'));
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('未找到相关文档'), findsOneWidget);
+    expect(repo.summarizeCalls, hasLength(2));
+    expect(bubbleText('重试后的摘要'), findsOneWidget);
+    expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsNothing);
+  });
+
+  testWidgets('generic error shows 生成失败：{message} + inline 重试, which '
+      'succeeds', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.summarizeHandler = (id) async {
+      if (repo.summarizeCalls.length == 1) {
+        throw const ApiException(
+          code: 'llm_provider_error',
+          message: 'upstream exploded',
+          statusCode: 502,
+        );
+      }
+      return const SummaryResult(
+        documentId: 'doc-1',
+        summary: '重试后的摘要',
+        model: 'glm-4.7',
+        latencyMs: 1500,
+      );
+    };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, 'AI 摘要');
+
+    expect(bubbleText('生成失败：upstream exploded'), findsOneWidget);
+    expect(find.text('重试'), findsOneWidget);
+
+    await tester.tap(find.text('重试'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(repo.summarizeCalls, hasLength(2));
+    expect(bubbleText('重试后的摘要'), findsOneWidget);
+    expect(bubbleText('生成失败：upstream exploded'), findsNothing);
+  });
+
+  testWidgets('associations: 503 chat_unavailable renders the friendly copy '
+      'and retries inline to success', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.listAssociationsHandler = (id) async {
+      if (repo.listAssociationsCalls.length == 1) {
+        throw const ApiException(
+          code: 'chat_unavailable',
+          message: 'No API key configured',
+          statusCode: 503,
+        );
+      }
+      return const AssociationsResult(
+        documentId: 'doc-1',
+        associations: [
+          AssociationItem(
+            documentId: 'doc-2',
+            title: '重试后的关联',
+            tags: ['flutter'],
+            reason: '重试成功后的关联。',
+            signal: 'tag_overlap',
+          ),
+        ],
+        model: 'glm-4.7',
+        latencyMs: 900,
+      );
+    };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, '相关文档');
+
+    expect(repo.listAssociationsCalls, hasLength(1));
+    expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsOneWidget);
+    expect(find.text('重试'), findsOneWidget);
+
+    await tester.tap(find.text('重试'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(repo.listAssociationsCalls, hasLength(2));
+    expect(bubbleText('重试后的关联'), findsOneWidget);
+    expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsNothing);
   });
 }
