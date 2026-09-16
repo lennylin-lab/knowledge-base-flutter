@@ -529,3 +529,26 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 24: 气泡「AI 续写」写作代理流
+<!-- trellis-session: v=2 fp=02c85ccabd6dc210 -->
+
+**Date**: 2026-09-16
+**Task**: 气泡「AI 续写」写作代理流
+**Branch**: `main`
+
+### Summary
+
+气泡菜单新增第三入口「AI 续写」，内容层承载 operations 写作代理全流程：instruction 输入→同步生成草稿（spinner+秒级提示）→草稿查看（Markdown 渲染+剥 front matter）→应用确认弹窗（覆盖文案+不可撤销）→成功视图（已应用+后台重索引提示，并失效 documentDetail/documents 缓存使详情重取）→409 乐观并发专属文案+重新生成；failed/interrupted 可恢复；历史操作按需懒加载、状态+时间、点击打开、apply/resume 后刷新。修复两个真实 bug：应用确认弹窗点击触发 TapRegion 收起气泡（共享 groupId）；历史加载中途返回菜单导致 loading 永久卡死（独立 history 代际计数器）。WritingNotifier 沿用代际守卫，applying 阻断 clearCurrent。analyze 干净、389 测试全绿；check PASS。spec 沉淀分片状态独立代际模式。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c6a72db` | feat(documents): writing-agent flow in the assistant bubble |
+| `883fb0f` | docs(spec): independent slices need their own generation counters |
+
+### Status
+
+[OK] **Completed**
