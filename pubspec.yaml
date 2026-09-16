@@ -110,7 +110,11 @@ flutter:
 
 # App launcher icons: source of truth is assets/icon/app_icon.svg, rendered
 # to the PNGs below (white background). Regenerate with:
+#   rsvg-convert -w 1024 -h 1024 assets/icon/app_icon.svg -o assets/icon/adaptive_foreground.png
 #   dart run flutter_launcher_icons
+#   magick assets/icon/app_icon.png -define icon:auto-resize=256,128,64,48,32,24,16 windows/runner/resources/app_icon.ico
+# The last step is required every time: the tool writes a single-layer 48px
+# ico, too coarse for Windows explorer/taskbar; ImageMagick rebuilds all sizes.
 flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   android: true
