@@ -21,6 +21,7 @@ flutter test      # all green
 |---|---|
 | `dio` / repository calls inside widget `build` | rebuild storms; fetch goes through providers |
 | Hardcoded API URLs in feature code | base URL is environment/platform-specific (`AppConfig`) |
+| Env-blind persisted-config access | prod builds ignore `shared_preferences` config and fail fast on missing/insecure endpoints — new config keys go through the `resolve(env, …)` shape (see environment-config.md) |
 | Raw `Map<String, dynamic>` in UI | bypasses DTO type safety (see type-safety.md) |
 | Swallowing `ApiException` with empty catch | every backend error surfaces to the user in Chinese |
 | Adding ios/macos/linux platform dirs | MVP scope is web/windows/android only |
