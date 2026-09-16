@@ -6,6 +6,7 @@ import '../../core/layout/layout_preferences.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
+import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/horizontal_chip_bar.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/resizable_pane.dart';
@@ -218,7 +219,7 @@ class _DocumentsListView extends ConsumerWidget {
     final sizes = context.sizes;
     if (state.items.isEmpty) {
       // Still pull-to-refresh-able when empty.
-      return RefreshIndicator(
+      return AppRefreshIndicator(
         onRefresh: () => ref.read(documentsProvider.notifier).refresh(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -259,7 +260,7 @@ class _DocumentsListView extends ConsumerWidget {
         }
         return false;
       },
-      child: RefreshIndicator(
+      child: AppRefreshIndicator(
         onRefresh: () => ref.read(documentsProvider.notifier).refresh(),
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),

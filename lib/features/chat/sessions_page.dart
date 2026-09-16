@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/session.dart';
+import '../../shared/widgets/app_refresh_indicator.dart';
 import 'chat_providers.dart';
 import 'session_providers.dart';
 
@@ -32,7 +33,7 @@ class SessionsPage extends ConsumerWidget {
         data: (data) {
           final items = data.items;
           if (items.isEmpty) {
-            return RefreshIndicator(
+            return AppRefreshIndicator(
               onRefresh: () =>
                   ref.read(sessionsProvider.notifier).refresh(),
               child: ListView(
@@ -43,7 +44,7 @@ class SessionsPage extends ConsumerWidget {
               ),
             );
           }
-          return RefreshIndicator(
+          return AppRefreshIndicator(
             onRefresh: () => ref.read(sessionsProvider.notifier).refresh(),
             child: ListView.builder(
               padding: EdgeInsets.symmetric(vertical: sizes.space8),
