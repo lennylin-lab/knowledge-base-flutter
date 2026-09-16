@@ -19,7 +19,14 @@ class RedirectSignInDriver implements SignInDriver {
 
   @override
   Future<Uri> acquire(Uri authorizeUrl) async {
-    web.window.location.href = authorizeUrl.toString();
+    try {
+      web.window.location.href = authorizeUrl.toString();
+    } catch (_) {
+      // The assignment itself dispatches the unload; the dwds debug
+      // injection may still throw around it. Errors past this point must
+      // never surface — the flow resumes on /auth/callback after the IdP
+      // redirect, and a torn-down page renders nothing anyway.
+    }
     // Navigation started; the isolate goes away with the page, so there is
     // no meaningful failure surface (and no redirect URI to return).
     return Future<Uri>.delayed(const Duration(days: 1));
