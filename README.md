@@ -36,7 +36,8 @@ flutter run -d chrome \
 | `OIDC_SCOPES` | `openid` | access token 必须携带 `sub` |
 
 也可在 `shared_preferences` 中持久化覆盖（键 `oidc.issuer` 等，
-优先级：持久化 > dart-define > 平台默认）。
+优先级：持久化 > dart-define > 平台默认；**仅 dev 生效**，prod 构建
+忽略这些键，见「环境隔离」）。
 
 **流程**（自实现 OIDC 协议客户端，无第三方 OAuth 依赖）：
 登录门 → 系统浏览器跳转 IdP 授权页（Authorization Code + PKCE S256 +
@@ -99,13 +100,45 @@ flutter pub get
 | Android 模拟器 | `http://10.0.2.2:8000`（宿主机） |
 | Android 真机 | 需在应用内设置中改为局域网 IP |
 
-> 真机覆盖：应用内可修改 base URL（持久化于本地 shared_preferences）。
-> 运行时可传入 `--dart-define=API_BASE_URL=http://192.168.x.x:8000` 覆盖默认。
+> 真机覆盖（仅 dev）：应用内可修改 base URL（持久化于本地
+> shared_preferences）；运行时可传入
+> `--dart-define=API_BASE_URL=http://192.168.x.x:8000` 覆盖默认。
+> prod 构建忽略持久化覆盖且要求 `https://`，见「环境隔离」。
 
 ### Android 开发期 HTTP
 
 `android/app/src/debug/AndroidManifest.xml` 已配置
 `android:usesCleartextTraffic="true"`（**仅 debug 构建**；release 不受影响）。
+
+## 环境隔离（dev / prod）
+
+客户端通过 `AppEnv` 区分 dev / prod 两套环境。环境解析顺序：
+编译期 `--dart-define=APP_ENV=dev|prod`（大小写不敏感，容忍首尾空白）
+优先；未指定时按构建模式回退 —— **debug / profile 构建默认 dev**，
+release 构建默认 prod；无法识别的值同样按构建模式回退（不报错）。
+
+| dart-define | 默认值 | 说明 |
+|---|---|---|
+| `APP_ENV` | release → `prod`；debug/profile → `dev` | 显式指定环境（`dev` / `prod`，大小写不敏感） |
+| `API_BASE_URL` | 按平台 | dev 任意值；**prod 必填**且必须为非空 `https://` 地址 |
+| `OIDC_ISSUER` | 空（dev **兼容模式**） | dev 可空；**prod 必填**，否则启动即失败 |
+
+**dev**（默认 debug / profile 构建）：行为不变 —— 持久化覆盖 >
+`--dart-define` > 平台默认，允许 `http://`。
+
+**prod**（默认 release 构建）：
+
+- 忽略 `shared_preferences` 中的所有网络/OIDC 持久化覆盖
+  （`app_config.base_url`、`oidc.*`），应用内修改 base URL 亦不写入；
+- `API_BASE_URL` 必须为非空 `https://` 地址
+  （`--dart-define=API_BASE_URL=https://...`），绝不允许静默回落到
+  本地回环地址；
+- `OIDC_ISSUER` 必须非空（`--dart-define=OIDC_ISSUER=...`），prod
+  不会进入无认证兼容模式；`OIDC_CLIENT_ID` / `OIDC_SCOPES` /
+  `OIDC_REDIRECT_URI` 未指定时仍使用默认值；
+- 任一必填项缺失/不合规时，`AppConfig.load()` / `OidcConfig.load()`
+  在启动阶段（`runApp` 之前）抛 `StateError` **fail-fast**，错误信息
+  中给出对应的 `--dart-define` 修复方式。
 
 ## 后端联调
 
@@ -144,8 +177,8 @@ flutter run -d chrome   # 默认请求 http://localhost:8000
 
 ```bash
 flutter analyze   # 零 error/warning
-flutter test      # 330 个测试：SSE parser、错误信封、DTO round-trip、OIDC 协议/会话、
-                  # repository/providers/pages（文档/搜索/问答）
+flutter test      # 424 个测试：SSE parser、错误信封、DTO round-trip、OIDC 协议/会话、
+                  # repository/providers/pages（文档/搜索/问答）、配置环境隔离（dev/prod）
 ```
 
 ## 已知限制（MVP）

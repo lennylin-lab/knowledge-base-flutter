@@ -2,15 +2,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_env.dart';
+
 /// OIDC (Keycloak-compatible) sign-in configuration.
 ///
-/// Resolution, lowest to highest precedence (mirrors `AppConfig.baseUrl`):
-/// 1. platform defaults — issuer empty (**compat mode**: auth disabled,
-///    matching a backend without `KB_OIDC_ISSUER`), client `kb-web`,
-///    scope `openid`, redirect per platform;
-/// 2. compile-time `--dart-define=OIDC_ISSUER / OIDC_CLIENT_ID /
-///    OIDC_REDIRECT_URI / OIDC_SCOPES`;
-/// 3. persisted user override via `shared_preferences`.
+/// Resolution per environment (`AppEnv`), mirroring `AppConfig.baseUrl`:
+///
+/// | env | resolution (lowest → highest precedence) |
+/// |-----|------------------------------------------|
+/// | dev | platform defaults → compile-time `--dart-define=OIDC_*` → persisted override via `shared_preferences`; empty issuer = **compat mode** (auth disabled, matching a backend without `KB_OIDC_ISSUER`) |
+/// | prod | compile-time values only (`oidc.*` prefs ignored); issuer must be non-empty after trim, otherwise [load] fails fast with a [StateError]; clientId/scopes/redirect keep their defaults when the dart-define is absent |
+///
+/// Platform defaults — issuer empty, client `kb-web`, scope `openid`,
+/// redirect per platform.
 ///
 /// The redirect URI default follows RFC 8252 §7.6: web redirects back to
 /// the app origin (`/auth/callback`), native platforms listen on a fixed
@@ -61,31 +65,94 @@ class OidcConfig {
   final String scopes;
 
   /// Empty issuer = compat mode: the app behaves exactly as before auth
-  /// existed (no login gate, no Authorization header).
+  /// existed (no login gate, no Authorization header). Prod never runs
+  /// in compat mode — [resolve] fails fast instead.
   bool get isEnabled => issuer.trim().isNotEmpty;
 
-  /// Load the effective config (persisted override → dart-define →
-  /// platform default). Called once from `main()` before the first frame.
-  static Future<OidcConfig> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    String resolve(String prefsKey, String envValue, String fallback) {
-      final stored = prefs.getString(prefsKey)?.trim();
+  /// Pure decision core for the resolution table above — unit-tested
+  /// directly because `String.fromEnvironment` is baked in at compile
+  /// time; [load] stays a thin I/O wrapper over this.
+  ///
+  /// Dev: each field resolves persisted → compile-time → platform
+  /// default. Prod: persisted values are ignored entirely and a
+  /// non-empty issuer is required (a [StateError] naming the
+  /// `--dart-define` fix — the no-auth compat mode must not be reachable
+  /// in a prod build), while clientId/scopes/redirect fall back to their
+  /// sane defaults. No `https` check on the issuer: the https
+  /// requirement is deliberately scoped to the API base URL
+  /// (`AppConfig.resolve`); Keycloak realms behind http are a
+  /// backend/infra concern.
+  static OidcConfig resolve({
+    required AppEnv env,
+    String compileTimeIssuer = '',
+    String compileTimeClientId = '',
+    String compileTimeRedirectUri = '',
+    String compileTimeScopes = '',
+    String? persistedIssuer,
+    String? persistedClientId,
+    String? persistedRedirectUri,
+    String? persistedScopes,
+  }) {
+    final prod = env == AppEnv.prod;
+
+    String pick(String? persisted, String compileTime, String fallback) {
+      if (prod) {
+        final value = compileTime.trim();
+        return value.isNotEmpty ? value : fallback;
+      }
+      final stored = persisted?.trim();
       if (stored != null && stored.isNotEmpty) return stored;
-      final env = envValue.trim();
-      if (env.isNotEmpty) return env;
-      return fallback;
+      final value = compileTime.trim();
+      return value.isNotEmpty ? value : fallback;
     }
 
+    final issuer = pick(persistedIssuer, compileTimeIssuer, '');
+    if (prod && issuer.isEmpty) {
+      throw StateError(
+        'OIDC_ISSUER must be set for prod builds '
+        '(--dart-define=OIDC_ISSUER=...)',
+      );
+    }
     return OidcConfig(
-      issuer: resolve(_keyIssuer, _envIssuer, ''),
-      clientId: resolve(_keyClientId, _envClientId, defaultClientId),
-      redirectUri: resolve(
-        _keyRedirectUri,
-        _envRedirectUri,
+      issuer: issuer,
+      clientId: pick(persistedClientId, compileTimeClientId, defaultClientId),
+      redirectUri: pick(
+        persistedRedirectUri,
+        compileTimeRedirectUri,
         defaultRedirectUri,
       ),
-      scopes: resolve(_keyScopes, _envScopes, defaultScopes),
+      scopes: pick(persistedScopes, compileTimeScopes, defaultScopes),
     );
+  }
+
+  /// Load the effective config. Called once from `main()` before the
+  /// first frame.
+  ///
+  /// Defaults to [AppEnv.current]. Dev resolves persisted override →
+  /// dart-define → platform default; prod ignores the `oidc.*` prefs
+  /// keys entirely (see [resolve]) and fails fast on an empty issuer.
+  static Future<OidcConfig> load({AppEnv? env}) async {
+    final effective = env ?? AppEnv.current;
+    final prefs = await SharedPreferences.getInstance();
+    return effective == AppEnv.prod
+        ? resolve(
+            env: effective,
+            compileTimeIssuer: _envIssuer,
+            compileTimeClientId: _envClientId,
+            compileTimeRedirectUri: _envRedirectUri,
+            compileTimeScopes: _envScopes,
+          )
+        : resolve(
+            env: effective,
+            compileTimeIssuer: _envIssuer,
+            compileTimeClientId: _envClientId,
+            compileTimeRedirectUri: _envRedirectUri,
+            compileTimeScopes: _envScopes,
+            persistedIssuer: prefs.getString(_keyIssuer),
+            persistedClientId: prefs.getString(_keyClientId),
+            persistedRedirectUri: prefs.getString(_keyRedirectUri),
+            persistedScopes: prefs.getString(_keyScopes),
+          );
   }
 }
 
