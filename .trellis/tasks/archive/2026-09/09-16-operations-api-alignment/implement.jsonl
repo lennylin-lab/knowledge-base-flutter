@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/09-16-operations-api-alignment/research-operations-contract.md", "reason": "Server-verified operations contract: routes, schemas, lifecycle, errors, wire notes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO conventions: freezed, snake_case rename, defensive enums, String timestamps"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Feature folder placement for the operations domain"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Stack and key facts"}
