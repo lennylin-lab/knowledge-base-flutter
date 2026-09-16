@@ -575,3 +575,26 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 26: dev/prod 环境隔离
+<!-- trellis-session: v=2 fp=3b6e06f76148d16e -->
+
+**Date**: 2026-09-17
+**Task**: dev/prod 环境隔离
+**Branch**: `main`
+
+### Summary
+
+为 AppConfig/OidcConfig 引入 AppEnv(dev/prod,APP_ENV dart-define 覆盖、默认跟随构建模式);prod 忽略 shared_preferences 持久化覆盖、强制 https API_BASE_URL、OIDC issuer 必填,违反即启动 fail-fast;纯函数 resolve 与 I/O glue 分离保证可测性。新增 25 测试,analyze 零问题,424/424 全绿;环境契约沉淀至 spec/frontend/environment-config.md。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `02ff43f` | feat(config): isolate dev and prod environments |
+| `8db7b68` | docs(spec): capture dev/prod environment contract |
+
+### Status
+
+[OK] **Completed**
