@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/archive/2026-09/09-16-operations-api-alignment/research-operations-contract.md", "reason": "Server operations contract: lifecycle, errors, apply/replay semantics"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "UI rules: shared MarkdownContent, dead-end rule, AppSizes tokens, touch-web pitfall"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "OnDemand/bubble layer keep-alive patterns the writing layer must follow"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Riverpod 3 rules, generation-guard idiom, noAutomaticRetry"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates"}

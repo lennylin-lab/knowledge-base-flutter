@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/archive/2026-09/09-16-operations-api-alignment/research-operations-contract.md", "reason": "Server contract source of truth"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify conventions and interaction contracts"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify provider idioms"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality gates"}
