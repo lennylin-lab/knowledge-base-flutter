@@ -8,7 +8,6 @@ import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/horizontal_chip_bar.dart';
-import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/resizable_pane.dart';
 import '../../shared/widgets/theme_mode_menu.dart';
 import 'document_detail_page.dart';
@@ -285,9 +284,6 @@ class _DocumentsListView extends ConsumerWidget {
                   document: document,
                   selected: selected,
                   onTap: () => onOpenDocument(document.id),
-                  // failed → re-save affordance deep-links to the editor.
-                  onRetryIndex: () =>
-                      context.push('/documents/${document.id}/edit'),
                 ),
               );
             }
@@ -303,13 +299,11 @@ class _DocumentTile extends StatelessWidget {
   const _DocumentTile({
     required this.document,
     this.onTap,
-    this.onRetryIndex,
     this.selected = false,
   });
 
   final DocumentRead document;
   final VoidCallback? onTap;
-  final VoidCallback? onRetryIndex;
   final bool selected;
 
   @override
@@ -336,12 +330,6 @@ class _DocumentTile extends StatelessWidget {
             ),
         ],
       ),
-      trailing: document.indexStatus == IndexStatus.done
-          ? null
-          : IndexStatusChip(
-              status: document.indexStatus,
-              onRetry: onRetryIndex,
-            ),
     );
   }
 }

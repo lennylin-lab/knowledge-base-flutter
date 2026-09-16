@@ -7,7 +7,6 @@ import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
 import '../../shared/utils/markdown_front_matter.dart';
 import '../../shared/widgets/expandable_tag_wrap.dart';
-import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/markdown_content.dart';
 import '../operations/operations_providers.dart';
 import 'document_ai_bubble.dart';
@@ -273,14 +272,7 @@ class DocumentDetailBody extends StatelessWidget {
                       ),
                     ),
                     SizedBox(width: sizes.space8),
-                    if (titleTrailing != null)
-                      titleTrailing!
-                    else
-                      IndexStatusChip(
-                        status: document.indexStatus,
-                        onRetry: () =>
-                            context.push('/documents/${document.id}/edit'),
-                      ),
+                    ?titleTrailing,
                   ],
                 ),
                 SizedBox(height: sizes.space8),
@@ -952,10 +944,6 @@ class DocumentDetailPane extends ConsumerWidget {
           titleTrailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IndexStatusChip(
-                status: document.indexStatus,
-                onRetry: () => context.push('/documents/${document.id}/edit'),
-              ),
               IconButton(
                 tooltip: '编辑',
                 icon: const Icon(Icons.edit_outlined),

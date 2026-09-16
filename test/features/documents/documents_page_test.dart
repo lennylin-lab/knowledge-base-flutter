@@ -25,7 +25,7 @@ Future<void> pumpApp(WidgetTester tester, StubDocumentsRepository repo) async {
 
 void main() {
   testWidgets(
-    'renders rows with title/tags and the three index_status states',
+    'renders rows with title/tags and no document status anywhere',
     (tester) async {
       final repo = StubDocumentsRepository()
         ..listHandler = (cursor, limit, tags) async => DocumentPage(
@@ -47,17 +47,16 @@ void main() {
 
       await pumpApp(tester, repo);
       await tester.pump(); // first frame, provider starts fetching
-      // Bounded pumps instead of pumpAndSettle: the pending chip's spinner
-      // animates indefinitely.
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('待索引文档'), findsOneWidget);
       expect(find.text('索引失败文档'), findsOneWidget);
       expect(find.text('正常文档'), findsOneWidget);
-      // pending → spinner + 索引中; failed → error chip; done → nothing.
-      expect(find.text('索引中'), findsOneWidget);
-      expect(find.text('索引失败'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      // Status rendering was removed from the UI: no chips, no spinner,
+      // no retry affordance — whatever index_status the backend returns.
+      expect(find.text('索引中'), findsNothing);
+      expect(find.text('索引失败'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     },
   );
 
