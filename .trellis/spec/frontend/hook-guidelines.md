@@ -69,6 +69,13 @@ last `error`):
   on every terminal write, and progress callbacks pass the same generation
   guard as terminal writes (a superseded generation's late progress is
   dropped).
+- **Independent state slices need their own generation counters** (see
+  `WritingNotifier`'s history fetch): a presentation reset (返回菜单 /
+  `clearCurrent`) bumps the workflow generation and drops its in-flight
+  writes, but the history cache deliberately outlives that reset — give the
+  slice its own counter, or its loading flag strands forever (both its
+  load and refresh paths guard on it). Only a provider rebuild may reset
+  the whole state.
 - **In-widget content layers** (the AI assistant bubble on the detail page):
   the bubble is the only AI surface — menu layer (入口) ↔ function content
   layer, no separate routes. Entry click is the explicit trigger: generate
