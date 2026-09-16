@@ -552,3 +552,26 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 25: draft 端点对接 SSE 流式响应（issue #4）
+<!-- trellis-session: v=2 fp=69822f2cacca41f6 -->
+
+**Date**: 2026-09-17
+**Task**: draft 端点对接 SSE 流式响应（issue #4）
+**Branch**: `main`
+
+### Summary
+
+按 issue #4 与服务端 9be2b39 对齐：POST /operations/draft 从同步 JSON 改为消费 SSE 事件流（run_started→draft→done，error 终态互斥）。AgentStreamClient 抽取共享 fold（summary/associations 行为字节级不变，chat 测试零 diff），新增 AgentDraftEvent；repository.draft 返回轻量 OperationDraftResult（不伪造缺时间戳的 OperationReadDetail），WritingState.operation 改为 CurrentDraft{operationId,state,draft}（历史打开与流生成统一映射）；流中 error 无 operation id，失败后自动加载/刷新历史使 failed 操作可见可恢复。修复 check 抓到的 HIGH 鉴权回归（operations provider 未注入带鉴权的 agentStreamClient，附移除注入即复现 401 的负载回归钉）。analyze 干净、399 测试全绿；spec 同步 draft 流契约。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b5eb69c` | feat(operations): stream the draft endpoint as SSE events |
+| `b56d47c` | docs(spec): draft stream contract and lightweight result conventions |
+
+### Status
+
+[OK] **Completed**

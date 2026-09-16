@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 24
-- **Last Active**: 2026-09-16
+- **Total Sessions**: 25
+- **Last Active**: 2026-09-17
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~554 | Active |
+| `journal-1.md` | ~577 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 25 | 2026-09-17 | draft 端点对接 SSE 流式响应（issue #4） | `b5eb69c`, `b56d47c` | `main` |
 | 24 | 2026-09-16 | 气泡「AI 续写」写作代理流 | `c6a72db`, `883fb0f` | `main` |
 | 23 | 2026-09-16 | operations API 层对齐 | `7bdc7e6`, `d3e59af` | `main` |
 | 22 | 2026-09-16 | Keycloak OIDC 登录对接（issue #2） | `c80b726` | `main` |
