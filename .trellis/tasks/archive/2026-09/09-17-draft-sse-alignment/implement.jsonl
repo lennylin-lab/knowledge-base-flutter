@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/09-17-draft-sse-alignment/research-draft-sse-contract.md", "reason": "Server-verified draft SSE contract + client impact analysis"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Agent SSE + chat SSE sections, generation-guard idioms"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO conventions incl. agent stream events"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "OnDemand/Writing patterns, independent slice counters"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates"}
