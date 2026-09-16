@@ -1,4 +1,4 @@
-import 'package:url_launcher/url_launcher.dart';
+import 'package:web/web.dart' as web;
 
 import 'sign_in_driver.dart';
 
@@ -6,19 +6,22 @@ import 'sign_in_driver.dart';
 /// the flow resumes on the `/auth/callback` route (transaction — verifier,
 /// state, return location — stashed in sessionStorage beforehand), so
 /// [acquire] never returns a redirect URI.
+///
+/// Navigation is a direct `window.location.href` assignment, NOT
+/// `url_launcher` (which goes through `window.open(url, '_self',
+/// 'noopener')`): the assignment is atomic, cannot be reported as a
+//  blocked popup, and is not intercepted by the dwds debug injection
+/// client — whose `window.open` wrapper threw
+/// `ArgumentError: The type parameter is not nullable` in debug
+/// (`flutter run`) sessions before the IdP page ever opened.
 class RedirectSignInDriver implements SignInDriver {
   const RedirectSignInDriver();
 
   @override
   Future<Uri> acquire(Uri authorizeUrl) async {
-    final launched = await launchUrl(
-      authorizeUrl,
-      webOnlyWindowName: '_self',
-    );
-    if (!launched) {
-      throw const BrowserLaunchFailure();
-    }
-    // Navigation started; the isolate goes away with the page.
+    web.window.location.href = authorizeUrl.toString();
+    // Navigation started; the isolate goes away with the page, so there is
+    // no meaningful failure surface (and no redirect URI to return).
     return Future<Uri>.delayed(const Duration(days: 1));
   }
 }
