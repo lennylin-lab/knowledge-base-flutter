@@ -125,11 +125,21 @@ in `shared/models/chat.dart`.
 
 ---
 
-## Document Agent SSE (summary / associations)
+## Document Agent SSE (summary / associations / draft)
 
-Both document-agent endpoints stream `text/event-stream` over the **same wire
-discipline as chat** (issue #1 / server commit a16d933). Event order
-(server `schemas/agent_stream.py`; backend error-handling spec):
+The document-agent endpoints stream `text/event-stream` over the **same wire
+discipline as chat** (issue #1 / server commits a16d933 + 9be2b39). Event
+order (server `schemas/agent_stream.py`; backend error-handling spec):
+
+- summary: `run_started → summary_progress* → summary → done`
+- associations: `run_started → associations → done`
+- draft (`POST /operations/draft`): `run_started (kind "draft") → draft →
+  done`; the `draft` event is flat `{operation_id, state: "completed",
+  content, title?}` — no timestamps, so the client models it as a
+  lightweight `OperationDraftResult`, never a synthesized
+  `OperationReadDetail`. A mid-stream `error` leaves the operation
+  persisted `failed`; the error event carries no operation id, so the UI's
+  recovery path re-loads the document's operation history to surface it.
 
 ```
 run_started → [summary_progress …] (summary only) → summary|associations → done
