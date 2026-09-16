@@ -6,6 +6,7 @@ import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 import 'package:knowledge_base_flutter/shared/models/api_error.dart';
 import 'package:knowledge_base_flutter/shared/models/chat.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
+import 'package:knowledge_base_flutter/shared/models/operation.dart';
 import 'package:knowledge_base_flutter/shared/models/search.dart';
 
 /// Asserts `fromJson ∘ toJson` is the identity for [model].
@@ -39,6 +40,24 @@ const searchHitJson = {
   'score': 0.03125,
   'es_rank': 1,
   'vector_rank': null,
+};
+
+const draftContentJson = {
+  'content': '---\ntitle: AI 续写\n---\n\n这是续写的正文。',
+  'title': null,
+};
+
+const operationDetailJson = {
+  'id': 'aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d',
+  'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+  'base_document_version': '2026-08-31T12:30:00Z',
+  'state': 'completed',
+  'idempotency_key': 'create-op-1',
+  'created_at': '2026-09-16T08:00:00Z',
+  'updated_at': '2026-09-16T08:00:05Z',
+  'draft': draftContentJson,
+  'result': null,
+  'error': null,
 };
 
 void main() {
@@ -327,6 +346,226 @@ void main() {
       });
       expect(empty.associations, isEmpty);
       assertRoundTrip(empty, (m) => m.toJson(), AssociationsResult.fromJson);
+    });
+  });
+
+  group('Operations', () {
+    test('DraftContent round-trips with nullable title', () {
+      final model = DraftContent.fromJson(draftContentJson);
+      expect(model.title, isNull);
+      assertRoundTrip(model, (m) => m.toJson(), DraftContent.fromJson);
+
+      final titled = DraftContent.fromJson({'content': '正文', 'title': '显式标题'});
+      expect(titled.title, '显式标题');
+      assertRoundTrip(titled, (m) => m.toJson(), DraftContent.fromJson);
+    });
+
+    test('OperationCreate round-trips with snake_case wire keys', () {
+      const model = OperationCreate(
+        documentId: '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        baseDocumentVersion: '2026-08-31T12:30:00Z',
+        draft: DraftContent(content: '# 草稿'),
+        idempotencyKey: 'key-1',
+      );
+      assertRoundTrip(model, (m) => m.toJson(), OperationCreate.fromJson);
+
+      final encoded = jsonEncode(model.toJson());
+      expect(encoded, contains('"document_id"'));
+      expect(encoded, contains('"base_document_version"'));
+      expect(encoded, contains('"idempotency_key":"key-1"'));
+    });
+
+    test('OperationReadDetail maps every state value and round-trips', () {
+      for (final state in OperationState.values) {
+        final model = OperationReadDetail.fromJson({
+          ...operationDetailJson,
+          'state': state.name,
+        });
+        assertRoundTrip(model, (m) => m.toJson(), OperationReadDetail.fromJson);
+        expect(model.state, state);
+        expect(model.toJson()['state'], state.name);
+      }
+    });
+
+    test('unknown operation state falls back to failed, never throws', () {
+      final model = OperationReadDetail.fromJson({
+        ...operationDetailJson,
+        'state': 'cancelled',
+      });
+      expect(model.state, OperationState.failed);
+      // The fallback serializes back to the known wire value.
+      expect(model.toJson()['state'], 'failed');
+    });
+
+    test('OperationReadDetail round-trips the full payload', () {
+      final model = OperationReadDetail.fromJson({
+        ...operationDetailJson,
+        'state': 'failed',
+        'error': {'error_class': 'LLMProviderError'},
+      });
+      expect(model.draft?.content, startsWith('---'));
+      expect(model.error, {'error_class': 'LLMProviderError'});
+      assertRoundTrip(model, (m) => m.toJson(), OperationReadDetail.fromJson);
+    });
+
+    test('OperationReadDetail tolerates every nullable field being null', () {
+      final model = OperationReadDetail.fromJson({
+        'id': 'aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d',
+        'document_id': null,
+        'base_document_version': null,
+        'state': 'running',
+        'idempotency_key': null,
+        'created_at': '2026-09-16T08:00:00Z',
+        'updated_at': '2026-09-16T08:00:00Z',
+        'draft': null,
+        'result': null,
+        'error': null,
+      });
+      expect(model.draft, isNull);
+      expect(model.result, isNull);
+      expect(model.error, isNull);
+      assertRoundTrip(model, (m) => m.toJson(), OperationReadDetail.fromJson);
+    });
+
+    test('timestamps pass through verbatim (optimistic-concurrency '
+        'sensitivity)', () {
+      // Deliberately not the plain `Z` form: the server compares base
+      // versions with exact equality, so the client must never re-parse or
+      // reformat.
+      const timestamp = '2026-09-16T08:00:00.123456+00:00';
+      final model = OperationReadDetail.fromJson({
+        ...operationDetailJson,
+        'base_document_version': timestamp,
+        'created_at': timestamp,
+        'updated_at': timestamp,
+      });
+      expect(model.baseDocumentVersion, timestamp);
+      expect(model.createdAt, timestamp);
+      expect(model.updatedAt, timestamp);
+      final encoded = model.toJson();
+      expect(encoded['base_document_version'], timestamp);
+      expect(encoded['created_at'], timestamp);
+      expect(encoded['updated_at'], timestamp);
+    });
+
+    test('revisionId surfaces result.revision_id once applied', () {
+      final applied = OperationReadDetail.fromJson({
+        ...operationDetailJson,
+        'state': 'applied',
+        'result': {'revision_id': '7c8d9e0f-1a2b-4c3d-8e9f-0a1b2c3d4e5f'},
+      });
+      expect(applied.revisionId, '7c8d9e0f-1a2b-4c3d-8e9f-0a1b2c3d4e5f');
+
+      final pending = OperationReadDetail.fromJson(operationDetailJson);
+      expect(pending.revisionId, isNull);
+    });
+
+    test('OperationTransition omits draft when unset, emits it when set', () {
+      const withoutDraft = OperationTransition();
+      expect(withoutDraft.toJson(), isEmpty);
+      assertRoundTrip(
+        withoutDraft,
+        (m) => m.toJson(),
+        OperationTransition.fromJson,
+      );
+
+      const withDraft = OperationTransition(
+        draft: DraftContent(content: '修订后的草稿', title: '修订标题'),
+      );
+      expect(withDraft.toJson(), {
+        'draft': {'content': '修订后的草稿', 'title': '修订标题'},
+      });
+      assertRoundTrip(
+        withDraft,
+        (m) => m.toJson(),
+        OperationTransition.fromJson,
+      );
+    });
+
+    test('ApplyRequest omits expectedBaseDocumentVersion when unset, '
+        'emits it verbatim when set', () {
+      const without = ApplyRequest();
+      expect(without.toJson(), isEmpty);
+      assertRoundTrip(without, (m) => m.toJson(), ApplyRequest.fromJson);
+
+      const withVersion = ApplyRequest(
+        expectedBaseDocumentVersion: '2026-09-16T08:00:00.123456+00:00',
+      );
+      expect(withVersion.toJson(), {
+        'expected_base_document_version': '2026-09-16T08:00:00.123456+00:00',
+      });
+      assertRoundTrip(withVersion, (m) => m.toJson(), ApplyRequest.fromJson);
+    });
+
+    test('RevisionRead round-trips with nullable operation_id', () {
+      final model = RevisionRead.fromJson({
+        'id': '7c8d9e0f-1a2b-4c3d-8e9f-0a1b2c3d4e5f',
+        'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        'operation_id': 'aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d',
+        'title': '知识库设计笔记',
+        'tags': ['flutter', 'backend'],
+        'created_at': '2026-09-16T08:01:00Z',
+      });
+      assertRoundTrip(model, (m) => m.toJson(), RevisionRead.fromJson);
+
+      final orphan = RevisionRead.fromJson({
+        ...model.toJson(),
+        'operation_id': null,
+      });
+      expect(orphan.operationId, isNull);
+      assertRoundTrip(orphan, (m) => m.toJson(), RevisionRead.fromJson);
+    });
+
+    test('DocumentInResult maps every index_status; unknown → failed', () {
+      for (final status in ['pending', 'done', 'failed']) {
+        final model = DocumentInResult.fromJson({
+          'id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+          'title': '知识库设计笔记',
+          'tags': ['flutter'],
+          'index_status': status,
+          'updated_at': '2026-09-16T08:01:00Z',
+        });
+        assertRoundTrip(model, (m) => m.toJson(), DocumentInResult.fromJson);
+        expect(model.indexStatus.name, status);
+      }
+
+      final unknown = DocumentInResult.fromJson({
+        'id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+        'title': '知识库设计笔记',
+        'tags': ['flutter'],
+        'index_status': 'archived',
+        'updated_at': '2026-09-16T08:01:00Z',
+      });
+      expect(unknown.indexStatus, IndexStatus.failed);
+    });
+
+    test('ApplyResult round-trips the nested operation/revision/document', () {
+      final model = ApplyResult.fromJson({
+        'operation': {
+          ...operationDetailJson,
+          'state': 'applied',
+          'result': {'revision_id': '7c8d9e0f-1a2b-4c3d-8e9f-0a1b2c3d4e5f'},
+        },
+        'revision': {
+          'id': '7c8d9e0f-1a2b-4c3d-8e9f-0a1b2c3d4e5f',
+          'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+          'operation_id': 'aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d',
+          'title': '知识库设计笔记',
+          'tags': ['flutter', 'backend'],
+          'created_at': '2026-09-16T08:01:00Z',
+        },
+        'document': {
+          'id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+          'title': '知识库设计笔记',
+          'tags': ['flutter', 'backend'],
+          'index_status': 'pending',
+          'updated_at': '2026-09-16T08:01:00Z',
+        },
+      });
+      expect(model.operation.state, OperationState.applied);
+      expect(model.revision.title, '知识库设计笔记');
+      expect(model.document.indexStatus, IndexStatus.pending);
+      assertRoundTrip(model, (m) => m.toJson(), ApplyResult.fromJson);
     });
   });
 
