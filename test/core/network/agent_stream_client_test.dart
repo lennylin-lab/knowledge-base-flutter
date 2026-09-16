@@ -80,6 +80,18 @@ const summaryDoneJson =
     '{"run_id":"11111111-1111-1111-1111-111111111111",'
     '"outcome":"success","latency_ms":1250.0}';
 
+const draftRunStartedJson =
+    '{"run_id":"22222222-2222-2222-2222-222222222222","kind":"draft",'
+    '"document_id":"$documentId"}';
+
+const draftEventJson =
+    '{"operation_id":"aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d","state":"completed",'
+    '"content":"---\\ntitle: 星际旅行草稿\\n---\\n\\n续写正文。","title":"星际旅行草稿"}';
+
+const draftDoneJson =
+    '{"run_id":"22222222-2222-2222-2222-222222222222",'
+    '"outcome":"success","latency_ms":3450.0}';
+
 void main() {
   late _FakeTransport transport;
   late AgentStreamClient client;
@@ -144,6 +156,47 @@ void main() {
       expect(result.associations, isEmpty);
       expect(result.latencyMs, 12.0);
       expect(result.latencyMs, isA<double>());
+    });
+
+    test(
+      'draft events parse flat; the title is nullable and kind stays raw',
+      () {
+        final parser = AgentStreamParser();
+        final events = parser.push(
+          frame('run_started', draftRunStartedJson) +
+              frame('draft', draftEventJson) +
+              frame('done', draftDoneJson),
+        );
+
+        expect(events, hasLength(3));
+
+        // The writing stream's kind — a raw wire string, no enum sentinel.
+        final started = events[0] as AgentRunStarted;
+        expect(started.kind, 'draft');
+        expect(started.kind, isA<String>());
+
+        final draft = events[1] as AgentDraftEvent;
+        expect(draft.operationId, 'aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d');
+        expect(draft.state, 'completed');
+        expect(draft.content, '---\ntitle: 星际旅行草稿\n---\n\n续写正文。');
+        expect(draft.title, '星际旅行草稿');
+
+        expect(events[2], isA<AgentDoneEvent>());
+        expect(parser.isTerminated, isTrue);
+      },
+    );
+
+    test('a draft event without a title parses with a null title', () {
+      final events = AgentStreamParser().push(
+        frame(
+          'draft',
+          '{"operation_id":"aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d",'
+              '"state":"completed","content":"无标题正文","title":null}',
+        ),
+      );
+      final draft = events.single as AgentDraftEvent;
+      expect(draft.title, isNull);
+      expect(draft.content, '无标题正文');
     });
 
     test('error events parse and terminate', () {

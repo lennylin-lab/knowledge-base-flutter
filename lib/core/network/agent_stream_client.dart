@@ -68,6 +68,8 @@ class AgentStreamParser {
         return AgentSummaryEvent(SummaryResult.fromJson(json));
       case 'associations':
         return AgentAssociationsEvent(AssociationsResult.fromJson(json));
+      case 'draft':
+        return AgentDraftEvent.fromJson(json);
       case 'done':
         _terminated = true;
         return const AgentDoneEvent();
@@ -95,7 +97,8 @@ class AgentStreamClient {
   final ChatTransport _transport;
   final SseHeadersBuilder? headers;
 
-  /// Run one agent stream ([uri] of `…/summary` or `…/associations`).
+  /// Run one agent stream ([uri] of `…/summary`, `…/associations`, or
+  /// `/operations/draft`).
   ///
   /// Transport-level failures (connection refused, non-2xx with an error
   /// envelope) are normalized into a terminal [AgentErrorEvent] instead of
@@ -157,6 +160,47 @@ class AgentStreamClient {
     if (!terminated) {
       yield const AgentErrorEvent(code: 'network_error', message: '网络连接中断，请重试');
     }
+  }
+
+  /// Opens one agent stream and folds its events into a single result —
+  /// the shared consumption pattern of every agent endpoint (summary /
+  /// associations / draft): repositories stay stream-aware only through
+  /// this call and [extract] unwraps the expected result event's payload
+  /// (null for the other kinds — a server mix-up is treated like a missing
+  /// result). [onProgress] fires for every `summary_progress` event, in
+  /// wire order (streams without progress events never invoke it).
+  ///
+  /// Failures surface as [ApiException]: a terminal `error` event keeps its
+  /// wire `code`/`message`/`statusCode` (including the normalized pre-stream
+  /// envelopes — 404 `not_found`, 503 `chat_unavailable` — from [run]); a
+  /// stream that ends without a result is a `network_error` ([run] already
+  /// normalizes transport drops to error events, so this backstop means
+  /// "ended silently, no payload").
+  Future<T> fold<T>(
+    Uri uri, {
+    required T? Function(AgentStreamEvent event) extract,
+    void Function(SummaryProgress progress)? onProgress,
+  }) async {
+    await for (final event in run(uri)) {
+      switch (event) {
+        case AgentRunStarted() || AgentDoneEvent():
+          break; // stream lifecycle only — nothing to render, nothing to keep
+        case final SummaryProgress progress:
+          onProgress?.call(progress);
+        case AgentErrorEvent(:final code, :final message, :final statusCode):
+          throw ApiException(
+            code: code,
+            message: message,
+            statusCode: statusCode,
+          );
+        case AgentSummaryEvent() ||
+            AgentAssociationsEvent() ||
+            AgentDraftEvent():
+          final result = extract(event);
+          if (result != null) return result;
+      }
+    }
+    throw const ApiException(code: 'network_error', message: '网络连接中断，请重试');
   }
 }
 

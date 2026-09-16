@@ -15,7 +15,7 @@ class StubOperationsRepository implements OperationsRepository {
     this.createHandler,
   });
 
-  Future<OperationReadDetail> Function({
+  Future<OperationDraftResult> Function({
     required String documentId,
     String? instruction,
   })?
@@ -45,7 +45,7 @@ class StubOperationsRepository implements OperationsRepository {
   }
 
   @override
-  Future<OperationReadDetail> draft({
+  Future<OperationDraftResult> draft({
     required String documentId,
     String? instruction,
   }) async {
@@ -143,6 +143,21 @@ OperationReadDetail completedDraftOperation({
 }) {
   return operationFixture(
     id: id,
+    state: OperationState.completed,
+    draft: DraftContent(content: content, title: title),
+  );
+}
+
+/// The streamed draft result for [id] — the lightweight shape
+/// `OperationsRepository.draft` resolves to, with the same default draft as
+/// [completedDraftOperation] so widget assertions hold for both paths.
+OperationDraftResult completedDraftResult({
+  String id = 'op-1',
+  String content = '---\ntitle: 星际旅行草稿\n---\n\n续写正文第一段。\n\n续写正文第二段。',
+  String? title = '星际旅行草稿',
+}) {
+  return OperationDraftResult(
+    operationId: id,
     state: OperationState.completed,
     draft: DraftContent(content: content, title: title),
   );

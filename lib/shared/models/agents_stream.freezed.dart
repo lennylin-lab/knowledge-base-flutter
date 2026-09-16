@@ -551,6 +551,278 @@ as int,
 
 
 /// @nodoc
+mixin _$AgentDraftEvent {
+
+ String get operationId; String get state; String get content; String? get title;
+/// Create a copy of AgentDraftEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AgentDraftEventCopyWith<AgentDraftEvent> get copyWith => _$AgentDraftEventCopyWithImpl<AgentDraftEvent>(this as AgentDraftEvent, _$identity);
+
+  /// Serializes this AgentDraftEvent to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AgentDraftEvent&&(identical(other.operationId, operationId) || other.operationId == operationId)&&(identical(other.state, state) || other.state == state)&&(identical(other.content, content) || other.content == content)&&(identical(other.title, title) || other.title == title));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,operationId,state,content,title);
+
+@override
+String toString() {
+  return 'AgentDraftEvent(operationId: $operationId, state: $state, content: $content, title: $title)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AgentDraftEventCopyWith<$Res>  {
+  factory $AgentDraftEventCopyWith(AgentDraftEvent value, $Res Function(AgentDraftEvent) _then) = _$AgentDraftEventCopyWithImpl;
+@useResult
+$Res call({
+ String operationId, String state, String content, String? title
+});
+
+
+
+
+}
+/// @nodoc
+class _$AgentDraftEventCopyWithImpl<$Res>
+    implements $AgentDraftEventCopyWith<$Res> {
+  _$AgentDraftEventCopyWithImpl(this._self, this._then);
+
+  final AgentDraftEvent _self;
+  final $Res Function(AgentDraftEvent) _then;
+
+/// Create a copy of AgentDraftEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? operationId = null,Object? state = null,Object? content = null,Object? title = freezed,}) {
+  return _then(_self.copyWith(
+operationId: null == operationId ? _self.operationId : operationId // ignore: cast_nullable_to_non_nullable
+as String,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
+as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as String,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [AgentDraftEvent].
+extension AgentDraftEventPatterns on AgentDraftEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _AgentDraftEvent value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _AgentDraftEvent() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _AgentDraftEvent value)  $default,){
+final _that = this;
+switch (_that) {
+case _AgentDraftEvent():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _AgentDraftEvent value)?  $default,){
+final _that = this;
+switch (_that) {
+case _AgentDraftEvent() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String operationId,  String state,  String content,  String? title)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _AgentDraftEvent() when $default != null:
+return $default(_that.operationId,_that.state,_that.content,_that.title);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String operationId,  String state,  String content,  String? title)  $default,) {final _that = this;
+switch (_that) {
+case _AgentDraftEvent():
+return $default(_that.operationId,_that.state,_that.content,_that.title);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String operationId,  String state,  String content,  String? title)?  $default,) {final _that = this;
+switch (_that) {
+case _AgentDraftEvent() when $default != null:
+return $default(_that.operationId,_that.state,_that.content,_that.title);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _AgentDraftEvent extends AgentDraftEvent {
+  const _AgentDraftEvent({required this.operationId, required this.state, required this.content, this.title}): super._();
+  factory _AgentDraftEvent.fromJson(Map<String, dynamic> json) => _$AgentDraftEventFromJson(json);
+
+@override final  String operationId;
+@override final  String state;
+@override final  String content;
+@override final  String? title;
+
+/// Create a copy of AgentDraftEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$AgentDraftEventCopyWith<_AgentDraftEvent> get copyWith => __$AgentDraftEventCopyWithImpl<_AgentDraftEvent>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$AgentDraftEventToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AgentDraftEvent&&(identical(other.operationId, operationId) || other.operationId == operationId)&&(identical(other.state, state) || other.state == state)&&(identical(other.content, content) || other.content == content)&&(identical(other.title, title) || other.title == title));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,operationId,state,content,title);
+
+@override
+String toString() {
+  return 'AgentDraftEvent(operationId: $operationId, state: $state, content: $content, title: $title)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$AgentDraftEventCopyWith<$Res> implements $AgentDraftEventCopyWith<$Res> {
+  factory _$AgentDraftEventCopyWith(_AgentDraftEvent value, $Res Function(_AgentDraftEvent) _then) = __$AgentDraftEventCopyWithImpl;
+@override @useResult
+$Res call({
+ String operationId, String state, String content, String? title
+});
+
+
+
+
+}
+/// @nodoc
+class __$AgentDraftEventCopyWithImpl<$Res>
+    implements _$AgentDraftEventCopyWith<$Res> {
+  __$AgentDraftEventCopyWithImpl(this._self, this._then);
+
+  final _AgentDraftEvent _self;
+  final $Res Function(_AgentDraftEvent) _then;
+
+/// Create a copy of AgentDraftEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? operationId = null,Object? state = null,Object? content = null,Object? title = freezed,}) {
+  return _then(_AgentDraftEvent(
+operationId: null == operationId ? _self.operationId : operationId // ignore: cast_nullable_to_non_nullable
+as String,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
+as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as String,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$AgentErrorEvent {
 
  String get code; String get message;@JsonKey(includeIfNull: false) int? get statusCode;

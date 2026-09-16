@@ -34,6 +34,22 @@ Map<String, dynamic> _$SummaryProgressToJson(_SummaryProgress instance) =>
       'passes_total': instance.passesTotal,
     };
 
+_AgentDraftEvent _$AgentDraftEventFromJson(Map<String, dynamic> json) =>
+    _AgentDraftEvent(
+      operationId: json['operation_id'] as String,
+      state: json['state'] as String,
+      content: json['content'] as String,
+      title: json['title'] as String?,
+    );
+
+Map<String, dynamic> _$AgentDraftEventToJson(_AgentDraftEvent instance) =>
+    <String, dynamic>{
+      'operation_id': instance.operationId,
+      'state': instance.state,
+      'content': instance.content,
+      'title': instance.title,
+    };
+
 _AgentErrorEvent _$AgentErrorEventFromJson(Map<String, dynamic> json) =>
     _AgentErrorEvent(
       code: json['code'] as String,

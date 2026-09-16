@@ -6,24 +6,27 @@ part 'agents_stream.freezed.dart';
 part 'agents_stream.g.dart';
 
 /// Events of the document-agent SSE streams served by
-/// `POST /api/v1/documents/{id}/summary` and `/associations`
+/// `POST /api/v1/documents/{id}/summary`, `/associations`, and
+/// `POST /api/v1/operations/draft`
 /// (backend `src/app/schemas/agent_stream.py`).
 ///
 /// Event order: `run_started → [summary_progress …] (summary only) →
-/// summary | associations → done`, or a terminal `error` at any point after
-/// HTTP 200 (the stream closes right after a terminal event). A cache hit
-/// skips the progress events entirely. Comments (`:` keep-alive frames) and
-/// unknown event names carry no event and are ignored.
+/// summary | associations | draft → done`, or a terminal `error` at any
+/// point after HTTP 200 (the stream closes right after a terminal event).
+/// A cache hit skips the progress events entirely. Comments (`:` keep-alive
+/// frames) and unknown event names carry no event and are ignored.
 ///
 /// The result payloads reuse [SummaryResult] / [AssociationsResult]
 /// unchanged — the server emits the exact fields of the old JSON bodies as
-/// the `summary` / `associations` event data.
+/// the `summary` / `associations` event data; the `draft` event carries the
+/// flat [AgentDraftEvent] payload.
 sealed class AgentStreamEvent {
   const AgentStreamEvent();
 }
 
-/// First event of every stream; [kind] is `"summary"` or `"associations"`
-/// (kept as the raw wire string — informational, no branching client-side).
+/// First event of every stream; [kind] is `"summary"`, `"associations"`, or
+/// `"draft"` (kept as the raw wire string — informational, no branching
+/// client-side).
 @freezed
 abstract class AgentRunStarted extends AgentStreamEvent with _$AgentRunStarted {
   const AgentRunStarted._();
@@ -73,6 +76,32 @@ final class AgentAssociationsEvent extends AgentStreamEvent {
   const AgentAssociationsEvent(this.result);
 
   final AssociationsResult result;
+}
+
+/// The `draft` event of the writing-agent stream
+/// (`POST /api/v1/operations/draft`): the finished operation's draft,
+/// emitted **flat** (`operation_id` / `state` / `content` / `title`) and
+/// atomically — no incremental tokens; the server commits the terminal
+/// operation state BEFORE emitting, so a client that stops reading never
+/// sees a draft for unpersisted work.
+///
+/// [state] stays the raw wire string (the literal `"completed"` today): a
+/// received draft event always means "a draft arrived" and is presented as
+/// reviewable — an unknown future value must not crash the parse (no
+/// invented sentinels; the repository maps it defensively).
+@freezed
+abstract class AgentDraftEvent extends AgentStreamEvent with _$AgentDraftEvent {
+  const AgentDraftEvent._();
+
+  const factory AgentDraftEvent({
+    required String operationId,
+    required String state,
+    required String content,
+    String? title,
+  }) = _AgentDraftEvent;
+
+  factory AgentDraftEvent.fromJson(Map<String, dynamic> json) =>
+      _$AgentDraftEventFromJson(json);
 }
 
 /// Terminal success (`done`: `run_id` / `outcome: "success"` /

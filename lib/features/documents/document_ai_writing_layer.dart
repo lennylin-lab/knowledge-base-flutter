@@ -19,10 +19,11 @@ import 'document_ai_bubble.dart';
 /// Views derive from [WritingState] (the per-document `writingProvider`):
 /// - idle: instruction field (optional) + 生成草稿， inline error copy above
 ///   the still-working actions on failure (dead-end rule), and the 历史
-///   操作 affordance whose first tap loads the list (zero calls before);
-/// - generating: spinner + seconds hint (synchronous LLM, no progress
+///   操作 affordance whose first tap loads the list (a draft failure
+///   auto-loads/refreshes it so the newest failed operation is reachable);
+/// - generating: spinner + seconds hint (the draft stream emits no progress
 ///   events); resume reuses the same in-flight view;
-/// - review + `completed` operation: draft title, body via the shared
+/// - review + `completed` draft: draft title, body via the shared
 ///   [MarkdownContent] (front matter stripped), 应用到文档 (confirm dialog
 ///   first — apply overwrites and cannot be undone), 重新生成 (back to the
 ///   input, instruction prefilled), 返回菜单;
@@ -144,14 +145,14 @@ class _WritingContentLayerState extends ConsumerState<WritingContentLayer> {
   }
 
   List<Widget> _operationChildren(BuildContext context, WritingState state) {
-    final operation = state.operation;
-    // Defensive: an operation-less review renders the input instead.
-    if (operation == null) return _idleChildren(context, state);
-    return switch (operation.state) {
+    final current = state.current;
+    // Defensive: a draft-less review renders the input instead.
+    if (current == null) return _idleChildren(context, state);
+    return switch (current.state) {
       OperationState.applied => _appliedChildren(context),
-      OperationState.completed => _draftChildren(context, state, operation),
+      OperationState.completed => _draftChildren(context, state, current),
       OperationState.interrupted ||
-      OperationState.failed => _failedChildren(context, state, operation),
+      OperationState.failed => _failedChildren(context, state),
       // A running operation (set externally server-side) renders as the
       // generic in-flight view; it is not an offered history target.
       OperationState.running => _generatingChildren(context),
@@ -217,11 +218,11 @@ class _WritingContentLayerState extends ConsumerState<WritingContentLayer> {
   List<Widget> _draftChildren(
     BuildContext context,
     WritingState state,
-    OperationReadDetail operation,
+    CurrentDraft current,
   ) {
     final theme = Theme.of(context);
     final sizes = context.sizes;
-    final draft = operation.draft;
+    final draft = current.draft;
     final applying = state.phase == WritingPhase.applying;
     return [
       Text(
@@ -271,11 +272,7 @@ class _WritingContentLayerState extends ConsumerState<WritingContentLayer> {
 
   /// Interrupted/failed operation: recoverable-failure copy + 恢复 (resume)
   /// + 重新生成 + 返回菜单 — no dead ends.
-  List<Widget> _failedChildren(
-    BuildContext context,
-    WritingState state,
-    OperationReadDetail operation,
-  ) {
+  List<Widget> _failedChildren(BuildContext context, WritingState state) {
     final theme = Theme.of(context);
     final sizes = context.sizes;
     return [

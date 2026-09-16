@@ -9,6 +9,7 @@ import 'package:knowledge_base_flutter/core/retry_policy.dart';
 import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/features/operations/operations_providers.dart';
+import 'package:knowledge_base_flutter/features/operations/operations_repository.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 import 'package:knowledge_base_flutter/shared/models/operation.dart';
 import 'package:knowledge_base_flutter/shared/widgets/format.dart';
@@ -138,7 +139,7 @@ void main() {
   ) async {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
-    final pending = Completer<OperationReadDetail>();
+    final pending = Completer<OperationDraftResult>();
     operations.draftHandler = ({required documentId, instruction}) =>
         pending.future;
 
@@ -161,7 +162,7 @@ void main() {
     expect(bubbleText('生成草稿'), findsNothing);
     expect(operations.draftCalls, hasLength(1));
 
-    pending.complete(completedDraftOperation());
+    pending.complete(completedDraftResult());
     await tester.pump();
     await tester.pumpAndSettle();
 
@@ -178,7 +179,7 @@ void main() {
     // No explicit draft title — the fallback 未命名草稿 shows; the YAML front
     // matter (where the apply-time title derives from) must not render.
     operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftOperation(title: null);
+        completedDraftResult(title: null);
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -225,7 +226,7 @@ void main() {
     };
     final operations = StubOperationsRepository();
     operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftOperation();
+        completedDraftResult();
     final applyPending = Completer<ApplyResult>();
     operations.applyHandler = (operationId) => applyPending.future;
 
@@ -297,7 +298,7 @@ void main() {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
     operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftOperation();
+        completedDraftResult();
     operations.applyHandler = (operationId) async {
       throw const ApiException(
         code: 'conflict',
@@ -483,7 +484,7 @@ void main() {
     operations.operationsForDocumentHandler = (documentId) =>
         historyPending.future;
     operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftOperation();
+        completedDraftResult();
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -540,7 +541,7 @@ void main() {
   ) async {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
-    final pending = Completer<OperationReadDetail>();
+    final pending = Completer<OperationDraftResult>();
     operations.draftHandler = ({required documentId, instruction}) =>
         pending.future;
 
@@ -586,7 +587,7 @@ void main() {
     expect(bubbleText('正在生成草稿…'), findsOneWidget);
     expect(operations.draftCalls, hasLength(1));
 
-    pending.complete(completedDraftOperation());
+    pending.complete(completedDraftResult());
     await tester.pump();
     await tester.pumpAndSettle();
     expect(bubbleTextContaining('续写正文第一段'), findsOneWidget);
@@ -598,7 +599,7 @@ void main() {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
     operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftOperation();
+        completedDraftResult();
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -668,7 +669,7 @@ void main() {
     final operations = StubOperationsRepository();
     final draft = List.generate(120, (i) => '草稿段落 $i。').join('\n\n');
     operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftOperation(content: draft, title: null);
+        completedDraftResult(content: draft, title: null);
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -731,6 +732,15 @@ void main() {
         statusCode: 503,
       );
     };
+    // A failure auto-loads the history (failure recovery) — the newest
+    // failed operation shows up there.
+    operations.operationsForDocumentHandler = (documentId) async => [
+      operationFixture(
+        id: 'op-f',
+        state: OperationState.failed,
+        error: {'error_class': 'LLMProviderError'},
+      ),
+    ];
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -744,13 +754,80 @@ void main() {
     expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsOneWidget);
     // Dead-end rule: the input and its button stay available in place.
     expect(bubbleText('生成草稿'), findsOneWidget);
+    // The history was auto-loaded by the failure — opening the affordance
+    // renders the cached list (no second call).
+    expect(operations.operationsForDocumentCalls, ['doc-1']);
+    await tester.tap(bubbleText('历史操作'));
+    await tester.pumpAndSettle();
+    expect(operations.operationsForDocumentCalls, hasLength(1));
+    expect(bubbleText('失败'), findsOneWidget);
 
     // Retry succeeds.
     operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftOperation();
+        completedDraftResult();
     await tester.tap(bubbleText('生成草稿'));
     await tester.pumpAndSettle();
     expect(bubbleTextContaining('续写正文第一段'), findsOneWidget);
     expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsNothing);
+  });
+
+  testWidgets('mid-stream draft failure → the failed operation is reachable '
+      'through 历史操作 → openOperation → 恢复 completes it', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    final operations = StubOperationsRepository();
+    operations.draftHandler = ({required documentId, instruction}) async {
+      throw const ApiException(
+        code: 'llm_provider_error',
+        message: 'provider exploded',
+      );
+    };
+    // The stream error carries no operation id — the auto-loaded history is
+    // the only path to the persisted failed operation (newest first).
+    operations.operationsForDocumentHandler = (documentId) async => [
+      operationFixture(
+        id: 'op-f',
+        state: OperationState.failed,
+        error: {'error_class': 'LLMProviderError'},
+      ),
+      operationFixture(
+        id: 'op-old',
+        state: OperationState.completed,
+        draft: const DraftContent(content: '旧草稿正文', title: '旧草稿'),
+        updatedAt: '2026-09-15T10:00:00Z',
+      ),
+    ];
+    operations.resumeHandler = (operationId) async =>
+        completedDraftOperation(id: operationId);
+
+    await pumpApp(tester, repo, operations);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+    await openWritingLayer(tester);
+
+    await generateDraft(tester, '续写');
+    await tester.pumpAndSettle();
+
+    // The error view keeps 生成失败 copy + the working 生成草稿…
+    expect(bubbleText('生成失败：provider exploded'), findsOneWidget);
+    expect(bubbleText('生成草稿'), findsOneWidget);
+
+    // …and the history affordance holds the freshly loaded failed op.
+    expect(operations.operationsForDocumentCalls, ['doc-1']);
+    await tester.tap(bubbleText('历史操作'));
+    await tester.pumpAndSettle();
+    expect(bubbleText('失败'), findsOneWidget);
+
+    // tap → openOperation → the recoverable failure view with 恢复…
+    await tester.tap(bubbleText('失败'));
+    await tester.pumpAndSettle();
+    expect(bubbleText('该操作未能完成'), findsOneWidget);
+    expect(bubbleText('恢复'), findsOneWidget);
+
+    // …恢复 → resume → completed draft review, end to end.
+    await tester.tap(bubbleText('恢复'));
+    await tester.pumpAndSettle();
+    expect(operations.resumeCalls, ['op-f']);
+    expect(bubbleTextContaining('续写正文第一段'), findsOneWidget);
   });
 }

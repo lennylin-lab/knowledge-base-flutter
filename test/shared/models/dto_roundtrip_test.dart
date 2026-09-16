@@ -92,7 +92,10 @@ void main() {
   group('DocumentRead / Detail / Page', () {
     test('DocumentRead round-trips and maps every index_status value', () {
       for (final status in ['pending', 'done', 'failed']) {
-        final model = DocumentRead.fromJson({...documentReadJson, 'index_status': status});
+        final model = DocumentRead.fromJson({
+          ...documentReadJson,
+          'index_status': status,
+        });
         assertRoundTrip(model, (m) => m.toJson(), DocumentRead.fromJson);
         expect(model.indexStatus.name, status);
         expect(model.toJson()['index_status'], status);
@@ -100,23 +103,28 @@ void main() {
     });
 
     test('unknown index_status falls back to failed, never throws', () {
-      final model = DocumentRead.fromJson({...documentReadJson, 'index_status': 'quarantined'});
+      final model = DocumentRead.fromJson({
+        ...documentReadJson,
+        'index_status': 'quarantined',
+      });
       expect(model.indexStatus, IndexStatus.failed);
     });
 
-    test('DocumentReadDetail adds content and projects back to DocumentRead',
-        () {
-      final model = DocumentReadDetail.fromJson({
-        ...documentReadJson,
-        'content': '---\ntitle: 知识库设计笔记\n---\n\n## 内容',
-      });
-      expect(model.content, startsWith('---'));
-      assertRoundTrip(model, (m) => m.toJson(), DocumentReadDetail.fromJson);
+    test(
+      'DocumentReadDetail adds content and projects back to DocumentRead',
+      () {
+        final model = DocumentReadDetail.fromJson({
+          ...documentReadJson,
+          'content': '---\ntitle: 知识库设计笔记\n---\n\n## 内容',
+        });
+        expect(model.content, startsWith('---'));
+        assertRoundTrip(model, (m) => m.toJson(), DocumentReadDetail.fromJson);
 
-      final projected = model.toDocumentRead();
-      expect(projected, DocumentRead.fromJson(documentReadJson));
-      expect(projected.toJson().containsKey('content'), isFalse);
-    });
+        final projected = model.toDocumentRead();
+        expect(projected, DocumentRead.fromJson(documentReadJson));
+        expect(projected.toJson().containsKey('content'), isFalse);
+      },
+    );
 
     test('DocumentPage round-trips with a cursor', () {
       final model = DocumentPage.fromJson({
@@ -165,7 +173,10 @@ void main() {
     test('SearchResponse round-trips and maps mode', () {
       final model = SearchResponse.fromJson({
         'mode': 'hybrid',
-        'items': [searchHitJson, {...searchHitJson, 'es_rank': null, 'vector_rank': 4}],
+        'items': [
+          searchHitJson,
+          {...searchHitJson, 'es_rank': null, 'vector_rank': 4},
+        ],
       });
       expect(model.mode, SearchMode.hybrid);
       expect(model.items, hasLength(2));
@@ -174,7 +185,10 @@ void main() {
     });
 
     test('unknown mode falls back to bm25', () {
-      final model = SearchResponse.fromJson({'mode': 'dense', 'items': <Object>[]});
+      final model = SearchResponse.fromJson({
+        'mode': 'dense',
+        'items': <Object>[],
+      });
       expect(model.mode, SearchMode.bm25);
     });
   });
@@ -183,8 +197,10 @@ void main() {
     test('ChatRequest defaults limit to 8 and round-trips', () {
       const model = ChatRequest(question: '知识库用了什么检索方案？');
       expect(model.limit, 8);
-      expect(jsonEncode(model.toJson()),
-          '{"question":"知识库用了什么检索方案？","limit":8}');
+      expect(
+        jsonEncode(model.toJson()),
+        '{"question":"知识库用了什么检索方案？","limit":8}',
+      );
       assertRoundTrip(model, (m) => m.toJson(), ChatRequest.fromJson);
 
       final clamped = ChatRequest.fromJson({'question': 'q', 'limit': 20});
@@ -251,17 +267,19 @@ void main() {
         ChatErrorEvent(code: 'network_error', message: 'x'),
       ];
       // Pattern matching on the sealed type must be exhaustive.
-      final names = events.map((e) => switch (e) {
-            RunStarted() => 'run_started',
-            SourcesEvent() => 'sources',
-            ChatStatusEvent() => 'status',
-            QueryRewrittenEvent() => 'query_rewritten',
-            ToolCallStartedEvent() => 'tool_call_started',
-            ToolCallFinishedEvent() => 'tool_call_finished',
-            AnswerDelta() => 'answer_delta',
-            ChatDone() => 'done',
-            ChatErrorEvent() => 'error',
-          });
+      final names = events.map(
+        (e) => switch (e) {
+          RunStarted() => 'run_started',
+          SourcesEvent() => 'sources',
+          ChatStatusEvent() => 'status',
+          QueryRewrittenEvent() => 'query_rewritten',
+          ToolCallStartedEvent() => 'tool_call_started',
+          ToolCallFinishedEvent() => 'tool_call_finished',
+          AnswerDelta() => 'answer_delta',
+          ChatDone() => 'done',
+          ChatErrorEvent() => 'error',
+        },
+      );
       expect(names, [
         'run_started',
         'sources',
@@ -277,23 +295,25 @@ void main() {
   });
 
   group('Agents results (summary / associations)', () {
-    test('SummaryResult round-trips with snake_case keys and double latency',
-        () {
-      final model = SummaryResult.fromJson({
-        'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
-        'summary': '这份文档记录了知识库的整体设计思路。',
-        'model': 'glm-4.7',
-        'latency_ms': 1234.5,
-      });
-      expect(model.documentId, '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
-      expect(model.latencyMs, 1234.5);
-      assertRoundTrip(model, (m) => m.toJson(), SummaryResult.fromJson);
+    test(
+      'SummaryResult round-trips with snake_case keys and double latency',
+      () {
+        final model = SummaryResult.fromJson({
+          'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+          'summary': '这份文档记录了知识库的整体设计思路。',
+          'model': 'glm-4.7',
+          'latency_ms': 1234.5,
+        });
+        expect(model.documentId, '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+        expect(model.latencyMs, 1234.5);
+        assertRoundTrip(model, (m) => m.toJson(), SummaryResult.fromJson);
 
-      // Wire keys must stay snake_case (round-trip to the backend).
-      final encoded = jsonEncode(model.toJson());
-      expect(encoded, contains('"document_id"'));
-      expect(encoded, contains('"latency_ms":1234.5'));
-    });
+        // Wire keys must stay snake_case (round-trip to the backend).
+        final encoded = jsonEncode(model.toJson());
+        expect(encoded, contains('"document_id"'));
+        expect(encoded, contains('"latency_ms":1234.5'));
+      },
+    );
 
     test('SummaryResult decodes an integral latency_ms (1234) as double', () {
       final model = SummaryResult.fromJson({
@@ -334,8 +354,10 @@ void main() {
         'latency_ms': 2345.0,
       });
       expect(model.associations.single, isA<AssociationItem>());
-      expect(model.associations.single.documentId,
-          '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f');
+      expect(
+        model.associations.single.documentId,
+        '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+      );
       assertRoundTrip(model, (m) => m.toJson(), AssociationsResult.fromJson);
 
       final empty = AssociationsResult.fromJson({
@@ -597,23 +619,45 @@ void main() {
       expect(jsonEncode(model.toJson()), contains('"pass_index":1'));
     });
 
-    test('AgentErrorEvent round-trips code/message and omits a null status',
-        () {
-      final model = AgentErrorEvent.fromJson({
-        'code': 'llm_provider_error',
-        'message': 'provider boom',
-      });
-      assertRoundTrip(model, (m) => m.toJson(), AgentErrorEvent.fromJson);
-      // The synthesized pre-stream failure carries its HTTP status out of
-      // band (includeIfNull: false keeps it off the wire shape).
-      const withStatus = AgentErrorEvent(
-        code: 'not_found',
-        message: 'gone',
-        statusCode: 404,
-      );
-      expect(withStatus.toJson()['status_code'], 404);
-      expect(jsonEncode(model.toJson()), isNot(contains('status_code')));
-    });
+    test(
+      'AgentErrorEvent round-trips code/message and omits a null status',
+      () {
+        final model = AgentErrorEvent.fromJson({
+          'code': 'llm_provider_error',
+          'message': 'provider boom',
+        });
+        assertRoundTrip(model, (m) => m.toJson(), AgentErrorEvent.fromJson);
+        // The synthesized pre-stream failure carries its HTTP status out of
+        // band (includeIfNull: false keeps it off the wire shape).
+        const withStatus = AgentErrorEvent(
+          code: 'not_found',
+          message: 'gone',
+          statusCode: 404,
+        );
+        expect(withStatus.toJson()['status_code'], 404);
+        expect(jsonEncode(model.toJson()), isNot(contains('status_code')));
+      },
+    );
+
+    test(
+      'AgentDraftEvent round-trips the flat wire payload (title nullable)',
+      () {
+        final model = AgentDraftEvent.fromJson({
+          'operation_id': 'aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d',
+          'state': 'completed',
+          'content': '---\ntitle: AI 续写\n---\n\n这是续写的正文。',
+          'title': null,
+        });
+        expect(model.operationId, 'aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d');
+        expect(model.state, 'completed');
+        expect(model.content, startsWith('---'));
+        expect(model.title, isNull);
+        assertRoundTrip(model, (m) => m.toJson(), AgentDraftEvent.fromJson);
+        final encoded = jsonEncode(model.toJson());
+        expect(encoded, contains('"operation_id"'));
+        expect(encoded, contains('"title":null'));
+      },
+    );
 
     test('agent events are a sealed hierarchy (exhaustive matching)', () {
       const List<AgentStreamEvent> events = [
@@ -635,22 +679,32 @@ void main() {
             latencyMs: 1,
           ),
         ),
+        AgentDraftEvent(
+          operationId: 'op',
+          state: 'completed',
+          content: 'c',
+          title: null,
+        ),
         AgentDoneEvent(),
         AgentErrorEvent(code: 'network_error', message: 'x'),
       ];
-      final names = events.map((e) => switch (e) {
-            AgentRunStarted() => 'run_started',
-            SummaryProgress() => 'summary_progress',
-            AgentSummaryEvent() => 'summary',
-            AgentAssociationsEvent() => 'associations',
-            AgentDoneEvent() => 'done',
-            AgentErrorEvent() => 'error',
-          });
+      final names = events.map(
+        (e) => switch (e) {
+          AgentRunStarted() => 'run_started',
+          SummaryProgress() => 'summary_progress',
+          AgentSummaryEvent() => 'summary',
+          AgentAssociationsEvent() => 'associations',
+          AgentDraftEvent() => 'draft',
+          AgentDoneEvent() => 'done',
+          AgentErrorEvent() => 'error',
+        },
+      );
       expect(names, [
         'run_started',
         'summary_progress',
         'summary',
         'associations',
+        'draft',
         'done',
         'error',
       ]);
@@ -665,7 +719,10 @@ void main() {
           'message': 'Request validation failed',
           'details': {
             'errors': [
-              {'loc': ['body', 'limit'], 'msg': 'ensure this value is less than or equal to 20'},
+              {
+                'loc': ['body', 'limit'],
+                'msg': 'ensure this value is less than or equal to 20',
+              },
             ],
           },
         },
@@ -676,10 +733,7 @@ void main() {
     });
 
     test('ApiError tolerates a missing details map', () {
-      final model = ApiError.fromJson({
-        'code': 'not_found',
-        'message': 'gone',
-      });
+      final model = ApiError.fromJson({'code': 'not_found', 'message': 'gone'});
       expect(model.details, isEmpty);
     });
   });

@@ -1,25 +1,67 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/network/agent_stream_client.dart';
 import '../../core/network/api_client.dart';
 import '../../shared/models/operation.dart';
 import '../documents/documents_providers.dart';
 import 'operations_repository.dart';
 
-/// Operations repository wired to the app-wide API client (rebuilt when the
-/// base URL changes); override this in tests (provider-guidelines spec).
+/// Operations repository wired to the app-wide API client + agent stream
+/// client (both rebuilt when the base URL changes; the stream client is the
+/// auth-wired one — the streamed draft would otherwise go out headerless,
+/// a 401 regression against the dio interceptor path); override this in
+/// tests (provider-guidelines spec).
 final operationsRepositoryProvider = Provider<OperationsRepository>(
-  (ref) => OperationsRepository(ref.watch(apiClientProvider)),
+  (ref) => OperationsRepository(
+    ref.watch(apiClientProvider),
+    agentStream: ref.watch(agentStreamClientProvider),
+  ),
 );
 
 /// Phase of the 「AI 续写」 writing workflow (the AI bubble's writing layer):
 /// - [idle] — instruction input, nothing in flight;
 /// - [generating] — a draft/resume call is running (spinner);
-/// - [review] — an operation is presented; which view renders is driven by
-///   [WritingState.operation]'s state (draft review / recoverable failure /
+/// - [review] — a draft is presented; which view renders is driven by
+///   [WritingState.current]'s state (draft review / recoverable failure /
 ///   applied confirmation);
 /// - [applying] — the apply call is running (actions disabled).
 enum WritingPhase { idle, generating, review, applying }
+
+/// The draft the writing layer currently presents — deliberately
+/// lightweight: the streamed draft result ([OperationDraftResult]) carries
+/// no timestamps, so the layer consumes exactly `operationId` (apply), the
+/// defensive [state] (view switch + resume gating), and the [draft]
+/// (review). History-opened operations and resume/apply responses map into
+/// the same shape from their full [OperationReadDetail]s.
+@immutable
+class CurrentDraft {
+  const CurrentDraft({
+    required this.operationId,
+    required this.state,
+    this.draft,
+  });
+
+  /// From a full detail (history item, resume/apply response) — every field
+  /// the lightweight shape needs is already there, nothing is synthesized.
+  factory CurrentDraft.fromOperation(OperationReadDetail operation) =>
+      CurrentDraft(
+        operationId: operation.id,
+        state: operation.state,
+        draft: operation.draft,
+      );
+
+  /// From a streamed draft run.
+  factory CurrentDraft.fromResult(OperationDraftResult result) => CurrentDraft(
+    operationId: result.operationId,
+    state: result.state,
+    draft: result.draft,
+  );
+
+  final String operationId;
+  final OperationState state;
+  final DraftContent? draft;
+}
 
 /// Immutable state of one document's writing workflow. [error] carries the
 /// raw failed action's exception (OnDemandState idiom — features never
@@ -28,7 +70,7 @@ enum WritingPhase { idle, generating, review, applying }
 @immutable
 class WritingState {
   const WritingState({
-    this.operation,
+    this.current,
     this.phase = WritingPhase.idle,
     this.error,
     this.history,
@@ -36,9 +78,9 @@ class WritingState {
     this.historyError,
   });
 
-  /// The operation the layer currently presents — the generated draft, the
-  /// opened history item, or the applied result. Null only while idle.
-  final OperationReadDetail? operation;
+  /// The draft the layer currently presents — the stream-generated draft,
+  /// the opened history item, or the applied result. Null only while idle.
+  final CurrentDraft? current;
 
   final WritingPhase phase;
 
@@ -64,7 +106,7 @@ class WritingState {
 }
 
 /// Writing-agent workflow for one document (「AI 续写」): instruction →
-/// synchronous draft → review → apply, with resume for interrupted/failed
+/// streamed draft → review → apply, with resume for interrupted/failed
 /// operations and an on-demand per-document history. Same guard idioms as
 /// `OnDemandGenerationNotifier` (documents_providers.dart) — build() fetches
 /// nothing (opening the bubble or the layer is a zero-call surface), an
@@ -100,52 +142,77 @@ class WritingNotifier extends Notifier<WritingState> {
     return const WritingState();
   }
 
-  /// 生成草稿 — runs the synchronous draft call. Also the landing action of
-  /// 重新生成： the layer keeps the previous instruction in its field and
-  /// sends it back through here. A tap while busy is a synchronous no-op.
+  /// 生成草稿 — runs the streamed draft call and folds it into the
+  /// lightweight current draft. Also the landing action of 重新生成： the
+  /// layer keeps the previous instruction in its field and sends it back
+  /// through here. A tap while busy is a synchronous no-op.
   Future<void> generate({String? instruction}) async {
     if (state.isBusy) return;
     final generation = _generation;
     final previousPhase = state.phase;
-    final operation = state.operation;
-    state = _write(operation: operation, phase: WritingPhase.generating);
+    final current = state.current;
+    state = _write(current: current, phase: WritingPhase.generating);
     try {
       final result = await _repository.draft(
         documentId: documentId,
         instruction: instruction,
       );
       if (_generation != generation) return;
-      state = _write(operation: result, phase: WritingPhase.review);
+      state = _write(
+        current: CurrentDraft.fromResult(result),
+        phase: WritingPhase.review,
+      );
     } catch (error) {
       if (_generation != generation) return;
       // Failure keeps the prior view (input, previous draft, or failure)
       // visible; the error renders as inline copy above working actions.
-      state = _write(operation: operation, phase: previousPhase, error: error);
+      state = _write(current: current, phase: previousPhase, error: error);
+      // The stream's terminal `error` carries no operation id — the failed
+      // operation is only reachable through the history. Auto-load it on
+      // first need, refresh an already-loaded list so the newest `failed`
+      // item shows up (its own slice/generation — guarded, never strands).
+      await _surfaceFailureInHistory();
     }
+  }
+
+  /// Failure recovery (issue #4): makes the newest failed operation visible
+  /// in the 历史操作 affordance so the user can tap it → openOperation →
+  /// 恢复. First failure auto-loads the never-loaded list (and retries a
+  /// previously failed load); an already-cached list is REFRESHED — a plain
+  /// `loadHistory` would render the stale cache without the new failure.
+  /// A no-op while a fetch is already in flight (the single-live-fetch
+  /// guard owns the slice; the landing fetch updates the cache).
+  Future<void> _surfaceFailureInHistory() {
+    if (state.historyLoading) return Future<void>.value();
+    if (state.history == null) return loadHistory();
+    return refreshHistory();
   }
 
   /// 恢复 — resumes the current interrupted/failed operation. Only those two
   /// states are resumable (anything else 409s server-side), so the guard
   /// keeps a doomed call from firing.
   Future<void> resumeCurrent() async {
-    final operation = state.operation;
-    if (operation == null || state.isBusy) return;
-    if (operation.state != OperationState.interrupted &&
-        operation.state != OperationState.failed) {
+    final current = state.current;
+    if (current == null || state.isBusy) return;
+    if (current.state != OperationState.interrupted &&
+        current.state != OperationState.failed) {
       return;
     }
     final generation = _generation;
-    state = _write(operation: operation, phase: WritingPhase.generating);
+    state = _write(current: current, phase: WritingPhase.generating);
     try {
-      final resumed = await _repository.resume(operation.id);
+      final resumed = await _repository.resume(current.operationId);
       if (_generation != generation) return;
-      state = _write(operation: resumed, phase: WritingPhase.review);
+      state = _write(
+        current: CurrentDraft.fromOperation(resumed),
+        phase: WritingPhase.review,
+      );
       await refreshHistory();
     } catch (error) {
       if (_generation != generation) return;
       // Back to the recoverable failure view, error surfaced inline.
       state = _write(
-        operation: operation,
+        current: current,
         phase: WritingPhase.review,
         error: error,
       );
@@ -157,12 +224,12 @@ class WritingNotifier extends Notifier<WritingState> {
   /// server's base-version check is the single staleness source): a stale
   /// base 409s with zero writes and the draft view stays visible.
   Future<void> applyCurrent() async {
-    final operation = state.operation;
-    if (operation == null || state.isBusy) return;
+    final current = state.current;
+    if (current == null || state.isBusy) return;
     final generation = _generation;
-    state = _write(operation: operation, phase: WritingPhase.applying);
+    state = _write(current: current, phase: WritingPhase.applying);
     try {
-      final result = await _repository.apply(operation.id);
+      final result = await _repository.apply(current.operationId);
       // The document has been mutated server-side (content/title/tags
       // overwritten, index_status → pending, updated_at bumped): invalidate
       // BEFORE any early-return so the detail body and the documents list
@@ -171,14 +238,17 @@ class WritingNotifier extends Notifier<WritingState> {
         ..invalidate(documentDetailProvider(documentId))
         ..invalidate(documentsProvider);
       if (_generation != generation) return;
-      state = _write(operation: result.operation, phase: WritingPhase.review);
+      state = _write(
+        current: CurrentDraft.fromOperation(result.operation),
+        phase: WritingPhase.review,
+      );
       await refreshHistory();
     } catch (error) {
       if (_generation != generation) return;
       // The draft stays reviewable (prior state kept); a 409 conflict maps
       // to the dedicated 重新生成 copy in the draft view.
       state = _write(
-        operation: operation,
+        current: current,
         phase: WritingPhase.review,
         error: error,
       );
@@ -190,7 +260,10 @@ class WritingNotifier extends Notifier<WritingState> {
   /// interrupted/failed → the recoverable failure view with 恢复.
   void openOperation(OperationReadDetail operation) {
     if (state.isBusy) return;
-    state = _write(operation: operation, phase: WritingPhase.review);
+    state = _write(
+      current: CurrentDraft.fromOperation(operation),
+      phase: WritingPhase.review,
+    );
   }
 
   /// 返回菜单 / 重新生成 — back to the idle input. The generation bump drops
@@ -233,7 +306,7 @@ class WritingNotifier extends Notifier<WritingState> {
     final historyGeneration = _historyGeneration;
     final start = state;
     state = WritingState(
-      operation: start.operation,
+      current: start.current,
       phase: start.phase,
       error: start.error,
       history: start.history,
@@ -244,7 +317,7 @@ class WritingNotifier extends Notifier<WritingState> {
       if (_historyGeneration != historyGeneration) return;
       final live = state;
       state = WritingState(
-        operation: live.operation,
+        current: live.current,
         phase: live.phase,
         error: live.error,
         history: items,
@@ -253,7 +326,7 @@ class WritingNotifier extends Notifier<WritingState> {
       if (_historyGeneration != historyGeneration) return;
       final live = state;
       state = WritingState(
-        operation: live.operation,
+        current: live.current,
         phase: live.phase,
         error: live.error,
         history: live.history,
@@ -266,13 +339,13 @@ class WritingNotifier extends Notifier<WritingState> {
   /// are live at write time — the workflow and the history fetch update
   /// disjoint slices of one state object and must not clobber each other.
   WritingState _write({
-    OperationReadDetail? operation,
+    CurrentDraft? current,
     required WritingPhase phase,
     Object? error,
   }) {
     final live = state;
     return WritingState(
-      operation: operation,
+      current: current,
       phase: phase,
       error: error,
       history: live.history,

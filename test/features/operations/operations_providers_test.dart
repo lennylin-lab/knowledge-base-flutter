@@ -6,6 +6,7 @@ import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/features/operations/operations_providers.dart';
+import 'package:knowledge_base_flutter/features/operations/operations_repository.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 import 'package:knowledge_base_flutter/shared/models/operation.dart';
 
@@ -41,14 +42,14 @@ void main() {
       'no fetch on build; generate calls once; in-flight taps no-op',
       () async {
         final (container, ops, _) = containerFor();
-        final pending = Completer<OperationReadDetail>();
+        final pending = Completer<OperationDraftResult>();
         ops.draftHandler = ({required documentId, instruction}) =>
             pending.future;
 
         // Building the provider state never touches the repository.
         final initial = container.read(writingProvider('doc-1'));
         expect(initial.phase, WritingPhase.idle);
-        expect(initial.operation, isNull);
+        expect(initial.current, isNull);
         expect(ops.draftCalls, isEmpty);
 
         final notifier = container.read(writingProvider('doc-1').notifier);
@@ -64,19 +65,20 @@ void main() {
         await notifier.generate(instruction: '另一条指示');
         expect(ops.draftCalls, hasLength(1));
 
-        pending.complete(completedDraftOperation());
+        pending.complete(completedDraftResult());
         await first;
 
         final done = container.read(writingProvider('doc-1'));
         expect(done.phase, WritingPhase.review);
-        expect(done.operation?.state, OperationState.completed);
-        expect(done.operation?.draft?.title, '星际旅行草稿');
+        expect(done.current?.state, OperationState.completed);
+        expect(done.current?.draft?.title, '星际旅行草稿');
         expect(done.error, isNull);
       },
     );
 
     test(
-      'failure restores the prior view and surfaces the raw error',
+      'failure restores the prior view, surfaces the raw error, and '
+      'auto-loads the history so the failed operation is reachable',
       () async {
         final (container, ops, _) = containerFor();
         ops.draftHandler = ({required documentId, instruction}) async {
@@ -86,22 +88,87 @@ void main() {
             statusCode: 503,
           );
         };
+        ops.operationsForDocumentHandler = (documentId) async => [
+          operationFixture(
+            id: 'op-f',
+            state: OperationState.failed,
+            error: {'error_class': 'LLMProviderError'},
+          ),
+        ];
         final notifier = container.read(writingProvider('doc-1').notifier);
 
         await notifier.generate();
 
         final failed = container.read(writingProvider('doc-1'));
         expect(failed.phase, WritingPhase.idle, reason: 'idle input stays up');
-        expect(failed.operation, isNull);
+        expect(failed.current, isNull);
         final error = failed.error;
         expect(error, isA<ApiException>());
         expect((error as ApiException).code, 'chat_unavailable');
+        // The stream error carries no operation id — the history slice was
+        // auto-loaded so the newest failed operation is visible/openable.
+        expect(ops.operationsForDocumentCalls, ['doc-1']);
+        expect(failed.history?.single.id, 'op-f');
+        expect(failed.history?.single.state, OperationState.failed);
       },
     );
 
+    test('an already-loaded history is REFRESHED (not served stale) after a '
+        'draft failure, and the failed op opens into 恢复', () async {
+      final (container, ops, _) = containerFor();
+      var failed = false;
+      ops.draftHandler = ({required documentId, instruction}) async {
+        if (failed) {
+          throw const ApiException(
+            code: 'llm_provider_error',
+            message: 'provider exploded',
+          );
+        }
+        return completedDraftResult();
+      };
+      ops.operationsForDocumentHandler = (documentId) async => failed
+          ? [
+              operationFixture(
+                id: 'op-fail',
+                state: OperationState.failed,
+                error: {'error_class': 'LLMProviderError'},
+              ),
+            ]
+          : [completedDraftOperation(id: 'op-ok')];
+      ops.resumeHandler = (operationId) async =>
+          completedDraftOperation(id: operationId);
+      final notifier = container.read(writingProvider('doc-1').notifier);
+
+      // First success + cached history (as after a previous open).
+      await notifier.generate();
+      await notifier.loadHistory();
+      expect(ops.operationsForDocumentCalls, ['doc-1']);
+      expect(
+        container.read(writingProvider('doc-1')).history?.single.id,
+        'op-ok',
+      );
+
+      // The retry fails mid-stream: the cached list must be re-fetched…
+      failed = true;
+      await notifier.generate(instruction: '再试一次');
+      expect(ops.operationsForDocumentCalls, hasLength(2));
+      final refreshed = container.read(writingProvider('doc-1'));
+      expect(refreshed.history?.single.id, 'op-fail');
+      expect(refreshed.history?.single.state, OperationState.failed);
+
+      // …tap → openOperation → 恢复 works end-to-end.
+      notifier.openOperation(refreshed.history!.single);
+      await notifier.resumeCurrent();
+      expect(ops.resumeCalls, ['op-fail']);
+      final recovered = container.read(writingProvider('doc-1'));
+      expect(recovered.phase, WritingPhase.review);
+      expect(recovered.current?.state, OperationState.completed);
+      expect(recovered.current?.operationId, 'op-fail');
+    });
+
     test('a superseded generation must not write stale state', () async {
       final (container, ops, _) = containerFor();
-      final pending = Completer<OperationReadDetail>();
+      final pending = Completer<OperationDraftResult>();
       ops.draftHandler = ({required documentId, instruction}) => pending.future;
       final notifier = container.read(writingProvider('doc-1').notifier);
 
@@ -113,12 +180,12 @@ void main() {
       await container.pump();
       expect(container.read(writingProvider('doc-1')).phase, WritingPhase.idle);
 
-      pending.complete(completedDraftOperation());
+      pending.complete(completedDraftResult());
       await stale;
 
       final state = container.read(writingProvider('doc-1'));
       expect(state.phase, WritingPhase.idle);
-      expect(state.operation, isNull);
+      expect(state.current, isNull);
       expect(state.error, isNull);
     });
 
@@ -126,7 +193,7 @@ void main() {
       'clearCurrent drops an in-flight generate (late result never lands)',
       () async {
         final (container, ops, _) = containerFor();
-        final pending = Completer<OperationReadDetail>();
+        final pending = Completer<OperationDraftResult>();
         ops.draftHandler = ({required documentId, instruction}) =>
             pending.future;
         final notifier = container.read(writingProvider('doc-1').notifier);
@@ -140,12 +207,12 @@ void main() {
         );
 
         // The superseded result resolves late — it must not resurrect the view.
-        pending.complete(completedDraftOperation());
+        pending.complete(completedDraftResult());
         await run;
 
         final state = container.read(writingProvider('doc-1'));
         expect(state.phase, WritingPhase.idle);
-        expect(state.operation, isNull);
+        expect(state.current, isNull);
       },
     );
   });
@@ -175,7 +242,8 @@ void main() {
         expect(ops.resumeCalls, ['op-f']);
         final resumed = container.read(writingProvider('doc-1'));
         expect(resumed.phase, WritingPhase.review);
-        expect(resumed.operation?.state, OperationState.completed);
+        expect(resumed.current?.state, OperationState.completed);
+        expect(resumed.current?.operationId, 'op-f');
         expect(resumed.error, isNull);
       },
     );
@@ -207,7 +275,7 @@ void main() {
 
       expect(ops.resumeCalls, ['op-i']);
       expect(
-        container.read(writingProvider('doc-1')).operation?.state,
+        container.read(writingProvider('doc-1')).current?.state,
         OperationState.completed,
       );
     });
@@ -223,7 +291,7 @@ void main() {
           documentReadDetail(documentRead(id: id), content: '正文$id');
       final (container, ops, _) = containerFor(documents: docs);
       ops.draftHandler = ({required documentId, instruction}) async =>
-          completedDraftOperation();
+          completedDraftResult();
       ops.applyHandler = (operationId) async =>
           applyResultFor(completedDraftOperation(id: operationId));
 
@@ -240,12 +308,13 @@ void main() {
       await notifier.generate();
       await notifier.applyCurrent();
 
-      // The applied operation (state applied + revision id) is the new
-      // presentation; the workflow is reviewable again.
+      // The applied draft (state applied) is the new presentation — the
+      // lightweight shape carries the operation id, not the revision; the
+      // workflow is reviewable again.
       final applied = container.read(writingProvider('doc-1'));
       expect(applied.phase, WritingPhase.review);
-      expect(applied.operation?.state, OperationState.applied);
-      expect(applied.operation?.revisionId, 'rev-1');
+      expect(applied.current?.state, OperationState.applied);
+      expect(applied.current?.operationId, 'op-1');
 
       // Both caches invalidated: detail + list refetch.
       await container.read(documentDetailProvider('doc-1').future);
@@ -258,7 +327,7 @@ void main() {
         'draft state + surfaces the conflict code', () async {
       final (container, ops, _) = containerFor();
       ops.draftHandler = ({required documentId, instruction}) async =>
-          completedDraftOperation();
+          completedDraftResult();
       ops.applyHandler = (operationId) async {
         throw const ApiException(
           code: 'conflict',
@@ -282,7 +351,7 @@ void main() {
       final conflicted = container.read(writingProvider('doc-1'));
       // Prior state kept: the draft stays reviewable with the error set.
       expect(conflicted.phase, WritingPhase.review);
-      expect(conflicted.operation?.state, OperationState.completed);
+      expect(conflicted.current?.state, OperationState.completed);
       final error = conflicted.error;
       expect(error, isA<ApiException>());
       expect((error as ApiException).code, 'conflict');
@@ -292,7 +361,7 @@ void main() {
       notifier.clearCurrent();
       final cleared = container.read(writingProvider('doc-1'));
       expect(cleared.phase, WritingPhase.idle);
-      expect(cleared.operation, isNull);
+      expect(cleared.current, isNull);
       expect(cleared.error, isNull);
     });
 
@@ -307,7 +376,7 @@ void main() {
         final (container, ops, _) = containerFor(documents: docs);
         final pending = Completer<ApplyResult>();
         ops.draftHandler = ({required documentId, instruction}) async =>
-            completedDraftOperation();
+            completedDraftResult();
         ops.applyHandler = (operationId) => pending.future;
 
         container.listen(documentsProvider, (_, _) {});
@@ -334,7 +403,7 @@ void main() {
         // mutated server-side — the invalidations must still have fired.
         final state = container.read(writingProvider('doc-1'));
         expect(state.phase, WritingPhase.idle);
-        expect(state.operation, isNull);
+        expect(state.current, isNull);
         await container.read(documentDetailProvider('doc-1').future);
         await container.read(documentsProvider.future);
         expect(docs.getCalls, ['doc-1', 'doc-1']);
@@ -440,7 +509,8 @@ void main() {
 
       final state = container.read(writingProvider('doc-1'));
       expect(state.phase, WritingPhase.review);
-      expect(state.operation?.id, 'op-h');
+      expect(state.current?.operationId, 'op-h');
+      expect(state.current?.state, OperationState.completed);
       expect(
         ops.operationCalls,
         isEmpty,
@@ -452,7 +522,7 @@ void main() {
         'the fetch lands without clobbering newer workflow state', () async {
       final (container, ops, _) = containerFor();
       final historyPending = Completer<List<OperationReadDetail>>();
-      final draftPending = Completer<OperationReadDetail>();
+      final draftPending = Completer<OperationDraftResult>();
       ops.operationsForDocumentHandler = (documentId) => historyPending.future;
       ops.draftHandler = ({required documentId, instruction}) =>
           draftPending.future;
@@ -480,7 +550,7 @@ void main() {
         container.read(writingProvider('doc-1')).phase,
         WritingPhase.generating,
       );
-      draftPending.complete(completedDraftOperation());
+      draftPending.complete(completedDraftResult());
       await run;
       expect(
         container.read(writingProvider('doc-1')).phase,
@@ -496,7 +566,7 @@ void main() {
       expect(landed.historyLoading, isFalse);
       expect(landed.history?.single.id, 'op-h');
       expect(landed.phase, WritingPhase.review);
-      expect(landed.operation?.id, 'op-1');
+      expect(landed.current?.operationId, 'op-1');
 
       // Cached again: a later open does not refetch.
       await notifier.loadHistory();

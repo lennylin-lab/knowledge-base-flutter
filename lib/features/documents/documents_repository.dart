@@ -10,8 +10,8 @@ import '../../shared/models/document.dart';
 /// normalized to [ApiException] via [toApiException] — features never parse
 /// the error envelope themselves. The two synchronous LLM sub-endpoints
 /// (`summary` / `associations`) stream `text/event-stream` and are consumed
-/// through the shared [AgentStreamClient] (web-safe transport, one frame
-/// parser); they still resolve to the same typed results as before.
+/// through the shared [AgentStreamClient.fold] (web-safe transport, one
+/// frame parser); they still resolve to the same typed results as before.
 class DocumentsRepository {
   DocumentsRepository(this._client, {AgentStreamClient? agentStream})
     : _agentStream = agentStream ?? AgentStreamClient(baseUrl: _client.baseUrl);
@@ -123,7 +123,7 @@ class DocumentsRepository {
     String id, {
     void Function(SummaryProgress progress)? onProgress,
   }) {
-    return _runAgentStream(
+    return _agentStream.fold(
       Uri.parse('${_client.baseUrl}$_basePath/$id/summary'),
       onProgress: onProgress,
       extract: (event) => event is AgentSummaryEvent ? event.result : null,
@@ -140,42 +140,10 @@ class DocumentsRepository {
     String id, {
     void Function(SummaryProgress progress)? onProgress,
   }) {
-    return _runAgentStream(
+    return _agentStream.fold(
       Uri.parse('${_client.baseUrl}$_basePath/$id/associations'),
       onProgress: onProgress,
       extract: (event) => event is AgentAssociationsEvent ? event.result : null,
     );
-  }
-
-  /// Opens one agent stream and folds its events into a single result.
-  /// [extract] unwraps the expected result event's payload (null for the
-  /// other kind — a server mix-up is treated like a missing result).
-  /// Terminal `error` events throw with their wire `code`/`message`; a
-  /// stream that ends without a result is a `network_error` (the
-  /// [AgentStreamClient] already normalizes transport drops to error
-  /// events, so this backstop means "ended silently, no payload").
-  Future<T> _runAgentStream<T>(
-    Uri uri, {
-    required T? Function(AgentStreamEvent event) extract,
-    void Function(SummaryProgress progress)? onProgress,
-  }) async {
-    await for (final event in _agentStream.run(uri)) {
-      switch (event) {
-        case AgentRunStarted() || AgentDoneEvent():
-          break; // stream lifecycle only — nothing to render, nothing to keep
-        case final SummaryProgress progress:
-          onProgress?.call(progress);
-        case AgentErrorEvent(:final code, :final message, :final statusCode):
-          throw ApiException(
-            code: code,
-            message: message,
-            statusCode: statusCode,
-          );
-        case AgentSummaryEvent() || AgentAssociationsEvent():
-          final result = extract(event);
-          if (result != null) return result;
-      }
-    }
-    throw const ApiException(code: 'network_error', message: '网络连接中断，请重试');
   }
 }
