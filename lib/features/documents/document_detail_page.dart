@@ -9,7 +9,9 @@ import '../../shared/utils/markdown_front_matter.dart';
 import '../../shared/widgets/expandable_tag_wrap.dart';
 import '../../shared/widgets/index_status_chip.dart';
 import '../../shared/widgets/markdown_content.dart';
+import '../operations/operations_providers.dart';
 import 'document_ai_bubble.dart';
+import 'document_ai_writing_layer.dart';
 import 'documents_providers.dart';
 
 /// 文档详情页: renders Markdown body (front matter stripped) with edit / delete.
@@ -404,6 +406,13 @@ class AiAssistantFab extends ConsumerStatefulWidget {
 class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
   final Object _heroTag = UniqueKey();
 
+  /// TapRegion group shared by the bubble and the writing layer's confirm
+  /// dialog: taps on the dialog's buttons sit **inside** the group, so
+  /// confirming 应用 does not register as a tap outside the entry (which
+  /// would dismiss the bubble right when its applying/success/409 view
+  /// becomes the relevant surface). The barrier still counts as outside.
+  final Object _tapGroupId = Object();
+
   /// Single source of truth for the current layer; the fab repaints on its
   /// changes — including when the page's PopScope resets it to menu.
   late ValueNotifier<AiBubbleLayer> _layerNav;
@@ -537,7 +546,9 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
 
   /// Menu entry click = explicit intent: switch to the content layer and
   /// generate exactly once when uncached and idle (tap callback, never in
-  /// build; the provider state keeps the single-call contract).
+  /// build; the provider state keeps the single-call contract). 「AI 续写」
+  /// needs no trigger here — its layer is a zero-call surface until the
+  /// user presses 生成草稿 / opens the history affordance.
   void _selectLayer(AiBubbleLayer layer) {
     _layerNav.value = layer;
     if (layer == AiBubbleLayer.summary) {
@@ -574,13 +585,15 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
   @override
   Widget build(BuildContext context) {
     final sizes = context.sizes;
-    // Keep both on-demand providers alive while the detail surface is open
-    // (watched even at the menu layer, which renders no content): layer
-    // switches then reuse the cache without re-billing. build() of the
-    // notifiers fetches nothing, so this stays a zero-call surface.
+    // Keep all three on-demand providers alive while the detail surface is
+    // open (watched even at the menu layer, which renders no content):
+    // layer switches then reuse the cache without re-billing. build() of
+    // the notifiers fetches nothing, so this stays a zero-call surface.
     ref.watch(documentSummaryProvider(widget.documentId));
     ref.watch(documentAssociationsProvider(widget.documentId));
+    ref.watch(writingProvider(widget.documentId));
     return TapRegion(
+      groupId: _tapGroupId,
       onTapOutside: (_) => _close(),
       child: MouseRegion(
         onEnter: (_) => _openByHover(),
@@ -620,12 +633,15 @@ class _AiAssistantFabState extends ConsumerState<AiAssistantFab> {
                       child: _AiBubbleCard(
                         documentId: widget.documentId,
                         layer: _layerNav.value,
+                        tapGroupId: _tapGroupId,
                         onDismiss: _close,
                         onBackToMenu: _backToMenu,
                         onSelectSummary: () =>
                             _selectLayer(AiBubbleLayer.summary),
                         onSelectAssociations: () =>
                             _selectLayer(AiBubbleLayer.associations),
+                        onSelectWriting: () =>
+                            _selectLayer(AiBubbleLayer.writing),
                         onOpenDocument: _openDocument,
                       ),
                     ),
@@ -658,20 +674,27 @@ class _AiBubbleCard extends StatelessWidget {
   const _AiBubbleCard({
     required this.documentId,
     required this.layer,
+    required this.tapGroupId,
     required this.onDismiss,
     required this.onBackToMenu,
     required this.onSelectSummary,
     required this.onSelectAssociations,
+    required this.onSelectWriting,
     required this.onOpenDocument,
   });
 
   final String documentId;
   final AiBubbleLayer layer;
 
+  /// See [AiAssistantFab]'s TapRegion group: the writing layer's confirm
+  /// dialog joins this group so its buttons do not dismiss the bubble.
+  final Object tapGroupId;
+
   final VoidCallback onDismiss;
   final VoidCallback onBackToMenu;
   final VoidCallback onSelectSummary;
   final VoidCallback onSelectAssociations;
+  final VoidCallback onSelectWriting;
   final ValueChanged<String> onOpenDocument;
 
   @override
@@ -743,8 +766,23 @@ class _AiBubbleCard extends StatelessWidget {
                 description: '查找与本文相关的文档',
                 onTap: onSelectAssociations,
               ),
+              _AiBubbleEntry(
+                icon: Icons.edit_note_outlined,
+                label: AiBubbleLayer.writing.title,
+                description: '按指示生成草稿，可应用到文档',
+                onTap: onSelectWriting,
+              ),
               SizedBox(height: sizes.space4),
-            ] else
+            ] else if (layer == AiBubbleLayer.writing)
+              Flexible(
+                child: WritingContentLayer(
+                  documentId: documentId,
+                  tapGroupId: tapGroupId,
+                  onDismiss: onDismiss,
+                  onBackToMenu: onBackToMenu,
+                ),
+              )
+            else
               Flexible(
                 child: AiBubbleContentLayer(
                   documentId: documentId,

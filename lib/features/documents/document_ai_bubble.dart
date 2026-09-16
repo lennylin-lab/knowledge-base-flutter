@@ -13,12 +13,12 @@ import 'documents_providers.dart';
 /// content): all AI content renders **inside the bubble** with two in-widget
 /// layers (menu ↔ content) — there are no AI routes any more.
 
-/// The two-layer in-widget navigation of the AI bubble: the default
+/// The in-widget layer navigation of the AI bubble: the default
 /// 「AI 助手」 menu, or one function's content layer (opened by clicking the
 /// matching menu entry; back returns to the menu). The layer survives
 /// bubble dismissal (keep-alive) — only the 返回 affordance and a document
 /// switch reset it to [menu].
-enum AiBubbleLayer { menu, summary, associations }
+enum AiBubbleLayer { menu, summary, associations, writing }
 
 /// Header copy of each layer — the menu title and the content-layer
 /// function titles (also the menu entry labels).
@@ -27,6 +27,7 @@ extension AiBubbleLayerTitle on AiBubbleLayer {
     AiBubbleLayer.menu => 'AI 助手',
     AiBubbleLayer.summary => 'AI 摘要',
     AiBubbleLayer.associations => '相关文档',
+    AiBubbleLayer.writing => 'AI 续写',
   };
 }
 
@@ -48,7 +49,9 @@ String _summaryProgressLabel(SummaryProgress? progress) =>
 /// bubble scrolls internally.
 ///
 /// Navigation stays with the owner: opening a related document goes through
-/// [onOpenDocument] (which also dismisses the bubble).
+/// [onOpenDocument] (which also dismisses the bubble). The 「AI 续写」 layer
+/// is hosted separately by [WritingContentLayer] (document_ai_writing_layer.
+/// dart) — this widget requires a summary/associations layer.
 class AiBubbleContentLayer extends ConsumerWidget {
   const AiBubbleContentLayer({
     super.key,
@@ -83,6 +86,7 @@ class AiBubbleContentLayer extends ConsumerWidget {
           ref.watch(documentAssociationsProvider(documentId)),
         );
       case AiBubbleLayer.menu:
+      case AiBubbleLayer.writing:
         throw StateError('AiBubbleContentLayer requires a content layer');
     }
     return SingleChildScrollView(
@@ -112,7 +116,7 @@ class AiBubbleContentLayer extends ConsumerWidget {
       if (state.isGenerating) ...[
         // Live streamed progress line (map/reduce copy) once the first
         // summary_progress event arrived; the generic hint before that.
-        _GenerationProgressRow(_summaryProgressLabel(state.progress)),
+        GenerationProgressRow(_summaryProgressLabel(state.progress)),
         SizedBox(height: sizes.space4),
         Text(
           '同步生成可能需要数秒',
@@ -165,7 +169,7 @@ class AiBubbleContentLayer extends ConsumerWidget {
     final result = state.result;
     return [
       if (state.isGenerating) ...[
-        const _GenerationProgressRow('正在生成关联…'),
+        const GenerationProgressRow('正在生成关联…'),
         SizedBox(height: sizes.space4),
         Text(
           '同步生成可能需要数秒',
@@ -203,9 +207,11 @@ class AiBubbleContentLayer extends ConsumerWidget {
   }
 }
 
-/// In-flight row: small spinner + progress copy.
-class _GenerationProgressRow extends StatelessWidget {
-  const _GenerationProgressRow(this.label);
+/// In-flight row: small spinner + progress copy (shared by the summary /
+/// associations layers here and the writing layer in
+/// document_ai_writing_layer.dart).
+class GenerationProgressRow extends StatelessWidget {
+  const GenerationProgressRow(this.label, {super.key});
 
   final String label;
 
