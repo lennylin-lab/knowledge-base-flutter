@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MissingPluginException, PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/oidc_config.dart';
@@ -145,9 +146,25 @@ class AuthController extends Notifier<AuthState> {
       state = const AuthState(errorMessage: '无法打开浏览器，请重试');
     } on ApiException catch (e) {
       state = AuthState(errorMessage: e.message);
-    } catch (_) {
-      state = const AuthState(errorMessage: '无法完成登录，请重试');
+    } catch (e, s) {
+      // Never swallow the cause silently: short hint in the UI, full
+      // detail in the console (browser devtools / flutter run log).
+      debugPrint('signIn failed: $e\n$s');
+      state = AuthState(errorMessage: '无法完成登录（${_errorHint(e)}），请重试');
     }
+  }
+
+  /// Short Chinese hint for unexpected sign-in failures — the UI shows
+  /// this; the full stack goes to the console via [debugPrint].
+  static String _errorHint(Object error) {
+    if (error is MissingPluginException) {
+      return '登录组件未注册，请执行 flutter pub get 后重启应用';
+    }
+    if (error is PlatformException) {
+      return '平台异常 ${error.code}: ${error.message ?? ''}';
+    }
+    final text = error.toString().split('\n').first;
+    return '${error.runtimeType}: $text';
   }
 
   /// Completes the web redirect flow on `/auth/callback`. Returns the

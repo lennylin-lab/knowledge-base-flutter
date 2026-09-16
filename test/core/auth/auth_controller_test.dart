@@ -62,10 +62,13 @@ class FakeOidcClient implements OidcClient {
 
   Object? exchangeError;
   Object? refreshError;
+  Object? discoverError;
 
   @override
   Future<OidcEndpoints> discover(Uri issuer) async {
     discoverCalls.add(issuer);
+    final error = discoverError;
+    if (error != null) throw error;
     return endpoints;
   }
 
@@ -346,6 +349,19 @@ void main() {
       ),
     );
     expect(h.state.isSignedIn, isFalse);
+  });
+
+  test('unexpected sign-in errors surface their cause in the message',
+      () async {
+    final h = _Harness();
+    h.oidc.discoverError = const FormatException('boom');
+    await h.controller.signIn();
+
+    expect(h.state.isSignedIn, isFalse);
+    expect(h.state.errorMessage, contains('无法完成登录'));
+    expect(h.state.errorMessage, contains('FormatException'));
+    expect(h.state.errorMessage, contains('boom'),
+        reason: 'the generic catch must not swallow the cause silently');
   });
 
   test('compat mode: signIn is a no-op even if invoked', () async {

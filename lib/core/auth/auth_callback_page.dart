@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -51,9 +52,20 @@ class _AuthCallbackPageState extends ConsumerState<AuthCallbackPage> {
       if (mounted) context.go(returnTo);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
-    } catch (_) {
-      if (mounted) setState(() => _errorMessage = '登录未完成，请重新登录');
+    } catch (e) {
+      // Surface the cause — a bare message here cost us a misdiagnosed
+      // sign-in failure once (the exchange never even started).
+      debugPrint('auth callback failed: $e');
+      if (mounted) setState(() => _errorMessage = '登录未完成（${_errorHint(e)}），请重新登录');
     }
+  }
+
+  static String _errorHint(Object error) {
+    if (error is MissingPluginException) {
+      return '登录组件未注册，请执行 flutter pub get 后重启应用';
+    }
+    final text = error.toString().split('\n').first;
+    return '${error.runtimeType}: $text';
   }
 
   @override
