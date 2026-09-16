@@ -506,3 +506,26 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: operations API 层对齐
+<!-- trellis-session: v=2 fp=5279d6c1bbef4ca9 -->
+
+**Date**: 2026-09-16
+**Task**: operations API 层对齐
+**Branch**: `main`
+
+### Summary
+
+对齐服务端 /api/v1/operations 六端点（核实全部为同步 JSON，draft 非 SSE）：新 operations 特性目录（repository + provider），create(201 幂等)/draft(query 传参无 body)/get/list(cap 50)/resume(仅 interrupted|failed，无 body 或 draft 修订)/apply(无 body 或 expected_base_document_version)。DTO 覆盖全生命周期：OperationState 未知值防御为 failed，时间戳/base_document_version 保持 String 原样透传（服务端乐观并发精确比较），OperationTransition/ApplyRequest includeIfNull 省略未设键。409/404/503/502 经 toApiException 保留 code+details。新增 16 契约测试 + 13 往返测试，analyze 干净、359 测试全绿；check PASS。气泡「AI 续写」UI 为后续任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7bdc7e6` | feat(operations): align client API layer with the server operations endpoints |
+| `d3e59af` | docs(spec): record operations DTO mapping conventions |
+
+### Status
+
+[OK] **Completed**

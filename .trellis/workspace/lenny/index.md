@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 22
+- **Total Sessions**: 23
 - **Last Active**: 2026-09-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~508 | Active |
+| `journal-1.md` | ~531 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 23 | 2026-09-16 | operations API 层对齐 | `7bdc7e6`, `d3e59af` | `main` |
 | 22 | 2026-09-16 | Keycloak OIDC 登录对接（issue #2） | `c80b726` | `main` |
 | 20 | 2026-09-15 | 气泡收起保留层状态 | `8bdfb13`, `e684994` | `main` |
 | 19 | 2026-09-15 | 摘要结果 Markdown 渲染 | `d76dd4a`, `ee632cc` | `main` |
