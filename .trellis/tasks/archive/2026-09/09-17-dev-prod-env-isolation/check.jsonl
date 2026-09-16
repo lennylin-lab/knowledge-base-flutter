@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "checklist gate: flutter analyze zero errors, flutter test green, no hardcoded URLs"}
+{"file": ".trellis/tasks/09-17-dev-prod-env-isolation/prd.md", "reason": "acceptance criteria to verify one by one"}
