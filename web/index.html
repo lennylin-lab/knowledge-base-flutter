@@ -31,7 +31,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png"/>
 
   <title>知识库</title>
-  <meta name="theme-color" content="#FFFFFF">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171a22">
   <link rel="manifest" href="manifest.json">
 
   <!-- In-page loading screen: the browser chrome's own progress bar is not
@@ -39,10 +40,14 @@
        the native one sits, logo + wordmark on white, fading out on boot. -->
   <style>
     #splash {
+      /* Tracks the system theme: Material-style light surface, blue-tinted
+         dark surface, so the hand-off to the app is seamless in both. */
+      --splash-bg: #ffffff;
+      --splash-fg: #333333;
       position: fixed;
       inset: 0;
       z-index: 10;
-      background: #ffffff;
+      background: var(--splash-bg);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -53,15 +58,22 @@
     #splash.hide {
       opacity: 0;
     }
-    #splash img {
+    .splash-mark {
       width: 96px;
       height: 96px;
+      color: var(--splash-fg);
     }
     #splash .wordmark {
       font-family: system-ui, -apple-system, sans-serif;
       font-size: 20px;
-      color: #333333;
+      color: var(--splash-fg);
       letter-spacing: 2px;
+    }
+    @media (prefers-color-scheme: dark) {
+      #splash {
+        --splash-bg: #171a22;
+        --splash-fg: #e2e4ee;
+      }
     }
     #splash-bar {
       position: fixed;
@@ -82,7 +94,7 @@
 <body>
   <div id="splash">
     <div id="splash-bar"></div>
-    <img src="favicon.svg" alt="">
+    <svg class="splash-mark" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M785.066667 913.066667H320.853333c-37.546667 0-68.266667-30.72-68.266666-68.266667V513.706667c0-37.546667 30.72-68.266667 68.266666-68.266667H785.066667c37.546667 0 68.266667 30.72 68.266666 68.266667v331.093333c0 37.546667-30.72 68.266667-68.266666 68.266667z" fill="currentColor" opacity=".3"></path><path d="M783.36 945.493333H240.64c-51.2 0-93.866667-42.666667-93.866667-93.866666V445.44c0-51.2 42.666667-93.866667 93.866667-93.866667h542.72c51.2 0 93.866667 42.666667 93.866667 93.866667v406.186667c0 51.2-42.666667 93.866667-93.866667 93.866666zM240.64 402.773333c-23.893333 0-42.666667 18.773333-42.666667 42.666667v406.186667c0 23.893333 18.773333 42.666667 42.666667 42.666666h542.72c23.893333 0 42.666667-18.773333 42.666667-42.666666V445.44c0-23.893333-18.773333-42.666667-42.666667-42.666667H240.64z" fill="currentColor"></path><path d="M353.28 558.08m-46.08 0a46.08 46.08 0 1 0 92.16 0 46.08 46.08 0 1 0-92.16 0Z" fill="currentColor"></path><path d="M670.72 558.08m-46.08 0a46.08 46.08 0 1 0 92.16 0 46.08 46.08 0 1 0-92.16 0Z" fill="currentColor"></path><path d="M421.546667 692.906667c-25.6 0-46.08 20.48-46.08 46.08s20.48 46.08 46.08 46.08v-92.16z m180.906666 90.453333c25.6 0 46.08-20.48 46.08-46.08s-20.48-46.08-46.08-46.08v92.16z m-180.906666 0h180.906666v-90.453333H421.546667v90.453333zM512 402.773333c-13.653333 0-25.6-11.946667-25.6-25.6V194.56c0-13.653333 11.946667-25.6 25.6-25.6s25.6 11.946667 25.6 25.6V375.466667c0 15.36-11.946667 27.306667-25.6 27.306666zM59.733333 762.88c-13.653333 0-25.6-11.946667-25.6-25.6V558.08c0-13.653333 11.946667-25.6 25.6-25.6s25.6 10.24 25.6 25.6v180.906667c0 13.653333-11.946667 23.893333-25.6 23.893333zM964.266667 762.88c-13.653333 0-25.6-11.946667-25.6-25.6V558.08c0-13.653333 11.946667-25.6 25.6-25.6s25.6 11.946667 25.6 25.6v180.906667c0 13.653333-11.946667 23.893333-25.6 23.893333z" fill="currentColor"></path><path d="M512 220.16c-39.253333 0-69.973333-32.426667-69.973333-69.973333s32.426667-71.68 69.973333-71.68 69.973333 32.426667 69.973333 71.68-30.72 69.973333-69.973333 69.973333z m0-88.746667c-10.24 0-18.773333 8.533333-18.773333 20.48 0 10.24 8.533333 18.773333 18.773333 18.773334s18.773333-8.533333 18.773333-18.773334c0-11.946667-8.533333-20.48-18.773333-20.48z" fill="currentColor"></path></svg>
     <div class="wordmark">知识库</div>
   </div>
 
