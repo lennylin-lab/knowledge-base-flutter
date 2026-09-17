@@ -36,6 +36,7 @@ class AppSizes extends ThemeExtension<AppSizes> {
   double get iconMd => 20 * scale;
   double get iconLg => 24 * scale;
   double get iconHero => 48 * scale;
+  double get iconHeroLg => 96 * scale;
 
   // Component metrics.
   double get chipBarHeight => 56 * scale;
