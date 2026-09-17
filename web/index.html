@@ -40,8 +40,11 @@
        the native one sits, logo + wordmark on white, fading out on boot. -->
   <style>
     #splash {
-      /* Tracks the system theme: Material-style light surface, blue-tinted
-         dark surface, so the hand-off to the app is seamless in both. */
+      /* Tracks the app theme: the persisted choice wins (set as
+         data-theme-mode on <html> by the early script below), the OS
+         scheme is the fallback. Light = Material light surface, dark =
+         blue-tinted dark surface, so the hand-off to the app is seamless
+         in both. */
       --splash-bg: #ffffff;
       --splash-fg: #333333;
       position: fixed;
@@ -70,10 +73,16 @@
       letter-spacing: 2px;
     }
     @media (prefers-color-scheme: dark) {
-      #splash {
+      html:not([data-theme-mode='light']) #splash {
         --splash-bg: #171a22;
         --splash-fg: #e2e4ee;
       }
+    }
+    /* Explicit in-app pick overrides the OS scheme (equal specificity with
+       the media rule above, so source order — after it — decides). */
+    html[data-theme-mode='dark'] #splash {
+      --splash-bg: #171a22;
+      --splash-fg: #e2e4ee;
     }
     #splash-bar {
       position: fixed;
@@ -90,6 +99,25 @@
       100% { transform: translateX(350%); }
     }
   </style>
+  <script>
+    // First-screen theme: honor the app's persisted choice before the
+    // splash paints. shared_preferences (web) keeps the Flutter side at
+    // localStorage 'flutter.theme.mode' as a JSON string ('"dark"'); the
+    // OS scheme stays in charge when the user never picked one. Runs from
+    // <head>, so the attribute lands on <html> pre-paint — no flash.
+    (function () {
+      var stored = localStorage.getItem('flutter.theme.mode');
+      if (!stored) return;
+      stored = stored.replace(/^"|"$/g, '');
+      if (stored !== 'dark' && stored !== 'light') return;
+      document.documentElement.setAttribute('data-theme-mode', stored);
+      var surface = stored === 'dark' ? '#171a22' : '#ffffff';
+      var metas = document.querySelectorAll('meta[name="theme-color"]');
+      for (var i = 0; i < metas.length; i++) {
+        metas[i].setAttribute('content', surface);
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="splash">
