@@ -19,7 +19,9 @@ class AppLogo extends StatelessWidget {
       child: CustomPaint(
         size: Size.square(size),
         painter: _AppLogoPainter(
-          color: color ?? Theme.of(context).colorScheme.primary,
+          // onSurface keeps the same neutral line-art color as the web
+          // splash's themed mark — not the blue accent.
+          color: color ?? Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
