@@ -47,6 +47,27 @@ adaptive_density xhdpi 216
 adaptive_density xxhdpi 324
 adaptive_density xxxhdpi 432
 
+# Android 12+ system splash icon: the bare glyph (no fill), sized for the
+# icon area's ~2/3 safe circle. Day keeps the #333 stroke; night gets a
+# light stroke over the theme-following dark background.
+splash_density() { # density size
+  local g=$(( $2 * 66 / 100 ))
+  local night="android/app/src/main/res/drawable-night-$1"
+  mkdir -p "$night"
+  rsvg-convert -w $g -h $g "$SVG" -o "$WORK/splash.png"
+  magick "$WORK/splash.png" -background none -gravity center -extent "$2x$2" \
+    "android/app/src/main/res/drawable-$1/ic_launcher_splash.png"
+  rsvg-convert -w $g -h $g "$SVG" -o "$WORK/splash-night.png"
+  magick "$WORK/splash-night.png" -fill '#E2E4EE' -colorize 100 \
+    -background none -gravity center -extent "$2x$2" \
+    "$night/ic_launcher_splash.png"
+}
+splash_density mdpi 288
+splash_density hdpi 432
+splash_density xhdpi 576
+splash_density xxhdpi 864
+splash_density xxxhdpi 1152
+
 # Windows: multi-size ico (16-256).
 magick assets/icon/app_icon.png -define icon:auto-resize=256,128,64,48,32,24,16 windows/runner/resources/app_icon.ico
 
