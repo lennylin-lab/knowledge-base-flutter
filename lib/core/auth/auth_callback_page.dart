@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../network/api_exception.dart';
 import '../theme/app_sizes.dart';
+import '../../shared/widgets/m3e_loading_spinner.dart';
 import 'auth_controller.dart';
 
 /// Web redirect landing (`/auth/callback?code=…&state=…`): completes the
@@ -78,7 +79,7 @@ class _AuthCallbackPageState extends ConsumerState<AuthCallbackPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (_errorMessage == null) ...[
-              const CircularProgressIndicator(),
+              M3eLoadingSpinner(size: sizes.iconHero),
               SizedBox(height: sizes.space16),
               Text('正在完成登录…', style: theme.textTheme.bodyMedium),
             ] else ...[

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../theme/app_sizes.dart';
 import '../../shared/widgets/app_logo.dart';
+import '../../shared/widgets/m3e_loading_spinner.dart';
 import 'auth_controller.dart';
 
 /// Full-screen login gate shown instead of the app content while OIDC is
@@ -44,7 +45,7 @@ class LoginPage extends ConsumerWidget {
                 ),
                 if (signingIn) ...[
                   SizedBox(height: sizes.space16),
-                  const Center(child: CircularProgressIndicator()),
+                  Center(child: M3eLoadingSpinner(size: sizes.iconHero)),
                 ] else ...[
                   SizedBox(height: sizes.space24),
                   FilledButton.icon(
