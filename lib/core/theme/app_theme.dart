@@ -35,6 +35,18 @@ abstract final class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
+      // Bundled CJK subset (assets/fonts/NotoSansSC-Subset.ttf) covers every
+      // hanzi used by lib/ UI text so first paint never falls back to a
+      // glyph-less western font (tofu flash). The fallback chain serves
+      // dynamic (backend) characters outside the subset.
+      fontFamily: 'NotoSansSC',
+      fontFamilyFallback: const [
+        'Noto Sans SC',
+        'Noto Sans CJK SC',
+        'PingFang SC',
+        'Microsoft YaHei',
+        'sans-serif',
+      ],
       scaffoldBackgroundColor: colorScheme.surface,
       // M3 ThemeData.textTheme carries no sizes — geometry joins at
       // Theme.of() via `ThemeData.localize(typography.geometryThemeFor(...))`.

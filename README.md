@@ -90,6 +90,18 @@ flutter pub get
 > 当前仓库在 Linux 上开发验证：Web 与 Android 构建已通过；
 > Windows 构建命令在 Windows 主机上执行。
 
+### 中文字体子集（Web 防 tofu）
+
+`assets/fonts/NotoSansSC-Subset.ttf` 覆盖 `lib/` 全部 UI 汉字（~235KB），避免 web
+首次加载时中文短暂显示为方框。新增/修改 UI 中文文案后需再生成：
+
+```bash
+pip install fonttools brotli   # 一次性
+scripts/gen_cjk_subset.sh      # 字体源默认取系统 Noto Sans CJK SC，可用 NOTO_CJK_TTC 覆盖
+```
+
+动态内容中子集外的字符由主题 `fontFamilyFallback` 回退到系统 CJK 字体。
+
 ## 配置（API base URL）
 
 默认值按平台自动选择，无需配置：
