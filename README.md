@@ -92,8 +92,9 @@ flutter pub get
 
 ### 中文字体子集（Web 防 tofu）
 
-`assets/fonts/NotoSansSC-Subset.ttf` 覆盖 `lib/` 全部 UI 汉字（~235KB），避免 web
-首次加载时中文短暂显示为方框。新增/修改 UI 中文文案后需再生成：
+`assets/fonts/NotoSansSC-Subset.ttf` 覆盖 `lib/` 全部 UI 汉字 + 3500 常用字（~1.5MB，
+gzip 后约 750KB），避免 web 首次加载时中文（含服务端动态内容）短暂显示为方框。
+新增/修改 UI 中文文案后需再生成：
 
 ```bash
 pip install fonttools brotli   # 一次性

@@ -11,9 +11,13 @@ OUT="$OUT_DIR/NotoSansSC-Subset.ttf"
 [[ -f "$SRC_TTC" ]] || { echo "字体源不存在: $SRC_TTC（可用 NOTO_CJK_TTC 覆盖）" >&2; exit 1; }
 mkdir -p "$OUT_DIR"
 
-# 1) lib 下唯一汉字 + 常用中文标点 + 全角空格
+# 1) lib 下唯一汉字 + 3500 常用字（覆盖服务端动态内容）+ 常用中文标点 + 全角空格
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 CHARS=$(grep -rhoP '[\x{4e00}-\x{9fff}]' lib/ --include='*.dart' | sort -u | tr -d '\n')
-CHARS="$CHARS，。！？：；「」『』（）《》〈〉【】……——·、％　"
+COMMON=$(python3 -c "
+import sys; s = open('$SCRIPT_DIR/cjk_common_3500.txt', encoding='utf-8-sig').read()
+print(''.join(dict.fromkeys(c for c in s if '\u4e00' <= c <= '\u9fff')))")
+CHARS="$CHARS$COMMON，。！？：；「」『』（）《》〈〉【】……——·、％　"
 
 # 2) 抽取 SC face 并子集化（含 ASCII 可打印区，保证 UI 文本全走该字体）
 python3 - "$SRC_TTC" "$OUT" "$CHARS" <<'EOF'
@@ -29,6 +33,8 @@ font = next(f for f in ttc.fonts
 opts = Options()
 opts.layout_features = ['*']
 opts.name_IDs = ['*']
+opts.hinting = False
+opts.drop_tables += ['FFTM']
 opts.notdef_outline = True
 subsetter = Subsetter(options=opts)
 subsetter.populate(text=chars + ''.join(chr(c) for c in range(0x20, 0x7F)))
