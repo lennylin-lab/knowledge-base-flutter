@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:web/web.dart' as web;
 
 import 'sign_in_driver.dart';
@@ -9,11 +11,8 @@ import 'sign_in_driver.dart';
 ///
 /// Navigation is a direct `window.location.href` assignment, NOT
 /// `url_launcher` (which goes through `window.open(url, '_self',
-/// 'noopener')`): the assignment is atomic, cannot be reported as a
-//  blocked popup, and is not intercepted by the dwds debug injection
-/// client — whose `window.open` wrapper threw
-/// `ArgumentError: The type parameter is not nullable` in debug
-/// (`flutter run`) sessions before the IdP page ever opened.
+/// 'noopener')`): the assignment is atomic and cannot be reported as a
+/// blocked popup.
 class RedirectSignInDriver implements SignInDriver {
   const RedirectSignInDriver();
 
@@ -22,14 +21,17 @@ class RedirectSignInDriver implements SignInDriver {
     try {
       web.window.location.href = authorizeUrl.toString();
     } catch (_) {
-      // The assignment itself dispatches the unload; the dwds debug
-      // injection may still throw around it. Errors past this point must
-      // never surface — the flow resumes on /auth/callback after the IdP
-      // redirect, and a torn-down page renders nothing anyway.
+      // The assignment itself dispatches the unload; anything throwing
+      // around it must never surface — the flow resumes on /auth/callback
+      // after the IdP redirect, and a torn-down page renders nothing anyway.
     }
     // Navigation started; the isolate goes away with the page, so there is
-    // no meaningful failure surface (and no redirect URI to return).
-    return Future<Uri>.delayed(const Duration(days: 1));
+    // no meaningful failure surface (and no redirect URI to return). Never
+    // `Future<Uri>.delayed(...)`: with a null computation it throws
+    // `ArgumentError: The type parameter is not nullable` on modern SDKs,
+    // surfacing a bogus sign-in failure while the redirect is under way.
+    final completer = Completer<Uri>();
+    return completer.future;
   }
 }
 
