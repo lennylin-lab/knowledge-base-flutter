@@ -83,7 +83,7 @@ flutter pub get
 
 | 平台 | 命令 | 说明 |
 |---|---|---|
-| Web | `flutter run -d chrome` | 开发调试；`flutter build web --release` 产出 `build/web` |
+| Web | `flutter run -d chrome` | 开发调试；`flutter build web --release --wasm` 产出 `build/web`（WasmGC 优先，不支持时回退 JS） |
 | Windows | `flutter run -d windows` | 需 Windows 主机 + Visual Studio C++ 工具链；`flutter build windows` 产出 `build/windows` |
 | Android | `flutter run -d <device>` | 模拟器/真机；`flutter build apk --debug` 产出 `app-debug.apk` |
 
