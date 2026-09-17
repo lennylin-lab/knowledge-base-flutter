@@ -47,7 +47,7 @@
          in both. */
       --splash-bg: #ffffff;
       --splash-fg: #333333;
-      --splash-accent: #4f6bed;
+      --splash-accent: #505b92;
       position: fixed;
       inset: 0;
       z-index: 10;
@@ -86,6 +86,7 @@
       html:not([data-theme-mode='light']) #splash {
         --splash-bg: #171a22;
         --splash-fg: #e2e4ee;
+        --splash-accent: #b9c3ff;
       }
     }
     /* Explicit in-app pick overrides the OS scheme (equal specificity with
@@ -93,6 +94,7 @@
     html[data-theme-mode='dark'] #splash {
       --splash-bg: #171a22;
       --splash-fg: #e2e4ee;
+      --splash-accent: #b9c3ff;
     }
     #splash-bar {
       position: fixed;
