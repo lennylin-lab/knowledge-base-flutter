@@ -220,6 +220,14 @@ class _DocumentEditorPageState extends ConsumerState<DocumentEditorPage> {
                           keyboardType: TextInputType.multiline,
                           style: const TextStyle(
                             fontFamily: 'monospace',
+                            // Monospace 西文字体不含汉字；显式接回 CJK 回退链，
+                            // 否则这里会重新出现首帧 tofu（不继承主题 fallback）。
+                            fontFamilyFallback: [
+                              'NotoSansSC',
+                              'Noto Sans CJK SC',
+                              'PingFang SC',
+                              'Microsoft YaHei',
+                            ],
                             height: 1.4,
                           ),
                           decoration: const InputDecoration(

@@ -225,7 +225,12 @@ TextSpan highlightCodeSpan({
   final TextStyle base = TextStyle(
     color: foreground,
     fontFamily: baseStyle?.fontFamily ?? 'monospace',
-    fontFamilyFallback: baseStyle?.fontFamilyFallback,
+    fontFamilyFallback: baseStyle?.fontFamilyFallback ?? const [
+      'NotoSansSC',
+      'Noto Sans CJK SC',
+      'PingFang SC',
+      'Microsoft YaHei',
+    ],
     fontSize: baseStyle?.fontSize,
     height: baseStyle?.height,
     letterSpacing: baseStyle?.letterSpacing,

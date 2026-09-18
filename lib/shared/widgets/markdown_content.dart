@@ -11,6 +11,16 @@ import 'markdown/code_highlight.dart';
 /// spec). Uses `flutter_markdown_plus` (`flutter_markdown` is
 /// discontinued).
 class MarkdownContent extends StatelessWidget {
+  /// Monospace UI spans (editor, code blocks) don't inherit the theme's
+  /// CJK fallback chain, so any place that overrides fontFamily must
+  /// re-attach this list or hanzi flash tofu on first paint.
+  static const _cjkFallback = [
+    'NotoSansSC',
+    'Noto Sans CJK SC',
+    'PingFang SC',
+    'Microsoft YaHei',
+  ];
+
   const MarkdownContent({
     super.key,
     required this.data,
@@ -41,6 +51,9 @@ class MarkdownContent extends StatelessWidget {
           backgroundColor: Colors.transparent,
           color: colorScheme.tertiary,
           fontWeight: FontWeight.w500,
+          // Package default hardcodes monospace without a CJK fallback;
+          // re-attach one or inline-code hanzi flash tofu on first paint.
+          fontFamilyFallback: _cjkFallback,
         ),
         // Bold (`**text**`): the M3 body face only steps w400 → w600, which
         // reads as barely-different at reading sizes; push the weight and
