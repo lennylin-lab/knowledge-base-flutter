@@ -906,9 +906,10 @@ class _DetailErrorPane extends StatelessWidget {
 }
 
 /// Two-pane right pane (documents page wide layout): the embedded detail for
-/// the ephemeral selection. Deep links keep rendering the full page above —
-/// this pane never participates in routing (PRD 方案 A). Deleting here, or
-/// the document vanishing elsewhere (404), falls back to the placeholder.
+/// the persisted selection (document_selection_preferences). Deep links keep
+/// rendering the full page above — this pane never participates in routing
+/// (PRD 方案 A). Deleting here, or the document vanishing elsewhere (404),
+/// falls back to the placeholder.
 class DocumentDetailPane extends ConsumerWidget {
   const DocumentDetailPane({super.key, required this.documentId});
 

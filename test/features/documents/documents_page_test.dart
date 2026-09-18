@@ -1,22 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/app.dart';
 import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
 import 'package:knowledge_base_flutter/features/documents/document_detail_page.dart';
+import 'package:knowledge_base_flutter/features/documents/document_selection_preferences.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'stub_documents_repository.dart';
 
 /// Pumps the full app (adaptive shell + real router) with the documents
-/// repository stubbed — no dio, no network.
-Future<void> pumpApp(WidgetTester tester, StubDocumentsRepository repo) async {
+/// repository stubbed — no dio, no network. [seededSelection] simulates the
+/// value `main()` restored from storage on a cold start (browser reload).
+///
+/// The scope gets a [UniqueKey]: a re-pumped `ProviderScope` of the same
+/// type would otherwise reuse the previous element's container (provider
+/// states survive) instead of simulating a cold start.
+Future<void> pumpApp(
+  WidgetTester tester,
+  StubDocumentsRepository repo, {
+  String? seededSelection,
+}) async {
+  SharedPreferences.setMockInitialValues({});
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [documentsRepositoryProvider.overrideWithValue(repo)],
+      key: UniqueKey(),
+      overrides: [
+        documentsRepositoryProvider.overrideWithValue(repo),
+        if (seededSelection != null)
+          documentSelectionSeedProvider.overrideWithValue(seededSelection),
+      ],
       retry: noAutomaticRetry,
       child: App(),
     ),
@@ -192,11 +208,12 @@ void main() {
     // 1400 window − extended rail ≈ 1143 content ≥ the two-pane threshold.
     Future<void> pumpWide(
       WidgetTester tester,
-      StubDocumentsRepository repo,
-    ) async {
+      StubDocumentsRepository repo, {
+      String? seededSelection,
+    }) async {
       await tester.binding.setSurfaceSize(const Size(1400, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await pumpApp(tester, repo);
+      await pumpApp(tester, repo, seededSelection: seededSelection);
       await tester.pumpAndSettle();
     }
 
@@ -412,6 +429,48 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(DocumentDetailPane), findsOneWidget);
       expect(find.text('正文片段甲内容'), findsOneWidget);
+    });
+
+    testWidgets('reload restores the selection from persisted state', (
+      tester,
+    ) async {
+      final repo = repoWithDetail();
+      await pumpWide(tester, repo);
+      await tester.tap(find.text('甲文档'));
+      await tester.pumpAndSettle();
+      expect(find.text('正文片段甲内容'), findsOneWidget);
+      // The tap wrote through to storage.
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('documents.selected_id'), 'a');
+
+      // A fresh ProviderScope = a browser reload: every in-memory provider
+      // resets, `main()` re-seeds the selection from storage and the pane
+      // reopens on the same document instead of the bare list.
+      await pumpWide(tester, repo, seededSelection: 'a');
+      expect(find.text('在左侧选择一个文档查看详情'), findsNothing);
+      expect(find.byType(DocumentDetailPane), findsOneWidget);
+      expect(find.text('正文片段甲内容'), findsOneWidget);
+      expect(repo.getCalls, ['a', 'a']);
+    });
+
+    testWidgets('a persisted selection that vanished (404) clears itself', (
+      tester,
+    ) async {
+      final repo = StubDocumentsRepository()
+        ..listHandler = (cursor, limit, tags) async => DocumentPage(
+          items: [documentRead(id: 'a', title: '甲文档')],
+          nextCursor: null,
+        );
+      repo.getHandler = (id) async =>
+          throw const ApiException(code: 'not_found', message: '不存在');
+      await pumpWide(tester, repo, seededSelection: 'a');
+      await tester.pumpAndSettle();
+
+      // The pane's 404 branch falls back to the placeholder and clears the
+      // selection — the persisted value goes with it.
+      expect(find.text('在左侧选择一个文档查看详情'), findsOneWidget);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('documents.selected_id'), isNull);
     });
   });
 }

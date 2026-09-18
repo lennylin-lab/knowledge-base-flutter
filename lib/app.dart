@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/auth/auth_callback_page.dart';
 import 'core/auth/auth_gate.dart';
 import 'core/browser/browser_tab_title.dart';
+import 'core/browser/url_sync.dart';
 import 'core/layout/layout_preferences.dart';
 import 'core/theme/app_sizes.dart';
 import 'core/theme/app_theme.dart';
@@ -140,7 +141,10 @@ class App extends ConsumerWidget {
           routerConfig: router,
           builder: (context, child) => BrowserTabTitle(
             router: router,
-            child: child ?? const SizedBox.shrink(),
+            child: UrlSync(
+              router: router,
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
           debugShowCheckedModeBanner: false,
         );

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +8,7 @@ import '../../core/network/api_client.dart';
 import '../../shared/models/agents_result.dart';
 import '../../shared/models/agents_stream.dart';
 import '../../shared/models/document.dart';
+import 'document_selection_preferences.dart';
 import 'documents_repository.dart';
 
 /// Documents repository wired to the app-wide API client + agent stream
@@ -41,17 +44,28 @@ final selectedTagsProvider =
     );
 
 /// Two-pane selection state (documents page wide layout only): which
-/// document the embedded detail pane shows. Ephemeral UI state — never in
-/// the URL: `/documents/:id` deep links keep rendering the full-page detail
-/// (task 09-06-documents-master-detail, PRD 方案 A). Narrow layouts never
-/// read or write it (taps navigate instead).
+/// document the embedded detail pane shows. Never in the URL: `/documents/:id`
+/// deep links keep rendering the full-page detail (task
+/// 09-06-documents-master-detail, PRD 方案 A). Narrow layouts never read or
+/// write it (taps navigate instead).
+///
+/// The selection is write-through persisted and seeded back in `main()`
+/// (see [DocumentSelectionPreferences]), so a browser reload — which resets
+/// every in-memory provider — reopens the embedded pane on the same
+/// document instead of dropping the user on the bare list.
 class SelectedDocumentIdNotifier extends Notifier<String?> {
   @override
-  String? build() => null;
+  String? build() => ref.watch(documentSelectionSeedProvider);
 
-  void select(String id) => state = id;
+  void select(String id) {
+    state = id;
+    unawaited(DocumentSelectionPreferences.save(id));
+  }
 
-  void clear() => state = null;
+  void clear() {
+    state = null;
+    unawaited(DocumentSelectionPreferences.save(null));
+  }
 }
 
 final selectedDocumentIdProvider =
