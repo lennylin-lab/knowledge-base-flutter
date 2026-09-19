@@ -204,4 +204,86 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('tapping a task checkbox flips the marker and PATCHes content', (
+    tester,
+  ) async {
+    final document = documentRead(id: 'doc-1', title: '清单文档');
+    var stored = '- [ ] 甲\n- [ ] 乙\n';
+    final repo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async {
+            return DocumentPage(items: [document], nextCursor: null);
+          }
+          ..getHandler = (id) async {
+            return documentReadDetail(document, content: stored);
+          }
+          ..updateHandler = (id, payload) async {
+            stored = payload.content!;
+            return documentRead(id: id);
+          };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('清单文档'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.check_box_outline_blank), findsNWidgets(2));
+
+    await tester.tap(find.byIcon(Icons.check_box_outline_blank).first);
+    await tester.pump(); // optimistic flip renders before any network I/O
+    expect(find.byIcon(Icons.check_box), findsOneWidget);
+
+    await tester.pumpAndSettle(); // PATCH + detail refetch land
+
+    expect(repo.updateCalls, [
+      (
+        id: 'doc-1',
+        payload: const DocumentUpdate(content: '- [x] 甲\n- [ ] 乙\n'),
+      ),
+    ]);
+    // The refetched server content (marker flipped) keeps the box checked.
+    expect(find.byIcon(Icons.check_box), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a failed checkbox PATCH reverts the flip and toasts', (
+    tester,
+  ) async {
+    final document = documentRead(id: 'doc-1', title: '清单文档');
+    final repo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async {
+            return DocumentPage(items: [document], nextCursor: null);
+          }
+          ..getHandler = (id) async {
+            return documentReadDetail(document, content: '- [ ] 甲\n');
+          }
+          ..updateHandler = (id, payload) async => throw const ApiException(
+            code: 'server_error',
+            message: 'boom',
+            statusCode: 500,
+          );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('清单文档'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.check_box_outline_blank));
+    // The stub PATCH fails within this same pump, so the optimistic flip
+    // and the revert both land here — assert the settled outcome below.
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.check_box), findsNothing);
+    expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
+    expect(find.text('保存失败：boom'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+  });
 }

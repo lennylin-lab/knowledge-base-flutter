@@ -26,6 +26,7 @@ class MarkdownContent extends StatelessWidget {
     super.key,
     required this.data,
     this.selectable = true,
+    this.onTaskToggle,
     this.citationDocumentId,
     this.onCitationTap,
   });
@@ -42,6 +43,15 @@ class MarkdownContent extends StatelessWidget {
   /// Invoked when a mapped citation badge is tapped. Only effective together
   /// with [citationDocumentId].
   final void Function(int citationIndex, String documentId)? onCitationTap;
+
+  /// Called with the 0-based document-order index of a GFM task-list item
+  /// and its new checked state when the user taps its checkbox. When null
+  /// (chat answers, AI summaries) every checkbox renders read-only.
+  ///
+  /// The index counts markers over [data] exactly like
+  /// `toggleTaskListItem` in shared/utils/markdown_tasks.dart, so callers
+  /// can write the flip back into their source string.
+  final void Function(int taskIndex, bool checked)? onTaskToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +88,22 @@ class MarkdownContent extends StatelessWidget {
       ),
       blockSyntaxes: const [CalloutBlockSyntax()],
       inlineSyntaxes: [CitationInlineSyntax()],
+      // The interactive checkbox itself is built from the task item's
+      // `input` element (see builders below); this only silences the
+      // package's own static icon bullet so the checkbox isn't doubled.
+      checkboxBuilder: (_) => const SizedBox.shrink(),
       builders: {
+        // GFM task-list checkboxes: tappable when [onTaskToggle] is set.
+        // Registered on `input` — NOT `li`: the package routes every text
+        // node of a block tag through that tag's builder `visitText`
+        // (default null ⇒ text dropped), while inline tags keep the
+        // default text flow. The `input` element also constructs its
+        // checkbox at visit time, capturing its document-order task index
+        // even inside nested lists.
+        'input': _TaskCheckboxBuilder(
+          onToggle: onTaskToggle,
+          colorScheme: colorScheme,
+        ),
         // All heading levels get a hairline rule under the heading text,
         // separating the document outline; see _HeadingRuleBuilder.
         'h1': _HeadingRuleBuilder(colorScheme.outlineVariant),
@@ -102,6 +127,94 @@ class MarkdownContent extends StatelessWidget {
           onTap: onCitationTap,
         ),
       },
+    );
+  }
+}
+
+/// Builds the interactive checkbox for a GFM task-list item from its
+/// `input[type=checkbox]` element. Visits happen in document order (nested
+/// lists included), so the checkbox widget is constructed with its own
+/// 0-based task index right away — no late lookup that could go stale.
+class _TaskCheckboxBuilder extends md.MarkdownElementBuilder {
+  _TaskCheckboxBuilder({this.onToggle, required this.colorScheme});
+
+  final ColorScheme colorScheme;
+  final void Function(int taskIndex, bool checked)? onToggle;
+
+  int _assigned = 0;
+  _PendingTask _pending = (index: 0, checked: false);
+
+  @override
+  void visitElementBefore(pmd.Element element) {
+    _pending = (
+      index: _assigned++,
+      checked: element.attributes.containsKey('checked'),
+    );
+  }
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    pmd.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final task = _pending;
+    return _TaskCheckbox(
+      key: ValueKey('task-checkbox-${task.index}'),
+      checked: task.checked,
+      taskIndex: task.index,
+      colorScheme: colorScheme,
+      onToggle: onToggle,
+    );
+  }
+}
+
+typedef _PendingTask = ({int index, bool checked});
+
+class _TaskCheckbox extends StatelessWidget {
+  const _TaskCheckbox({
+    super.key,
+    required this.checked,
+    required this.taskIndex,
+    required this.colorScheme,
+    this.onToggle,
+  });
+
+  final bool checked;
+  final int taskIndex;
+  final ColorScheme colorScheme;
+
+  /// Null in read-only surfaces (chat answers, AI summaries): the box still
+  /// renders at full strength, it just doesn't respond to taps.
+  final void Function(int taskIndex, bool checked)? onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final sizes = context.sizes;
+    return Padding(
+      // Small gap between the box and the item text inside the line Wrap.
+      padding: EdgeInsetsDirectional.only(end: sizes.space6),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onToggle == null
+            ? null
+            : () => onToggle!(taskIndex, !checked),
+        child: SizedBox(
+          width: sizes.space24,
+          height: sizes.space24,
+          child: Center(
+            child: Icon(
+              checked ? Icons.check_box : Icons.check_box_outline_blank,
+              size: sizes.iconMd,
+              // Checked boxes take the primary; unchecked stay quiet but at
+              // full strength so read-only views don't render washed-out
+              // "disabled" boxes.
+              color: checked ? colorScheme.primary : colorScheme.outline,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

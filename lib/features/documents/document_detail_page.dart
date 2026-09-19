@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_sizes.dart';
 import '../../shared/models/document.dart';
 import '../../shared/utils/markdown_front_matter.dart';
+import '../../shared/utils/markdown_tasks.dart';
 import '../../shared/widgets/expandable_tag_wrap.dart';
 import '../../shared/widgets/markdown_content.dart';
 import '../operations/operations_providers.dart';
@@ -123,6 +126,10 @@ class _DocumentDetailPageState extends ConsumerState<DocumentDetailPage> {
           ],
         ),
         body: detailAsync.when(
+          // skipLoadingOnReload: the checkbox PATCH (and an editor save)
+          // invalidates the detail provider — reloading must keep showing
+          // the previous document instead of flashing a full-page spinner.
+          skipLoadingOnReload: true,
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => _DetailErrorPane(
             isNotFound: toApiException(error).isNotFound,
@@ -226,7 +233,7 @@ void _showToast(BuildContext context, String message) {
 /// PopScope back gate), [aiBubbleOpen] the expanded state — together they
 /// gate system back (open content layer consumes it); the pane leaves both
 /// null.
-class DocumentDetailBody extends StatelessWidget {
+class DocumentDetailBody extends ConsumerStatefulWidget {
   const DocumentDetailBody({
     super.key,
     required this.document,
@@ -244,7 +251,67 @@ class DocumentDetailBody extends StatelessWidget {
   final ValueNotifier<bool>? aiBubbleOpen;
 
   @override
+  ConsumerState<DocumentDetailBody> createState() =>
+      _DocumentDetailBodyState();
+}
+
+class _DocumentDetailBodyState extends ConsumerState<DocumentDetailBody> {
+  /// Optimistic task-list checkbox state: tapping a checkbox flips its
+  /// `- [ ]`/`- [x]` marker in this copy and re-renders immediately, while
+  /// the PATCH and the detail refetch it triggers run in the background.
+  /// Cleared whenever server content changes (own PATCH refetch, or an
+  /// external edit that wins the race).
+  String? _contentOverride;
+
+  /// Tail of the in-flight content PATCHes. Every PATCH carries the full
+  /// content, so a second toggle racing the first must wait its turn or
+  /// the server could end up with the older string.
+  Future<void> _pendingSave = Future.value();
+
+  String get _content => _contentOverride ?? widget.document.content;
+
+  @override
+  void didUpdateWidget(DocumentDetailBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.document.content != oldWidget.document.content) {
+      _contentOverride = null;
+    }
+  }
+
+  void _toggleTask(int taskIndex, bool checked) {
+    final source = _content;
+    final updated = toggleTaskListItem(source, taskIndex);
+    if (updated == null) return;
+    setState(() => _contentOverride = updated);
+
+    final previous = _pendingSave;
+    final save = () async {
+      await previous;
+      try {
+        await ref
+            .read(documentsProvider.notifier)
+            .updateDocument(
+              widget.document.id,
+              DocumentUpdate(content: updated),
+            );
+      } catch (error) {
+        if (!mounted) return;
+        // Revert to the pre-toggle string; the detail refetch (own success
+        // or another surface's edit) will overwrite it with server truth.
+        setState(() => _contentOverride = source);
+        _showToast(context, '保存失败：${toApiException(error).message}');
+      }
+    }();
+    _pendingSave = save;
+    unawaited(save);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final document = widget.document;
+    final titleTrailing = widget.titleTrailing;
+    final aiBubbleLayer = widget.aiBubbleLayer;
+    final aiBubbleOpen = widget.aiBubbleOpen;
     final theme = Theme.of(context);
     final sizes = context.sizes;
     return Stack(
@@ -286,7 +353,10 @@ class DocumentDetailBody extends StatelessWidget {
                     ),
                   ),
                 Divider(height: sizes.space32),
-                MarkdownContent(data: stripYamlFrontMatter(document.content)),
+                MarkdownContent(
+                  data: stripYamlFrontMatter(_content),
+                  onTaskToggle: _toggleTask,
+                ),
               ],
             ),
           ),
@@ -919,6 +989,9 @@ class DocumentDetailPane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detailAsync = ref.watch(documentDetailProvider(documentId));
     return detailAsync.when(
+      // Same rationale as the full page: a checkbox PATCH must not flash
+      // the pane back to a spinner while the detail refetch runs.
+      skipLoadingOnReload: true,
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) {
         if (toApiException(error).isNotFound) {
