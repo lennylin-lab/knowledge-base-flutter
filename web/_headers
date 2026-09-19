@@ -1,0 +1,4 @@
+# Cross-origin isolation headers enable Skwasm multi-threading.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
