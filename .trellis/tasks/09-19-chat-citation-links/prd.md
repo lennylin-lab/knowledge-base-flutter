@@ -57,3 +57,37 @@ change; unmapped `[n]` stays plain text; streaming behaves correctly.
       the `[1]` badge pushes `/documents/{id}`.
 - [ ] Document detail page / AI bubble unaffected (no resolver → plain text).
 - [ ] `flutter analyze` clean; all tests pass.
+
+## Follow-up (backend comment, 2026-09-19): history sources + paged loading
+
+The backend added, per the issue thread:
+
+- `MessageRead.sources: SourceRef[] | null` — `SourceRef = {document_id,
+  document_title, document_tags, chunk_index}`; **list position IS the
+  citation number**; null for user / no-retrieval messages; no content/score.
+- `GET /sessions/{id}?limit=1..100[&cursor]` returns
+  `MessagePage {items: [MessageRead] (chronological), next_cursor: str|null}`
+  — first page = newest `limit` messages, cursor steps strictly older, null
+  cursor = exhausted. Without params the legacy full `SessionDetail` is
+  returned; **the client must not use full mode**.
+
+Client requirements (binding):
+
+1. Models: `SourceRef`, `ChatMessage.sources` (null → empty),
+   `MessagePage` DTOs mirroring the backend exactly (type-safety spec).
+2. `SessionRepository`: paged `getSessionPage(id, {limit, cursor})`
+   (clamp 1–100, default 30); legacy full-detail fetch removed — the client
+   must not use full mode.
+3. `ChatNotifier`: `openSession` loads page 1 only; new
+   `loadOlderHistory()` prepends the cursor page (guards: no cursor,
+   already loading); `historyCursor`/`historyLoadingMore` state; a finished
+   run committed into history carries its sources (SearchHit → SourceRef
+   projection) so citations survive the commit.
+4. Chat page conversation list: `ListView.builder` (lazy), `reverse: true`
+   so offset 0 is the newest message (auto "initial position at bottom",
+   prepending older pages cannot jump the viewport); scroll to the oldest
+   loaded item triggers `loadOlderHistory`; exhausted shows
+   「已加载全部历史」.
+5. Per-message citations (follow-up req): each history bubble's resolver
+   uses **its own** `message.sources` — not the run-level global state.
+   Current-run answer keeps the run resolver.

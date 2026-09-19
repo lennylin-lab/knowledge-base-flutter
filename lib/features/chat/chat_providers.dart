@@ -56,6 +56,9 @@ class ChatState {
     this.phase = ChatPhase.idle,
     this.sessionId,
     this.history = const <ChatMessage>[],
+    this.historyCursor,
+    this.historyLoadingMore = false,
+    this.historyLoadFailed = false,
     this.question = '',
     this.parts = const <ChatRunPart>[],
     this.sources = const <SearchHit>[],
@@ -76,8 +79,22 @@ class ChatState {
   final String? sessionId;
 
   /// Persisted conversation messages (chronological), excluding the
-  /// in-flight run.
+  /// in-flight run. Loaded page-by-page (newest page first, older pages
+  /// prepended on scroll).
   final List<ChatMessage> history;
+
+  /// `next_cursor` for older history messages; null = exhausted (or not a
+  /// paged load). Drives 「已加载全部历史」 and stops further requests.
+  final String? historyCursor;
+
+  /// Whether an older-history page is in flight (guards double-fire).
+  final bool historyLoadingMore;
+
+  /// Whether the last older-history page failed. Latches the footer into a
+  /// tappable 「加载失败，点击重试」 state — without it the visible footer
+  /// would auto-retrigger in a loop (a failed page never moves it
+  /// off-screen).
+  final bool historyLoadFailed;
 
   /// The question of the current (or last) run; `retry()` re-runs it.
   final String question;
@@ -131,6 +148,8 @@ class ChatState {
     ChatPhase? phase,
     String? sessionId,
     List<ChatMessage>? history,
+    String? historyCursor,
+    bool? historyLoadingMore,
     String? question,
     List<ChatRunPart>? parts,
     List<SearchHit>? sources,
@@ -147,6 +166,8 @@ class ChatState {
       phase: phase ?? this.phase,
       sessionId: sessionId ?? this.sessionId,
       history: history ?? this.history,
+      historyCursor: historyCursor ?? this.historyCursor,
+      historyLoadingMore: historyLoadingMore ?? this.historyLoadingMore,
       question: question ?? this.question,
       parts: parts ?? this.parts,
       sources: sources ?? this.sources,
@@ -158,6 +179,55 @@ class ChatState {
       errorCode: errorCode ?? this.errorCode,
       errorMessage: errorMessage ?? this.errorMessage,
       progress: progress ?? this.progress,
+    );
+  }
+
+  /// A fresh state with the paging fields set explicitly — `historyCursor:
+  /// null` / `historyLoadFailed: false` must actually reset, so copyWith's
+  /// null-coalescing cannot be used for them.
+  ChatState withHistoryReset({required List<ChatMessage> history, String? historyCursor}) {
+    return ChatState(
+      phase: phase,
+      sessionId: sessionId,
+      history: history,
+      historyCursor: historyCursor,
+      historyLoadingMore: false,
+      historyLoadFailed: false,
+      question: question,
+      parts: parts,
+      sources: sources,
+      runId: runId,
+      mode: mode,
+      outcome: outcome,
+      toolCalls: toolCalls,
+      latencyMs: latencyMs,
+      errorCode: errorCode,
+      errorMessage: errorMessage,
+      progress: progress,
+    );
+  }
+
+  /// Explicit setter for the history paging flags — `false` values must
+  /// stick, so this bypasses copyWith's null-coalescing.
+  ChatState withHistoryFlags({bool? loadingMore, bool? loadFailed}) {
+    return ChatState(
+      phase: phase,
+      sessionId: sessionId,
+      history: history,
+      historyCursor: historyCursor,
+      historyLoadingMore: loadingMore ?? historyLoadingMore,
+      historyLoadFailed: loadFailed ?? historyLoadFailed,
+      question: question,
+      parts: parts,
+      sources: sources,
+      runId: runId,
+      mode: mode,
+      outcome: outcome,
+      toolCalls: toolCalls,
+      latencyMs: latencyMs,
+      errorCode: errorCode,
+      errorMessage: errorMessage,
+      progress: progress,
     );
   }
 }
@@ -340,10 +410,11 @@ class ChatNotifier extends Notifier<ChatState> {
     state = const ChatState();
   }
 
-  /// Opens a persisted conversation: loads its messages and continues it on
-  /// the next question. Any run in progress is cancelled first. A failed
-  /// load (unknown id → 404) lands in [ChatPhase.error] with the envelope's
-  /// code/message; the previous conversation state is kept intact.
+  /// Opens a persisted conversation: loads the newest history page
+  /// (paged mode — never the legacy full detail) and continues it on the
+  /// next question. Older pages are pulled by [loadOlderHistory] on scroll.
+  /// Any run in progress is cancelled first. A failed load (unknown id →
+  /// 404) lands in [ChatPhase.error] with the envelope's code/message.
   Future<void> openSession(String sessionId) async {
     _runGeneration++;
     final subscription = _subscription;
@@ -352,11 +423,12 @@ class ChatNotifier extends Notifier<ChatState> {
 
     state = const ChatState(phase: ChatPhase.running);
     try {
-      final detail = await ref.read(sessionRepositoryProvider).getSession(sessionId);
+      final page = await ref.read(sessionRepositoryProvider).getSessionPage(sessionId);
       state = ChatState(
         phase: ChatPhase.idle,
-        sessionId: detail.id,
-        history: detail.messages,
+        sessionId: sessionId,
+        history: page.items,
+        historyCursor: page.nextCursor,
       );
     } catch (error) {
       final api = toApiException(error);
@@ -365,6 +437,36 @@ class ChatNotifier extends Notifier<ChatState> {
         errorCode: api.code,
         errorMessage: api.message,
       );
+    }
+  }
+
+  /// Prepends the next-older history page when the user scrolls to the top
+  /// of the conversation. No-op without a cursor (exhausted) or while a
+  /// page is already in flight; on failure the cursor and loaded history
+  /// stay intact and [ChatState.historyLoadFailed] latches so the footer
+  /// offers an explicit retry instead of looping.
+  Future<void> loadOlderHistory() async {
+    final cursor = state.historyCursor;
+    if (cursor == null || state.historyLoadingMore) return;
+    // Supersession guard: switching sessions while a page is in flight must
+    // not prepend the stale page into the new conversation (same strategy
+    // as the run generation).
+    final generation = _runGeneration;
+    state = state.withHistoryFlags(loadingMore: true, loadFailed: false);
+    try {
+      final page = await ref
+          .read(sessionRepositoryProvider)
+          .getSessionPage(state.sessionId!, cursor: cursor);
+      if (generation != _runGeneration) return;
+      final current = state;
+      state = current.withHistoryReset(
+        history: [...page.items, ...current.history],
+        historyCursor: page.nextCursor,
+      );
+    } catch (_) {
+      if (generation != _runGeneration) return;
+      // Keep cursor + loaded history; the footer offers an explicit retry.
+      state = state.withHistoryFlags(loadingMore: false, loadFailed: true);
     }
   }
 
@@ -377,6 +479,8 @@ class ChatNotifier extends Notifier<ChatState> {
     // Commit the previous run into the persisted-looking history before the
     // new one takes over the screen (history stays client-side rendering of
     // the server-persisted conversation; the server stores the same turns).
+    // The assistant turn carries the run's sources projected to SourceRef so
+    // its citations keep working after the commit (they are per-message).
     final previous = state;
     final history = previous.question.isNotEmpty
         ? [
@@ -393,6 +497,15 @@ class ChatNotifier extends Notifier<ChatState> {
               content: previous.answer,
               runId: previous.runId,
               createdAt: DateTime.now(),
+              sources: [
+                for (final hit in previous.sources)
+                  SourceRef(
+                    documentId: hit.documentId,
+                    documentTitle: hit.documentTitle,
+                    documentTags: hit.documentTags,
+                    chunkIndex: hit.chunkIndex,
+                  ),
+              ],
             ),
           ]
         : previous.history;

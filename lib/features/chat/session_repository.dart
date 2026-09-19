@@ -18,6 +18,10 @@ class SessionRepository {
   static const int maxLimit = 100;
   static const int defaultLimit = 20;
 
+  /// Default page size for message-history loads (issue #6 follow-up:
+  /// first screen shows the newest page, older history loads on scroll).
+  static const int defaultHistoryLimit = 30;
+
   /// Clamps [limit] into the API's 1–100 range before sending
   /// (type-safety spec: validate at the boundary).
   static int clampLimit(int limit) => limit.clamp(minLimit, maxLimit).toInt();
@@ -40,14 +44,25 @@ class SessionRepository {
     }
   }
 
-  /// Returns one session with its messages in chronological order.
-  /// Unknown [sessionId] surfaces as a 404 [ApiException].
-  Future<SessionDetail> getSession(String sessionId) async {
+  /// Returns one page of the session's message history: the newest
+  /// [limit] messages (chronological within the page), [cursor] stepping
+  /// strictly older via the previous page's `next_cursor`. The legacy
+  /// full-detail response (no params) is intentionally not used — long
+  /// sessions must never be fetched wholesale (issue #6 follow-up).
+  Future<MessagePage> getSessionPage(
+    String sessionId, {
+    int limit = defaultHistoryLimit,
+    String? cursor,
+  }) async {
     try {
       final response = await _client.dio.get<Map<String, dynamic>>(
         '$_basePath/$sessionId',
+        queryParameters: <String, dynamic>{
+          'limit': clampLimit(limit),
+          if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
+        },
       );
-      return SessionDetail.fromJson(response.data!);
+      return MessagePage.fromJson(response.data!);
     } catch (error) {
       throw toApiException(error);
     }

@@ -13,9 +13,287 @@ part of 'session.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
+mixin _$SourceRef {
+
+ String get documentId; String get documentTitle; List<String> get documentTags; int get chunkIndex;
+/// Create a copy of SourceRef
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$SourceRefCopyWith<SourceRef> get copyWith => _$SourceRefCopyWithImpl<SourceRef>(this as SourceRef, _$identity);
+
+  /// Serializes this SourceRef to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SourceRef&&(identical(other.documentId, documentId) || other.documentId == documentId)&&(identical(other.documentTitle, documentTitle) || other.documentTitle == documentTitle)&&const DeepCollectionEquality().equals(other.documentTags, documentTags)&&(identical(other.chunkIndex, chunkIndex) || other.chunkIndex == chunkIndex));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,documentId,documentTitle,const DeepCollectionEquality().hash(documentTags),chunkIndex);
+
+@override
+String toString() {
+  return 'SourceRef(documentId: $documentId, documentTitle: $documentTitle, documentTags: $documentTags, chunkIndex: $chunkIndex)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $SourceRefCopyWith<$Res>  {
+  factory $SourceRefCopyWith(SourceRef value, $Res Function(SourceRef) _then) = _$SourceRefCopyWithImpl;
+@useResult
+$Res call({
+ String documentId, String documentTitle, List<String> documentTags, int chunkIndex
+});
+
+
+
+
+}
+/// @nodoc
+class _$SourceRefCopyWithImpl<$Res>
+    implements $SourceRefCopyWith<$Res> {
+  _$SourceRefCopyWithImpl(this._self, this._then);
+
+  final SourceRef _self;
+  final $Res Function(SourceRef) _then;
+
+/// Create a copy of SourceRef
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? documentId = null,Object? documentTitle = null,Object? documentTags = null,Object? chunkIndex = null,}) {
+  return _then(_self.copyWith(
+documentId: null == documentId ? _self.documentId : documentId // ignore: cast_nullable_to_non_nullable
+as String,documentTitle: null == documentTitle ? _self.documentTitle : documentTitle // ignore: cast_nullable_to_non_nullable
+as String,documentTags: null == documentTags ? _self.documentTags : documentTags // ignore: cast_nullable_to_non_nullable
+as List<String>,chunkIndex: null == chunkIndex ? _self.chunkIndex : chunkIndex // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [SourceRef].
+extension SourceRefPatterns on SourceRef {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _SourceRef value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _SourceRef() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _SourceRef value)  $default,){
+final _that = this;
+switch (_that) {
+case _SourceRef():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _SourceRef value)?  $default,){
+final _that = this;
+switch (_that) {
+case _SourceRef() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String documentId,  String documentTitle,  List<String> documentTags,  int chunkIndex)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _SourceRef() when $default != null:
+return $default(_that.documentId,_that.documentTitle,_that.documentTags,_that.chunkIndex);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String documentId,  String documentTitle,  List<String> documentTags,  int chunkIndex)  $default,) {final _that = this;
+switch (_that) {
+case _SourceRef():
+return $default(_that.documentId,_that.documentTitle,_that.documentTags,_that.chunkIndex);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String documentId,  String documentTitle,  List<String> documentTags,  int chunkIndex)?  $default,) {final _that = this;
+switch (_that) {
+case _SourceRef() when $default != null:
+return $default(_that.documentId,_that.documentTitle,_that.documentTags,_that.chunkIndex);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _SourceRef implements SourceRef {
+  const _SourceRef({required this.documentId, required this.documentTitle, final  List<String> documentTags = const <String>[], this.chunkIndex = 0}): _documentTags = documentTags;
+  factory _SourceRef.fromJson(Map<String, dynamic> json) => _$SourceRefFromJson(json);
+
+@override final  String documentId;
+@override final  String documentTitle;
+ final  List<String> _documentTags;
+@override@JsonKey() List<String> get documentTags {
+  if (_documentTags is EqualUnmodifiableListView) return _documentTags;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_documentTags);
+}
+
+@override@JsonKey() final  int chunkIndex;
+
+/// Create a copy of SourceRef
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$SourceRefCopyWith<_SourceRef> get copyWith => __$SourceRefCopyWithImpl<_SourceRef>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$SourceRefToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SourceRef&&(identical(other.documentId, documentId) || other.documentId == documentId)&&(identical(other.documentTitle, documentTitle) || other.documentTitle == documentTitle)&&const DeepCollectionEquality().equals(other._documentTags, _documentTags)&&(identical(other.chunkIndex, chunkIndex) || other.chunkIndex == chunkIndex));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,documentId,documentTitle,const DeepCollectionEquality().hash(_documentTags),chunkIndex);
+
+@override
+String toString() {
+  return 'SourceRef(documentId: $documentId, documentTitle: $documentTitle, documentTags: $documentTags, chunkIndex: $chunkIndex)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$SourceRefCopyWith<$Res> implements $SourceRefCopyWith<$Res> {
+  factory _$SourceRefCopyWith(_SourceRef value, $Res Function(_SourceRef) _then) = __$SourceRefCopyWithImpl;
+@override @useResult
+$Res call({
+ String documentId, String documentTitle, List<String> documentTags, int chunkIndex
+});
+
+
+
+
+}
+/// @nodoc
+class __$SourceRefCopyWithImpl<$Res>
+    implements _$SourceRefCopyWith<$Res> {
+  __$SourceRefCopyWithImpl(this._self, this._then);
+
+  final _SourceRef _self;
+  final $Res Function(_SourceRef) _then;
+
+/// Create a copy of SourceRef
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? documentId = null,Object? documentTitle = null,Object? documentTags = null,Object? chunkIndex = null,}) {
+  return _then(_SourceRef(
+documentId: null == documentId ? _self.documentId : documentId // ignore: cast_nullable_to_non_nullable
+as String,documentTitle: null == documentTitle ? _self.documentTitle : documentTitle // ignore: cast_nullable_to_non_nullable
+as String,documentTags: null == documentTags ? _self._documentTags : documentTags // ignore: cast_nullable_to_non_nullable
+as List<String>,chunkIndex: null == chunkIndex ? _self.chunkIndex : chunkIndex // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$ChatMessage {
 
- String get id;@JsonKey(unknownEnumValue: ChatMessageRole.user) ChatMessageRole get role; String get content; String? get runId; DateTime get createdAt;
+ String get id;@JsonKey(unknownEnumValue: ChatMessageRole.user) ChatMessageRole get role; String get content; String? get runId; DateTime get createdAt;@JsonKey(includeIfNull: false) List<SourceRef> get sources;
 /// Create a copy of ChatMessage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +306,16 @@ $ChatMessageCopyWith<ChatMessage> get copyWith => _$ChatMessageCopyWithImpl<Chat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&const DeepCollectionEquality().equals(other.sources, sources));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,role,content,runId,createdAt);
+int get hashCode => Object.hash(runtimeType,id,role,content,runId,createdAt,const DeepCollectionEquality().hash(sources));
 
 @override
 String toString() {
-  return 'ChatMessage(id: $id, role: $role, content: $content, runId: $runId, createdAt: $createdAt)';
+  return 'ChatMessage(id: $id, role: $role, content: $content, runId: $runId, createdAt: $createdAt, sources: $sources)';
 }
 
 
@@ -48,7 +326,7 @@ abstract mixin class $ChatMessageCopyWith<$Res>  {
   factory $ChatMessageCopyWith(ChatMessage value, $Res Function(ChatMessage) _then) = _$ChatMessageCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: ChatMessageRole.user) ChatMessageRole role, String content, String? runId, DateTime createdAt
+ String id,@JsonKey(unknownEnumValue: ChatMessageRole.user) ChatMessageRole role, String content, String? runId, DateTime createdAt,@JsonKey(includeIfNull: false) List<SourceRef> sources
 });
 
 
@@ -65,14 +343,15 @@ class _$ChatMessageCopyWithImpl<$Res>
 
 /// Create a copy of ChatMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? role = null,Object? content = null,Object? runId = freezed,Object? createdAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? role = null,Object? content = null,Object? runId = freezed,Object? createdAt = null,Object? sources = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as ChatMessageRole,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as String,runId: freezed == runId ? _self.runId : runId // ignore: cast_nullable_to_non_nullable
 as String?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,sources: null == sources ? _self.sources : sources // ignore: cast_nullable_to_non_nullable
+as List<SourceRef>,
   ));
 }
 
@@ -157,10 +436,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: ChatMessageRole.user)  ChatMessageRole role,  String content,  String? runId,  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: ChatMessageRole.user)  ChatMessageRole role,  String content,  String? runId,  DateTime createdAt, @JsonKey(includeIfNull: false)  List<SourceRef> sources)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatMessage() when $default != null:
-return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt);case _:
+return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt,_that.sources);case _:
   return orElse();
 
 }
@@ -178,10 +457,10 @@ return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt);c
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: ChatMessageRole.user)  ChatMessageRole role,  String content,  String? runId,  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: ChatMessageRole.user)  ChatMessageRole role,  String content,  String? runId,  DateTime createdAt, @JsonKey(includeIfNull: false)  List<SourceRef> sources)  $default,) {final _that = this;
 switch (_that) {
 case _ChatMessage():
-return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt);case _:
+return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt,_that.sources);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +477,10 @@ return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt);c
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: ChatMessageRole.user)  ChatMessageRole role,  String content,  String? runId,  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: ChatMessageRole.user)  ChatMessageRole role,  String content,  String? runId,  DateTime createdAt, @JsonKey(includeIfNull: false)  List<SourceRef> sources)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatMessage() when $default != null:
-return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt);case _:
+return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt,_that.sources);case _:
   return null;
 
 }
@@ -213,7 +492,7 @@ return $default(_that.id,_that.role,_that.content,_that.runId,_that.createdAt);c
 @JsonSerializable()
 
 class _ChatMessage implements ChatMessage {
-  const _ChatMessage({required this.id, @JsonKey(unknownEnumValue: ChatMessageRole.user) required this.role, required this.content, this.runId, required this.createdAt});
+  const _ChatMessage({required this.id, @JsonKey(unknownEnumValue: ChatMessageRole.user) required this.role, required this.content, this.runId, required this.createdAt, @JsonKey(includeIfNull: false) final  List<SourceRef> sources = const <SourceRef>[]}): _sources = sources;
   factory _ChatMessage.fromJson(Map<String, dynamic> json) => _$ChatMessageFromJson(json);
 
 @override final  String id;
@@ -221,6 +500,13 @@ class _ChatMessage implements ChatMessage {
 @override final  String content;
 @override final  String? runId;
 @override final  DateTime createdAt;
+ final  List<SourceRef> _sources;
+@override@JsonKey(includeIfNull: false) List<SourceRef> get sources {
+  if (_sources is EqualUnmodifiableListView) return _sources;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_sources);
+}
+
 
 /// Create a copy of ChatMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -235,16 +521,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&const DeepCollectionEquality().equals(other._sources, _sources));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,role,content,runId,createdAt);
+int get hashCode => Object.hash(runtimeType,id,role,content,runId,createdAt,const DeepCollectionEquality().hash(_sources));
 
 @override
 String toString() {
-  return 'ChatMessage(id: $id, role: $role, content: $content, runId: $runId, createdAt: $createdAt)';
+  return 'ChatMessage(id: $id, role: $role, content: $content, runId: $runId, createdAt: $createdAt, sources: $sources)';
 }
 
 
@@ -255,7 +541,7 @@ abstract mixin class _$ChatMessageCopyWith<$Res> implements $ChatMessageCopyWith
   factory _$ChatMessageCopyWith(_ChatMessage value, $Res Function(_ChatMessage) _then) = __$ChatMessageCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: ChatMessageRole.user) ChatMessageRole role, String content, String? runId, DateTime createdAt
+ String id,@JsonKey(unknownEnumValue: ChatMessageRole.user) ChatMessageRole role, String content, String? runId, DateTime createdAt,@JsonKey(includeIfNull: false) List<SourceRef> sources
 });
 
 
@@ -272,14 +558,287 @@ class __$ChatMessageCopyWithImpl<$Res>
 
 /// Create a copy of ChatMessage
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? role = null,Object? content = null,Object? runId = freezed,Object? createdAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? role = null,Object? content = null,Object? runId = freezed,Object? createdAt = null,Object? sources = null,}) {
   return _then(_ChatMessage(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as ChatMessageRole,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as String,runId: freezed == runId ? _self.runId : runId // ignore: cast_nullable_to_non_nullable
 as String?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,sources: null == sources ? _self._sources : sources // ignore: cast_nullable_to_non_nullable
+as List<SourceRef>,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$MessagePage {
+
+ List<ChatMessage> get items; String? get nextCursor;
+/// Create a copy of MessagePage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MessagePageCopyWith<MessagePage> get copyWith => _$MessagePageCopyWithImpl<MessagePage>(this as MessagePage, _$identity);
+
+  /// Serializes this MessagePage to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessagePage&&const DeepCollectionEquality().equals(other.items, items)&&(identical(other.nextCursor, nextCursor) || other.nextCursor == nextCursor));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(items),nextCursor);
+
+@override
+String toString() {
+  return 'MessagePage(items: $items, nextCursor: $nextCursor)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MessagePageCopyWith<$Res>  {
+  factory $MessagePageCopyWith(MessagePage value, $Res Function(MessagePage) _then) = _$MessagePageCopyWithImpl;
+@useResult
+$Res call({
+ List<ChatMessage> items, String? nextCursor
+});
+
+
+
+
+}
+/// @nodoc
+class _$MessagePageCopyWithImpl<$Res>
+    implements $MessagePageCopyWith<$Res> {
+  _$MessagePageCopyWithImpl(this._self, this._then);
+
+  final MessagePage _self;
+  final $Res Function(MessagePage) _then;
+
+/// Create a copy of MessagePage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? items = null,Object? nextCursor = freezed,}) {
+  return _then(_self.copyWith(
+items: null == items ? _self.items : items // ignore: cast_nullable_to_non_nullable
+as List<ChatMessage>,nextCursor: freezed == nextCursor ? _self.nextCursor : nextCursor // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [MessagePage].
+extension MessagePagePatterns on MessagePage {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _MessagePage value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _MessagePage() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _MessagePage value)  $default,){
+final _that = this;
+switch (_that) {
+case _MessagePage():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _MessagePage value)?  $default,){
+final _that = this;
+switch (_that) {
+case _MessagePage() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<ChatMessage> items,  String? nextCursor)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _MessagePage() when $default != null:
+return $default(_that.items,_that.nextCursor);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<ChatMessage> items,  String? nextCursor)  $default,) {final _that = this;
+switch (_that) {
+case _MessagePage():
+return $default(_that.items,_that.nextCursor);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<ChatMessage> items,  String? nextCursor)?  $default,) {final _that = this;
+switch (_that) {
+case _MessagePage() when $default != null:
+return $default(_that.items,_that.nextCursor);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _MessagePage implements MessagePage {
+  const _MessagePage({final  List<ChatMessage> items = const <ChatMessage>[], this.nextCursor}): _items = items;
+  factory _MessagePage.fromJson(Map<String, dynamic> json) => _$MessagePageFromJson(json);
+
+ final  List<ChatMessage> _items;
+@override@JsonKey() List<ChatMessage> get items {
+  if (_items is EqualUnmodifiableListView) return _items;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_items);
+}
+
+@override final  String? nextCursor;
+
+/// Create a copy of MessagePage
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$MessagePageCopyWith<_MessagePage> get copyWith => __$MessagePageCopyWithImpl<_MessagePage>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$MessagePageToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessagePage&&const DeepCollectionEquality().equals(other._items, _items)&&(identical(other.nextCursor, nextCursor) || other.nextCursor == nextCursor));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_items),nextCursor);
+
+@override
+String toString() {
+  return 'MessagePage(items: $items, nextCursor: $nextCursor)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$MessagePageCopyWith<$Res> implements $MessagePageCopyWith<$Res> {
+  factory _$MessagePageCopyWith(_MessagePage value, $Res Function(_MessagePage) _then) = __$MessagePageCopyWithImpl;
+@override @useResult
+$Res call({
+ List<ChatMessage> items, String? nextCursor
+});
+
+
+
+
+}
+/// @nodoc
+class __$MessagePageCopyWithImpl<$Res>
+    implements _$MessagePageCopyWith<$Res> {
+  __$MessagePageCopyWithImpl(this._self, this._then);
+
+  final _MessagePage _self;
+  final $Res Function(_MessagePage) _then;
+
+/// Create a copy of MessagePage
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? items = null,Object? nextCursor = freezed,}) {
+  return _then(_MessagePage(
+items: null == items ? _self._items : items // ignore: cast_nullable_to_non_nullable
+as List<ChatMessage>,nextCursor: freezed == nextCursor ? _self.nextCursor : nextCursor // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

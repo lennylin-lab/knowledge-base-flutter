@@ -13,19 +13,24 @@ import 'package:knowledge_base_flutter/shared/models/session.dart';
 import '../search/stub_search_repository.dart';
 import 'stub_chat_repository.dart';
 
-/// In-memory [SessionRepository]: scripted detail result / error, every call
-/// recorded.
+/// In-memory [SessionRepository]: pages popped per `getSessionPage` call
+/// (last one repeats), deletes recorded, errors scripted.
 class StubSessionRepository implements SessionRepository {
-  SessionDetail? detail;
+  List<MessagePage> pages = const [];
   ApiException? detailError;
-  final List<String> getSessionCalls = <String>[];
+  final List<({String sessionId, String? cursor, int limit})> pageCalls =
+      <({String sessionId, String? cursor, int limit})>[];
 
   @override
-  Future<SessionDetail> getSession(String sessionId) async {
-    getSessionCalls.add(sessionId);
+  Future<MessagePage> getSessionPage(
+    String sessionId, {
+    int limit = SessionRepository.defaultHistoryLimit,
+    String? cursor,
+  }) async {
+    pageCalls.add((sessionId: sessionId, cursor: cursor, limit: limit));
     final error = detailError;
     if (error != null) throw error;
-    return detail!;
+    return pages.length > 1 ? pages.removeAt(0) : pages.single;
   }
 
   @override
@@ -356,46 +361,130 @@ void main() {
     await controller.close();
   });
 
-  test('openSession loads history and continues the conversation', () async {
+  test('openSession loads the newest page and continues the conversation', () async {
     final controller = StreamController<ChatEvent>.broadcast();
     final repo = StubChatRepository()..chatHandler = (q, limit, sessionId) => controller.stream;
     final sessionRepo = StubSessionRepository()
-      ..detail = SessionDetail(
-        id: 's-9',
-        title: '旧会话',
-        createdAt: DateTime.utc(2026, 9, 1),
-        updatedAt: DateTime.utc(2026, 9, 2),
-        messages: [
-          ChatMessage(
-            id: 'm1',
-            role: ChatMessageRole.user,
-            content: '旧问题',
-            createdAt: DateTime.utc(2026, 9, 1),
-          ),
-          ChatMessage(
-            id: 'm2',
-            role: ChatMessageRole.assistant,
-            content: '旧回答',
-            runId: 'r0',
-            createdAt: DateTime.utc(2026, 9, 1),
-          ),
-        ],
-      );
+      ..pages = [
+        MessagePage(
+          items: [
+            ChatMessage(
+              id: 'm1',
+              role: ChatMessageRole.user,
+              content: '旧问题',
+              createdAt: DateTime.utc(2026, 9, 1),
+            ),
+            ChatMessage(
+              id: 'm2',
+              role: ChatMessageRole.assistant,
+              content: '旧回答 [1]',
+              runId: 'r0',
+              createdAt: DateTime.utc(2026, 9, 1),
+              sources: [
+                SourceRef(
+                  documentId: 'doc-9',
+                  documentTitle: '引用文档',
+                  chunkIndex: 0,
+                ),
+              ],
+            ),
+          ],
+          nextCursor: 'cur-2',
+        ),
+      ];
     final container = _makeContainer(repo, sessionRepo: sessionRepo);
 
     await container.read(chatProvider.notifier).openSession('s-9');
 
-    expect(sessionRepo.getSessionCalls, ['s-9']);
+    expect(sessionRepo.pageCalls.single.sessionId, 's-9');
+    expect(sessionRepo.pageCalls.single.cursor, isNull);
+    expect(sessionRepo.pageCalls.single.limit,
+        SessionRepository.defaultHistoryLimit);
     var state = container.read(chatProvider);
     expect(state.phase, ChatPhase.idle);
     expect(state.sessionId, 's-9');
     expect(state.history, hasLength(2));
+    expect(state.historyCursor, 'cur-2');
 
     container.read(chatProvider.notifier).ask('新问题');
     await flush();
     expect(repo.chatCalls.single.sessionId, 's-9');
 
     await controller.close();
+  });
+
+  test('loadOlderHistory prepends the cursor page and stops when exhausted', () async {
+    final repo = StubChatRepository();
+    final sessionRepo = StubSessionRepository()
+      ..pages = [
+        const MessagePage(items: [], nextCursor: 'cur-2'),
+        MessagePage(
+          items: [
+            ChatMessage(
+              id: 'm-old',
+              role: ChatMessageRole.user,
+              content: '更早的消息',
+              createdAt: DateTime.utc(2026, 8, 30),
+            ),
+          ],
+          nextCursor: null,
+        ),
+      ];
+    final container = _makeContainer(repo, sessionRepo: sessionRepo);
+
+    await container.read(chatProvider.notifier).openSession('s-1');
+    await container.read(chatProvider.notifier).loadOlderHistory();
+
+    final state = container.read(chatProvider);
+    expect(state.history, hasLength(1));
+    expect(state.history.single.content, '更早的消息');
+    expect(state.historyCursor, isNull);
+    expect(sessionRepo.pageCalls.last.cursor, 'cur-2');
+
+    // Exhausted: no further request fires.
+    await container.read(chatProvider.notifier).loadOlderHistory();
+    expect(sessionRepo.pageCalls, hasLength(2));
+  });
+
+  test('loadOlderHistory failure latches; explicit retry recovers', () async {
+    final repo = StubChatRepository();
+    final sessionRepo = StubSessionRepository()
+      ..pages = [
+        const MessagePage(items: [], nextCursor: 'cur-2'),
+        MessagePage(
+          items: [
+            ChatMessage(
+              id: 'm-old',
+              role: ChatMessageRole.user,
+              content: '更早的消息',
+              createdAt: DateTime.utc(2026, 8, 30),
+            ),
+          ],
+          nextCursor: null,
+        ),
+      ];
+    final container = _makeContainer(repo, sessionRepo: sessionRepo);
+
+    await container.read(chatProvider.notifier).openSession('s-1');
+
+    // 第一页加载失败：历史与 cursor 保留，失败锁存等待显式重试。
+    sessionRepo.detailError =
+        const ApiException(code: 'network_error', message: 'down');
+    await container.read(chatProvider.notifier).loadOlderHistory();
+
+    var state = container.read(chatProvider);
+    expect(state.history, isEmpty);
+    expect(state.historyCursor, 'cur-2');
+    expect(state.historyLoadFailed, isTrue);
+    expect(state.historyLoadingMore, isFalse);
+
+    // 恢复后重试成功。
+    sessionRepo.detailError = null;
+    await container.read(chatProvider.notifier).loadOlderHistory();
+    state = container.read(chatProvider);
+    expect(state.history.single.content, '更早的消息');
+    expect(state.historyCursor, isNull);
+    expect(state.historyLoadFailed, isFalse);
   });
 
   test('openSession failure surfaces the error envelope and keeps idle', () async {

@@ -22,7 +22,7 @@ This document describes the knowledge-base-server chat and session endpoints for
 
 1. First turn: `POST /chat` without `session_id` → read `session_id` from `run_started`.
 2. Follow-up turns: send the same `session_id` in the request body.
-3. History UI: `GET /chat/sessions/{id}` returns persisted messages. **Sources are not included** in session detail — accumulate them from SSE during each run.
+3. History UI: `GET /chat/sessions/{id}` returns persisted messages; each assistant message carries `sources: SourceRef[]` (list position = citation number) for `[n]` → document linking. Streamed runs map citations from the SSE `sources` events with the same logic.
 
 ---
 
@@ -347,7 +347,18 @@ Sorted by `updated_at` descending (most recently active first).
 
 ### 6.2 Detail — `GET /api/v1/chat/sessions/{session_id}`
 
+With `limit` (1–100) / `cursor` the endpoint returns a **paged** message
+history; without them the legacy full `SessionDetail` (below) is returned
+unchanged — clients should use paged mode.
+
 ```typescript
+// Paged response (limit and/or cursor present)
+interface MessagePage {
+  items: MessageRead[];   // chronological; first page = newest `limit`
+  next_cursor: string | null; // older messages; null = exhausted
+}
+
+// Legacy response (no params)
 interface SessionDetail extends SessionRead {
   messages: MessageRead[];
 }
@@ -358,10 +369,20 @@ interface MessageRead {
   content: string;
   run_id: string | null;  // assistant messages only; UUID string (SSE uses hex run_id)
   created_at: string;
+  sources: SourceRef[] | null; // assistant messages with retrieval; null otherwise
+}
+
+interface SourceRef {
+  document_id: string;      // UUID
+  document_title: string;
+  document_tags: string[];
+  chunk_index: number;
 }
 ```
 
-**Note:** messages do **not** include `sources`. Cache `{ run_id → SearchHit[] }` from SSE if the UI needs citation panels for past turns.
+**Note:** `sources` list position IS the citation number (`sources[0]` =
+`[1]`) — map `[n]` to `sources[n-1].document_id` when replaying history.
+`content`/`score` are deliberately excluded from `SourceRef`.
 
 ### 6.3 Delete — `DELETE /api/v1/chat/sessions/{session_id}`
 
@@ -474,7 +495,7 @@ await chatStream(
 2. On follow-up, the first batch may replay the previous run — numbering restarts at `[1]` **within this run**.
 3. Fresh retrieval continues after carried hits (e.g. 2 carried → new hits start at `[3]`).
 4. Tap `[n]` → `sources[n - 1]` (1-based).
-5. Session detail API does not return sources; cache from SSE or rely on carried replay on the next turn.
+5. Past turns: map `[n]` via that message's `sources` from the session-detail API (or the run's accumulated SSE sources for the current run).
 
 ---
 

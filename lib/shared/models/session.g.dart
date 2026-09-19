@@ -6,6 +6,25 @@ part of 'session.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_SourceRef _$SourceRefFromJson(Map<String, dynamic> json) => _SourceRef(
+  documentId: json['document_id'] as String,
+  documentTitle: json['document_title'] as String,
+  documentTags:
+      (json['document_tags'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const <String>[],
+  chunkIndex: (json['chunk_index'] as num?)?.toInt() ?? 0,
+);
+
+Map<String, dynamic> _$SourceRefToJson(_SourceRef instance) =>
+    <String, dynamic>{
+      'document_id': instance.documentId,
+      'document_title': instance.documentTitle,
+      'document_tags': instance.documentTags,
+      'chunk_index': instance.chunkIndex,
+    };
+
 _ChatMessage _$ChatMessageFromJson(Map<String, dynamic> json) => _ChatMessage(
   id: json['id'] as String,
   role: $enumDecode(
@@ -16,6 +35,11 @@ _ChatMessage _$ChatMessageFromJson(Map<String, dynamic> json) => _ChatMessage(
   content: json['content'] as String,
   runId: json['run_id'] as String?,
   createdAt: DateTime.parse(json['created_at'] as String),
+  sources:
+      (json['sources'] as List<dynamic>?)
+          ?.map((e) => SourceRef.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <SourceRef>[],
 );
 
 Map<String, dynamic> _$ChatMessageToJson(_ChatMessage instance) =>
@@ -25,12 +49,28 @@ Map<String, dynamic> _$ChatMessageToJson(_ChatMessage instance) =>
       'content': instance.content,
       'run_id': instance.runId,
       'created_at': instance.createdAt.toIso8601String(),
+      'sources': instance.sources.map((e) => e.toJson()).toList(),
     };
 
 const _$ChatMessageRoleEnumMap = {
   ChatMessageRole.user: 'user',
   ChatMessageRole.assistant: 'assistant',
 };
+
+_MessagePage _$MessagePageFromJson(Map<String, dynamic> json) => _MessagePage(
+  items:
+      (json['items'] as List<dynamic>?)
+          ?.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <ChatMessage>[],
+  nextCursor: json['next_cursor'] as String?,
+);
+
+Map<String, dynamic> _$MessagePageToJson(_MessagePage instance) =>
+    <String, dynamic>{
+      'items': instance.items.map((e) => e.toJson()).toList(),
+      'next_cursor': instance.nextCursor,
+    };
 
 _ChatSessionSummary _$ChatSessionSummaryFromJson(Map<String, dynamic> json) =>
     _ChatSessionSummary(

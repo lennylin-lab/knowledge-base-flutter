@@ -76,28 +76,49 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         final panelVisible = wide && state.sources.isNotEmpty;
         final panelOpen = panelVisible && _sourcesOpen;
 
-        final conversationChildren = [
-          for (final message in state.history)
-            _HistoryBubble(message: message),
-          if (state.question.isNotEmpty)
-            _RunView(
-              state: state,
-              onRetry: notifier.retry,
-              showInlineSources: !panelVisible,
-            ),
-        ];
+        final hasRunView = state.question.isNotEmpty;
+        // 有可滚动内容时用反向 builder 列表：offset 0 是最新内容（打开会话
+        // 自动定位到底部），向上滚动加载更早页并 prepend，视口不跳动；
+        // builder 按需构建，长会话不一次性实例化全部消息（issue #6 追评）。
+        final itemCount = (hasRunView ? 1 : 0) + state.history.length + 1;
 
-        Widget content = conversationChildren.isEmpty
-            ? const _IdleHint()
-            : ListView(
-                padding: EdgeInsets.fromLTRB(
-                  sizes.pagePadH,
-                  sizes.space12,
-                  sizes.pagePadH,
-                  sizes.space16,
-                ),
-                children: conversationChildren,
+        Widget content;
+        if (!hasRunView && state.history.isEmpty) {
+          content = const _IdleHint();
+        } else {
+          content = ListView.builder(
+            reverse: true,
+            padding: EdgeInsets.fromLTRB(
+              sizes.pagePadH,
+              sizes.space12,
+              sizes.pagePadH,
+              sizes.space16,
+            ),
+            itemCount: itemCount,
+            itemBuilder: (context, index) {
+              // 反向列表：0 = 屏幕最下方（当前运行），越大越早。
+              if (index == 0 && hasRunView) {
+                return _RunView(
+                  state: state,
+                  onRetry: notifier.retry,
+                  showInlineSources: !panelVisible,
+                );
+              }
+              final historyIndex = state.history.length - 1 - (index - (hasRunView ? 1 : 0));
+              if (historyIndex >= 0) {
+                return _HistoryBubble(message: state.history[historyIndex]);
+              }
+              // 列表顶端（最早已加载消息之上）：加载触发 / 失败重试 / 结束标记。
+              return _HistoryFooter(
+                loading: state.historyLoadingMore,
+                exhausted: state.historyCursor == null,
+                failed: state.historyLoadFailed,
+                hasHistory: state.history.isNotEmpty,
+                onLoadMore: notifier.loadOlderHistory,
               );
+            },
+          );
+        }
 
         final body = panelOpen
             ? Row(
@@ -170,7 +191,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 }
 
 /// 历史消息气泡：用户消息右对齐容器，助手消息全宽 Markdown 渲染。
-/// 历史助手消息不含来源（后端只存文本），引用编号不解析。
+/// 助手消息用自己的 `sources`（后端随消息返回，顺序即引用编号）解析
+/// `[n]` 引用为可点击链接；无 sources 时引用保持纯文本。
 class _HistoryBubble extends StatelessWidget {
   const _HistoryBubble({required this.message});
 
@@ -197,10 +219,117 @@ class _HistoryBubble extends StatelessWidget {
         ),
       );
     }
+    final sources = message.sources;
     return Padding(
       padding: EdgeInsets.only(bottom: sizes.space12),
-      child: MarkdownContent(data: message.content),
+      child: MarkdownContent(
+        data: message.content,
+        citationDocumentId: sources.isEmpty
+            ? null
+            : (index) =>
+                index >= 1 && index <= sources.length
+                    ? sources[index - 1].documentId
+                    : null,
+        onCitationTap: (index, documentId) =>
+            context.push('/documents/$documentId'),
+      ),
     );
+  }
+}
+
+/// 会话历史列表的顶端尾部（反向列表的最末项）：加载中转圈 / 失败后可点
+/// 击重试 / 进入视口即拉取下一页 / 「已加载全部历史」结束标记。失败被
+/// 锁存（latch），由用户显式重试——避免不可见的无限自动重试循环。
+class _HistoryFooter extends StatefulWidget {
+  const _HistoryFooter({
+    required this.loading,
+    required this.exhausted,
+    required this.failed,
+    required this.hasHistory,
+    required this.onLoadMore,
+  });
+
+  final bool loading;
+  final bool exhausted;
+  final bool failed;
+  final bool hasHistory;
+  final VoidCallback onLoadMore;
+
+  /// 自动触发条件：非加载中、未失败、未耗尽。失败时等待用户点击。
+  bool get _shouldAutoLoad => !loading && !exhausted && !failed;
+
+  @override
+  State<_HistoryFooter> createState() => _HistoryFooterState();
+}
+
+class _HistoryFooterState extends State<_HistoryFooter> {
+  @override
+  void didUpdateWidget(_HistoryFooter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 加载完成但仍有更早消息 → footer 仍在视口内，继续触发下一页。
+    if (widget._shouldAutoLoad) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget._shouldAutoLoad) {
+          widget.onLoadMore();
+        }
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget._shouldAutoLoad) {
+        widget.onLoadMore();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.sizes;
+    if (widget.loading) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: sizes.space8),
+        child: Center(
+          child: SizedBox(
+            width: sizes.spinnerSm,
+            height: sizes.spinnerSm,
+            child: const CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (widget.failed) {
+      return ListTile(
+        dense: true,
+        title: Center(
+          child: Text(
+            '加载失败，点击重试',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ),
+        onTap: widget.onLoadMore,
+      );
+    }
+    if (widget.exhausted && widget.hasHistory) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: sizes.space8),
+        child: Center(
+          child: Text(
+            '已加载全部历史',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 

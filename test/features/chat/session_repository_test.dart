@@ -154,38 +154,68 @@ void main() {
     });
   });
 
-  group('getSession', () {
-    test('hits /{id} and parses messages chronologically', () async {
+  group('getSessionPage', () {
+    test('sends limit/cursor and parses MessagePage with per-message sources',
+        () async {
       final (repo, adapter) = _makeRepo([
         _CannedResponse(
           200,
           jsonEncode({
-            ...sessionJson,
-            'messages': [
+            'items': [
               messageJson,
               {
                 ...messageJson,
                 'id': '6f1a2b3c-0000-4000-8000-0000000000ab',
                 'role': 'assistant',
-                'content': '使用混合检索',
+                'content': '使用混合检索 [1]',
                 'run_id': '6f1a2b3c-0000-4000-8000-0000000000cc',
+                'sources': [
+                  {
+                    'document_id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
+                    'document_title': '检索笔记',
+                    'document_tags': ['flutter'],
+                    'chunk_index': 2,
+                  },
+                ],
               },
             ],
+            'next_cursor': 'cur-older',
           }),
         ),
       ]);
 
-      final detail = await repo.getSession(sessionJson['id'] as String);
-
-      expect(detail.title, '检索方案');
-      expect(detail.messages, hasLength(2));
-      expect(detail.messages.first.role, ChatMessageRole.user);
-      expect(detail.messages.last.role, ChatMessageRole.assistant);
-      expect(detail.messages.last.runId, '6f1a2b3c-0000-4000-8000-0000000000cc');
-      expect(
-        adapter.requests.single.path,
-        '/api/v1/chat/sessions/${sessionJson['id']}',
+      final page = await repo.getSessionPage(
+        sessionJson['id'] as String,
+        limit: 500,
+        cursor: 'cur-1',
       );
+
+      expect(page.items, hasLength(2));
+      expect(page.nextCursor, 'cur-older');
+      final assistant = page.items.last;
+      expect(assistant.role, ChatMessageRole.assistant);
+      expect(assistant.sources, hasLength(1));
+      expect(assistant.sources.single.documentId,
+          '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01');
+      expect(assistant.sources.single.documentTitle, '检索笔记');
+      expect(assistant.sources.single.chunkIndex, 2);
+      // 用户消息无来源：null 归一为空列表。
+      expect(page.items.first.sources, isEmpty);
+
+      final request = adapter.requests.single;
+      expect(request.path, '/api/v1/chat/sessions/${sessionJson['id']}');
+      expect(request.queryParameters['limit'], 100);
+      expect(request.queryParameters['cursor'], 'cur-1');
+    });
+
+    test('clamps the page size into the API 1–100 range', () async {
+      final (repo, adapter) = _makeRepo([
+        _CannedResponse(200, jsonEncode({'items': [], 'next_cursor': null})),
+      ]);
+
+      await repo.getSessionPage('s', limit: 0);
+
+      expect(adapter.requests.single.queryParameters['limit'], 1);
     });
 
     test('unknown session surfaces the 404 envelope code', () async {
@@ -199,7 +229,7 @@ void main() {
       ]);
 
       await expectLater(
-        repo.getSession('missing'),
+        repo.getSessionPage('missing'),
         throwsA(
           isA<ApiException>()
               .having((e) => e.code, 'code', 'session_not_found'),

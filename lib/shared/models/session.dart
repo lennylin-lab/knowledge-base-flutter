@@ -11,9 +11,26 @@ enum ChatMessageRole {
   assistant,
 }
 
+/// Slim citation entry on a stored assistant message (backend `SourceRef`).
+/// List position IS the citation number (`sources[0]` = `[1]`) — no index
+/// field. Deliberately excludes `content`/`score` retrieval internals.
+@freezed
+abstract class SourceRef with _$SourceRef {
+  const factory SourceRef({
+    required String documentId,
+    required String documentTitle,
+    @Default(<String>[]) List<String> documentTags,
+    @Default(0) int chunkIndex,
+  }) = _SourceRef;
+
+  factory SourceRef.fromJson(Map<String, dynamic> json) =>
+      _$SourceRefFromJson(json);
+}
+
 /// One stored chat message, as returned inside a session detail
-/// (backend `MessageRead`). Messages carry no sources — historical
-/// assistant turns render markdown only.
+/// (backend `MessageRead`). [sources] is null for user / no-retrieval
+/// messages — normalized to an empty list; history replay maps `[n]` to
+/// `sources[n-1].documentId`.
 @freezed
 abstract class ChatMessage with _$ChatMessage {
   const factory ChatMessage({
@@ -23,10 +40,27 @@ abstract class ChatMessage with _$ChatMessage {
     required String content,
     String? runId,
     required DateTime createdAt,
+    @JsonKey(includeIfNull: false) @Default(<SourceRef>[]) List<SourceRef> sources,
   }) = _ChatMessage;
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) =>
       _$ChatMessageFromJson(json);
+}
+
+/// One page of the session-detail message history (backend `MessagePage`),
+/// returned by `GET /sessions/{id}` when `limit`/`cursor` is given. Items
+/// are chronological; the first page holds the NEWEST messages;
+/// [nextCursor] points at strictly older messages and is null when
+/// exhausted.
+@freezed
+abstract class MessagePage with _$MessagePage {
+  const factory MessagePage({
+    @Default(<ChatMessage>[]) List<ChatMessage> items,
+    String? nextCursor,
+  }) = _MessagePage;
+
+  factory MessagePage.fromJson(Map<String, dynamic> json) =>
+      _$MessagePageFromJson(json);
 }
 
 /// Chat session as returned in lists — messages excluded

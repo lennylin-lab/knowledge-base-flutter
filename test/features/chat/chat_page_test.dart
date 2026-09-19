@@ -4,15 +4,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/app.dart';
+import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/retry_policy.dart';
 import 'package:knowledge_base_flutter/features/chat/chat_providers.dart';
+import 'package:knowledge_base_flutter/features/chat/session_repository.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_providers.dart';
 import 'package:knowledge_base_flutter/shared/models/chat.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
+import 'package:knowledge_base_flutter/shared/models/session.dart';
 
 import '../documents/stub_documents_repository.dart';
 import '../search/stub_search_repository.dart';
 import 'stub_chat_repository.dart';
+
+/// Scripted [SessionRepository] for the history tests: message pages popped
+/// per call (last repeats).
+class StubSessionRepository implements SessionRepository {
+  StubSessionRepository({required this.messagePages, this.detailError});
+
+  final List<MessagePage> messagePages;
+  ApiException? detailError;
+
+  @override
+  Future<MessagePage> getSessionPage(
+    String sessionId, {
+    int limit = 30,
+    String? cursor,
+  }) async {
+    final error = detailError;
+    if (error != null) throw error;
+    return messagePages.length > 1 ? messagePages.removeAt(0) : messagePages.single;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 /// Pumps the full app (adaptive shell + real router) with the chat and
 /// documents repositories stubbed — no dio, no network. Compact surface so
@@ -407,5 +433,78 @@ void main() {
     expect(find.textContaining('回答完成'), findsOneWidget);
 
     await controller.close();
+  });
+
+  testWidgets('history messages render per-message citations; tap opens the '
+      'document (issue #6 follow-up)', (tester) async {
+    final docsRepo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async {
+            return const DocumentPage(items: [], nextCursor: null);
+          }
+          ..getHandler = (id) async => documentReadDetail(
+                documentRead(id: id, title: '来源文档 $id'),
+                content: '# 详情',
+              );
+    final sessionRepo = StubSessionRepository(
+      messagePages: [
+        MessagePage(
+          items: [
+            ChatMessage(
+              id: 'm1',
+              role: ChatMessageRole.user,
+              content: '旧问题',
+              createdAt: DateTime.utc(2026, 9, 1),
+            ),
+            ChatMessage(
+              id: 'm2',
+              role: ChatMessageRole.assistant,
+              content: '结论见 [1] 与 [2]，[3] 无对应来源。',
+              createdAt: DateTime.utc(2026, 9, 2),
+              sources: [
+                SourceRef(documentId: 'doc-42', documentTitle: '文档甲', chunkIndex: 0),
+                SourceRef(documentId: 'doc-43', documentTitle: '文档乙', chunkIndex: 1),
+              ],
+            ),
+          ],
+          nextCursor: null,
+        ),
+      ],
+    );
+
+    await tester.binding.setSurfaceSize(const Size(480, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          documentsRepositoryProvider.overrideWithValue(docsRepo),
+          chatRepositoryProvider.overrideWithValue(StubChatRepository()),
+          sessionRepositoryProvider.overrideWithValue(sessionRepo),
+        ],
+        retry: noAutomaticRetry,
+        child: App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('问答').last);
+    await tester.pumpAndSettle();
+
+    // 直接驱动 notifier 打开会话（等价于历史会话列表的入口动作）。
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TextField)),
+    );
+    await container.read(chatProvider.notifier).openSession('s-1');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('结论见'), findsOneWidget);
+    // [1]/[2] 有映射 → 可点击徽标；[3] 越界 → 纯文本。
+    expect(find.text('[1]'), findsOneWidget);
+    expect(find.text('[2]'), findsOneWidget);
+    expect(find.text('[3]'), findsOneWidget);
+
+    await tester.tap(find.text('[1]'));
+    await tester.pumpAndSettle();
+    expect(docsRepo.getCalls.single, 'doc-42');
+    expect(find.text('来源文档 doc-42'), findsWidgets);
   });
 }
