@@ -9,6 +9,7 @@ import 'package:knowledge_base_flutter/core/network/api_client.dart';
 import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/network/chat_transport.dart';
 import 'package:knowledge_base_flutter/features/documents/documents_repository.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
 
@@ -449,6 +450,120 @@ void main() {
     );
 
     test(
+      'forwards summary_delta text verbatim, in wire order, interleaved '
+      'with progress; the summary still settles authoritatively',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+        final progress = <SummaryProgress>[];
+        final deltas = <String>[];
+
+        final future = repo.summarize(
+          docId,
+          onProgress: progress.add,
+          onSummaryDelta: deltas.add,
+        );
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-1","kind":"summary","document_id":"$docId"}',
+          ) +
+              sseFrame(
+                'summary_progress',
+                '{"phase":"map_pass","pass_index":1,"passes_total":2}',
+              ) +
+              sseFrame('summary_delta', '{"run_id":"r-1","text":"这份文档记录了"}') +
+              sseFrame(
+                'summary_delta',
+                '{"run_id":"r-1","text":"知识库的整体设计思路。"}',
+              ) +
+              sseFrame(
+                'summary_progress',
+                '{"phase":"reduce_pass","pass_index":2,"passes_total":2}',
+              ) +
+              sseFrame('summary', jsonEncode(summaryResultJson)) +
+              sseFrame(
+                'done',
+                '{"run_id":"r-1","outcome":"success","latency_ms":1250.0}',
+              ),
+        );
+        transport.closeStream();
+
+        final result = await future;
+        // Deltas verbatim, in wire order (progress interleaves around them).
+        expect(deltas, ['这份文档记录了', '知识库的整体设计思路。']);
+        expect(progress.map((p) => p.phase), ['map_pass', 'reduce_pass']);
+        // Transport-level truth: the concatenation equals the final field.
+        expect(deltas.join(), result.summary);
+      },
+    );
+
+    test(
+      'cache-hit shape: zero deltas — the result still settles',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+        var deltaSeen = false;
+
+        final future = repo.summarize(
+          docId,
+          onSummaryDelta: (_) => deltaSeen = true,
+        );
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-1","kind":"summary","document_id":"$docId"}',
+          ) +
+              sseFrame('summary', jsonEncode(summaryResultJson)) +
+              sseFrame(
+                'done',
+                '{"run_id":"r-1","outcome":"success","latency_ms":1250.0}',
+              ),
+        );
+        transport.closeStream();
+
+        final result = await future;
+        expect(result.summary, summaryResultJson['summary']);
+        expect(deltaSeen, isFalse, reason: 'a cache hit streams no deltas');
+      },
+    );
+
+    test(
+      'error after deltas surfaces as ApiException and never settles a result',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+        final deltas = <String>[];
+
+        final future = repo.summarize(docId, onSummaryDelta: deltas.add);
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-1","kind":"summary","document_id":"$docId"}',
+          ) +
+              sseFrame('summary_delta', '{"run_id":"r-1","text":"未完成的片段"}') +
+              sseFrame(
+                'error',
+                '{"code":"llm_provider_error","message":"provider exploded"}',
+              ),
+        );
+        transport.closeStream();
+
+        // The fold fails exactly as before, no result…
+        await expectLater(
+          future,
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.code, 'code', 'llm_provider_error')
+                .having((e) => e.message, 'message', 'provider exploded'),
+          ),
+        );
+        // …after the deltas were forwarded before the failure.
+        expect(deltas, ['未完成的片段']);
+      },
+    );
+
+    test(
       'a terminal error event surfaces as ApiException(code, message)',
       () async {
         final (repo, transport) = _makeAgentRepo();
@@ -592,6 +707,138 @@ void main() {
           isNull,
           reason: 'the server handler takes only the path UUID',
         );
+      },
+    );
+
+    test(
+      'forwards association_item events in wire order as AssociationItems; '
+      'the associations result still settles authoritatively',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+        final items = <AssociationItem>[];
+
+        final future = repo.listAssociations(
+          docId,
+          onAssociationItem: items.add,
+        );
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-2","kind":"associations","document_id":"$docId"}',
+          ) +
+              sseFrame(
+                'association_item',
+                '{"run_id":"r-2","position":1,"document_id":'
+                    '"0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f","title":'
+                    '"Riverpod 迁移笔记","tags":["flutter","dart"],"reason":'
+                    '"共享状态管理的迁移经验。","signal":"tag_overlap"}',
+              ) +
+              sseFrame(
+                'association_item',
+                '{"run_id":"r-2","position":2,"document_id":'
+                    '"0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e90","title":'
+                    '"检索质量评估","tags":["es"],"reason":"评估检索召回。",'
+                    '"signal":"vector"}',
+              ) +
+              sseFrame('associations', jsonEncode(associationsResultJson)) +
+              sseFrame(
+                'done',
+                '{"run_id":"r-2","outcome":"success","latency_ms":2360.0}',
+              ),
+        );
+        transport.closeStream();
+
+        final result = await future;
+        // Items forwarded verbatim, in wire order, as plain AssociationItems.
+        expect(items, hasLength(2));
+        expect(items[0].title, 'Riverpod 迁移笔记');
+        expect(items[0].tags, ['flutter', 'dart']);
+        expect(items[0].signal, 'tag_overlap');
+        expect(items[1].title, '检索质量评估');
+        // The first streamed item equals its result-list counterpart — the
+        // item payload mirrors AssociationItem 1:1. The result event is the
+        // authoritative settle regardless of what was streamed.
+        expect(items[0], result.associations.single);
+      },
+    );
+
+    test(
+      'cache-hit shape: zero items — the result still settles',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+        var itemSeen = false;
+
+        final future = repo.listAssociations(
+          docId,
+          onAssociationItem: (_) => itemSeen = true,
+        );
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-2","kind":"associations","document_id":"$docId"}',
+          ) +
+              sseFrame(
+                'associations',
+                '{"document_id":"$docId","associations":[],"model":'
+                    '"glm-4.7","latency_ms":12.0}',
+              ) +
+              sseFrame(
+                'done',
+                '{"run_id":"r-2","outcome":"success","latency_ms":14.0}',
+              ),
+        );
+        transport.closeStream();
+
+        final result = await future;
+        expect(result.associations, isEmpty);
+        expect(itemSeen, isFalse, reason: 'a cache hit streams no items');
+      },
+    );
+
+    test(
+      'error after an association_item surfaces as ApiException; no result',
+      () async {
+        final (repo, transport) = _makeAgentRepo();
+        final items = <AssociationItem>[];
+
+        final future = repo.listAssociations(
+          docId,
+          onAssociationItem: items.add,
+        );
+        await Future<void>.delayed(Duration.zero);
+        transport.addWire(
+          sseFrame(
+            'run_started',
+            '{"run_id":"r-2","kind":"associations","document_id":"$docId"}',
+          ) +
+              sseFrame(
+                'association_item',
+                '{"run_id":"r-2","position":1,"document_id":'
+                    '"0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f","title":'
+                    '"Riverpod 迁移笔记","tags":["flutter"],"reason":"r",'
+                    '"signal":"tag_overlap"}',
+              ) +
+              sseFrame(
+                'error',
+                '{"code":"llm_provider_error","message":"provider exploded"}',
+              ),
+        );
+        transport.closeStream();
+
+        await expectLater(
+          future,
+          throwsA(
+            isA<ApiException>().having(
+              (e) => e.code,
+              'code',
+              'llm_provider_error',
+            ),
+          ),
+        );
+        // The item was forwarded before the failure; no result settled.
+        expect(items, hasLength(1));
       },
     );
 

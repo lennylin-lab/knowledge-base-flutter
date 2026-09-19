@@ -447,4 +447,436 @@ void main() {
       expect(state.error, isNull);
     });
   });
+
+  group('on-demand streamed summary deltas (documentSummaryProvider)', () {
+    ProviderContainer containerFor(StubDocumentsRepository repo) {
+      final container = ProviderContainer(
+        overrides: [documentsRepositoryProvider.overrideWithValue(repo)],
+        retry: noAutomaticRetry,
+      );
+      addTearDown(container.dispose);
+      container.listen(documentSummaryProvider('doc-1'), (_, _) {});
+      return container;
+    }
+
+    SummaryResult resultOf(String text) => SummaryResult(
+      documentId: 'doc-1',
+      summary: text,
+      model: 'glm-4.7',
+      latencyMs: 1500,
+    );
+
+    test('summary_delta text accumulates into partialSummary live', () async {
+      final repo = StubDocumentsRepository();
+      final pending = Completer<SummaryResult>();
+      repo.summarizeHandler = (id) => pending.future;
+      repo.summarizeDeltaHandler = (id, emit) {
+        emit('这份文档记录了');
+        emit('知识库的整体设计思路。');
+      };
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      final run = notifier.generate();
+      await container.pump();
+
+      final generating = container.read(documentSummaryProvider('doc-1'));
+      expect(generating.isGenerating, isTrue);
+      expect(generating.partialSummary, '这份文档记录了知识库的整体设计思路。');
+
+      pending.complete(resultOf('这份文档记录了知识库的整体设计思路。'));
+      await run;
+
+      final done = container.read(documentSummaryProvider('doc-1'));
+      expect(done.result?.summary, '这份文档记录了知识库的整体设计思路。');
+      expect(done.isGenerating, isFalse);
+      expect(done.error, isNull);
+      expect(
+        done.partialSummary,
+        isNull,
+        reason: 'the terminal result replaces the accumulated partial',
+      );
+    });
+
+    test('delta writes preserve the latest progress line', () async {
+      final repo = StubDocumentsRepository();
+      final pending = Completer<SummaryResult>();
+      repo.summarizeHandler = (id) => pending.future;
+      repo.summarizeProgressHandler = (id, report) => report(
+        const SummaryProgress(phase: 'map_pass', passIndex: 1, passesTotal: 2),
+      );
+      repo.summarizeDeltaHandler = (id, emit) => emit('部分');
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      final run = notifier.generate();
+      await container.pump();
+
+      // Wire order: the progress line (streamed before the deltas) stays
+      // visible alongside the accumulating partial.
+      final generating = container.read(documentSummaryProvider('doc-1'));
+      expect(generating.progress?.phase, 'map_pass');
+      expect(generating.partialSummary, '部分');
+
+      pending.complete(resultOf('完整'));
+      await run;
+      final done = container.read(documentSummaryProvider('doc-1'));
+      expect(done.result?.summary, '完整');
+      expect(done.progress, isNull);
+      expect(done.partialSummary, isNull);
+    });
+
+    test('an error clears the partial (result kept, error set)', () async {
+      final repo = StubDocumentsRepository();
+      var fail = false;
+      repo.summarizeHandler = (id) async {
+        if (fail) {
+          throw const ApiException(
+            code: 'chat_unavailable',
+            message: 'No API key configured',
+            statusCode: 503,
+          );
+        }
+        return resultOf('旧摘要');
+      };
+      repo.summarizeDeltaHandler = (id, emit) {
+        if (fail) emit('失败前的不完整文本');
+      };
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      await notifier.generate();
+      expect(
+        container.read(documentSummaryProvider('doc-1')).result?.summary,
+        '旧摘要',
+      );
+
+      fail = true;
+      await notifier.generate();
+      final failed = container.read(documentSummaryProvider('doc-1'));
+      expect(failed.result?.summary, '旧摘要', reason: 'failure keeps the result');
+      expect(failed.error, isA<ApiException>());
+      expect(failed.isGenerating, isFalse);
+      expect(
+        failed.partialSummary,
+        isNull,
+        reason: 'error clears the incremental text',
+      );
+    });
+
+    test('a new generation starts with the partial cleared', () async {
+      final repo = StubDocumentsRepository();
+      var firstRun = true;
+      final pending = Completer<SummaryResult>();
+      repo.summarizeHandler = (id) =>
+          firstRun ? Future.value(resultOf('第一版')) : pending.future;
+      repo.summarizeDeltaHandler = (id, emit) {
+        if (!firstRun) return; // the second generation emits nothing (yet)
+        emit('第一版的增量');
+      };
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      await notifier.generate();
+      expect(
+        container.read(documentSummaryProvider('doc-1')).partialSummary,
+        isNull,
+      );
+
+      firstRun = false;
+      final second = notifier.generate();
+      await container.pump();
+
+      final regenerating = container.read(documentSummaryProvider('doc-1'));
+      expect(regenerating.isGenerating, isTrue);
+      expect(
+        regenerating.partialSummary,
+        isNull,
+        reason: "a new generation must not show the previous run's partial",
+      );
+
+      pending.complete(resultOf('第二版'));
+      await second;
+      expect(
+        container.read(documentSummaryProvider('doc-1')).result?.summary,
+        '第二版',
+      );
+    });
+
+    test('a superseded generation drops its late deltas', () async {
+      final repo = StubDocumentsRepository();
+      final pending = Completer<SummaryResult>();
+      final emits = <void Function(String)>[];
+      repo.summarizeHandler = (id) => pending.future;
+      repo.summarizeDeltaHandler = (id, emit) => emits.add(emit);
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      final stale = notifier.generate();
+      await container.pump();
+
+      // The provider rebuilds mid-flight (generation bump).
+      container.invalidate(documentSummaryProvider('doc-1'));
+      await container.pump();
+      expect(
+        container.read(documentSummaryProvider('doc-1')).isGenerating,
+        isFalse,
+      );
+
+      // The stale stream emits deltas late — they must be dropped.
+      for (final emit in emits) {
+        emit('过期增量');
+      }
+      pending.complete(resultOf('过期摘要'));
+      await stale;
+
+      final state = container.read(documentSummaryProvider('doc-1'));
+      expect(state.result, isNull);
+      expect(state.partialSummary, isNull);
+      expect(state.error, isNull);
+    });
+
+    test('cache-hit shape: zero deltas lands normally', () async {
+      final repo = StubDocumentsRepository();
+      // No summarizeDeltaHandler — the cache-hit wire has no deltas.
+      repo.summarizeHandler = (id) async => resultOf('缓存的摘要');
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentSummaryProvider('doc-1').notifier,
+      );
+
+      await notifier.generate();
+
+      final done = container.read(documentSummaryProvider('doc-1'));
+      expect(done.result?.summary, '缓存的摘要');
+      expect(done.isGenerating, isFalse);
+      expect(done.error, isNull);
+      expect(done.partialSummary, isNull);
+    });
+  });
+
+  group('on-demand streamed association items (documentAssociationsProvider)',
+      () {
+    ProviderContainer containerFor(StubDocumentsRepository repo) {
+      final container = ProviderContainer(
+        overrides: [documentsRepositoryProvider.overrideWithValue(repo)],
+        retry: noAutomaticRetry,
+      );
+      addTearDown(container.dispose);
+      container.listen(documentAssociationsProvider('doc-1'), (_, _) {});
+      return container;
+    }
+
+    AssociationsResult resultOf(List<AssociationItem> items) =>
+        AssociationsResult(
+          documentId: 'doc-1',
+          associations: items,
+          model: 'glm-4.7',
+          latencyMs: 900,
+        );
+
+    test('association_item events append in order; the final result replaces '
+        'them wholesale', () async {
+      final repo = StubDocumentsRepository();
+      final pending = Completer<AssociationsResult>();
+      final reports = <void Function(AssociationItem)>[];
+      repo.listAssociationsHandler = (id) => pending.future;
+      repo.listAssociationsItemHandler = (id, report) => reports.add(report);
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentAssociationsProvider('doc-1').notifier,
+      );
+
+      final run = notifier.generate();
+      await container.pump();
+      final generatingStart = container.read(
+        documentAssociationsProvider('doc-1'),
+      );
+      expect(generatingStart.isGenerating, isTrue);
+      expect(generatingStart.partialAssociations, isEmpty);
+
+      // Server streams items in final-list order — they append as they
+      // arrive.
+      reports.single(
+        const AssociationItem(
+          documentId: 'doc-2',
+          title: 'Riverpod 迁移笔记',
+          tags: ['flutter', 'dart'],
+          reason: '共享状态管理的迁移经验。',
+          signal: 'tag_overlap',
+        ),
+      );
+      await container.pump();
+      reports.single(
+        const AssociationItem(
+          documentId: 'doc-3',
+          title: '检索质量评估',
+          tags: ['es'],
+          reason: '评估检索召回。',
+          signal: 'vector',
+        ),
+      );
+      await container.pump();
+
+      final generating = container.read(documentAssociationsProvider('doc-1'));
+      expect(generating.isGenerating, isTrue);
+      expect(generating.partialAssociations, hasLength(2));
+      expect(generating.partialAssociations[0].title, 'Riverpod 迁移笔记');
+      expect(generating.partialAssociations[1].title, '检索质量评估');
+
+      pending.complete(
+        resultOf([
+          const AssociationItem(
+            documentId: 'doc-2',
+            title: 'Riverpod 迁移笔记',
+            tags: ['flutter', 'dart'],
+            reason: '共享状态管理的迁移经验。',
+            signal: 'tag_overlap',
+          ),
+          const AssociationItem(
+            documentId: 'doc-3',
+            title: '检索质量评估',
+            tags: ['es'],
+            reason: '评估检索召回。',
+            signal: 'vector',
+          ),
+        ]),
+      );
+      await run;
+
+      final done = container.read(documentAssociationsProvider('doc-1'));
+      expect(done.result?.associations, hasLength(2));
+      expect(done.isGenerating, isFalse);
+      expect(
+        done.partialAssociations,
+        isEmpty,
+        reason: 'the final result replaces the incremental items',
+      );
+    });
+
+    test('an error clears the items (result kept, error set)', () async {
+      final repo = StubDocumentsRepository();
+      var fail = false;
+      repo.listAssociationsHandler = (id) async {
+        if (fail) {
+          throw const ApiException(
+            code: 'chat_unavailable',
+            message: 'No API key configured',
+            statusCode: 503,
+          );
+        }
+        return resultOf([
+          const AssociationItem(
+            documentId: 'doc-2',
+            title: '旧关联',
+            tags: [],
+            reason: '旧理由。',
+            signal: 'tag_overlap',
+          ),
+        ]);
+      };
+      repo.listAssociationsItemHandler = (id, report) {
+        if (fail) {
+          report(
+            const AssociationItem(
+              documentId: 'doc-2',
+              title: '失败前的关联',
+              tags: [],
+              reason: '流式中途失败。',
+              signal: 'tag_overlap',
+            ),
+          );
+        }
+      };
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentAssociationsProvider('doc-1').notifier,
+      );
+
+      await notifier.generate();
+      expect(
+        container.read(documentAssociationsProvider('doc-1')).result,
+        isNotNull,
+      );
+
+      fail = true;
+      await notifier.generate();
+      final failed = container.read(documentAssociationsProvider('doc-1'));
+      expect(failed.result?.associations.single.title, '旧关联');
+      expect(failed.error, isA<ApiException>());
+      expect(failed.isGenerating, isFalse);
+      expect(
+        failed.partialAssociations,
+        isEmpty,
+        reason: 'error clears the incremental items',
+      );
+    });
+
+    test('a superseded generation drops its late items', () async {
+      final repo = StubDocumentsRepository();
+      final pending = Completer<AssociationsResult>();
+      final reports = <void Function(AssociationItem)>[];
+      repo.listAssociationsHandler = (id) => pending.future;
+      repo.listAssociationsItemHandler = (id, report) => reports.add(report);
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentAssociationsProvider('doc-1').notifier,
+      );
+
+      final stale = notifier.generate();
+      await container.pump();
+
+      // The provider rebuilds mid-flight (generation bump).
+      container.invalidate(documentAssociationsProvider('doc-1'));
+      await container.pump();
+
+      // The stale stream reports items late — they must be dropped.
+      for (final report in reports) {
+        report(
+          const AssociationItem(
+            documentId: 'doc-2',
+            title: '过期关联',
+            tags: [],
+            reason: '过期。',
+            signal: 'tag_overlap',
+          ),
+        );
+      }
+      pending.complete(resultOf(const []));
+      await stale;
+
+      final state = container.read(documentAssociationsProvider('doc-1'));
+      expect(state.result, isNull);
+      expect(state.partialAssociations, isEmpty);
+      expect(state.error, isNull);
+    });
+
+    test('cache-hit shape: zero items lands normally', () async {
+      final repo = StubDocumentsRepository();
+      // No listAssociationsItemHandler — the cache-hit wire has no items.
+      repo.listAssociationsHandler = (id) async => resultOf(const []);
+      final container = containerFor(repo);
+      final notifier = container.read(
+        documentAssociationsProvider('doc-1').notifier,
+      );
+
+      await notifier.generate();
+
+      final done = container.read(documentAssociationsProvider('doc-1'));
+      expect(done.result?.associations, isEmpty);
+      expect(done.isGenerating, isFalse);
+      expect(done.error, isNull);
+      expect(done.partialAssociations, isEmpty);
+    });
+  });
 }

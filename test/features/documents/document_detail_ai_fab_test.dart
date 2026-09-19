@@ -12,6 +12,7 @@ import 'package:knowledge_base_flutter/features/documents/documents_providers.da
 import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 import 'package:knowledge_base_flutter/shared/models/document.dart';
+import 'package:knowledge_base_flutter/shared/widgets/markdown_content.dart';
 
 import 'stub_documents_repository.dart';
 
@@ -881,6 +882,104 @@ void main() {
     expect(bubbleText('同步生成可能需要数秒'), findsNothing);
   });
 
+  testWidgets('summary generating view renders streamed deltas as live '
+      'markdown (progress rows kept); the validated result replaces the '
+      'partial; zero deltas render nothing extra (cache-hit shape)', (
+    tester,
+  ) async {
+    final repo = repoWithDoc('# 设计笔记');
+    final pending = Completer<SummaryResult>();
+    final reports = <void Function(SummaryProgress)>[];
+    final emits = <void Function(String)>[];
+    repo.summarizeHandler = (id) => pending.future;
+    repo.summarizeProgressHandler = (id, report) => reports.add(report);
+    repo.summarizeDeltaHandler = (id, emit) => emits.add(emit);
+
+    Finder bubbleMarkdown() => find.descendant(
+      of: find.byType(AiAssistantFab),
+      matching: find.byType(MarkdownContent),
+    );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, 'AI 摘要');
+
+    // Before the first delta: spinner + generic hint only, no markdown
+    // surface at all — a cache-hit run (zero deltas) looks exactly like
+    // this until the result lands.
+    expect(bubbleText('正在生成摘要…'), findsOneWidget);
+    expect(bubbleMarkdown(), findsNothing);
+
+    // The map/reduce progress rows stay alongside the live partial.
+    reports.single(
+      const SummaryProgress(phase: 'map_pass', passIndex: 1, passesTotal: 3),
+    );
+    await tester.pump();
+    expect(bubbleText('正在阅读第 1/3 段'), findsOneWidget);
+
+    // First delta → the partial renders through the shared markdown
+    // pipeline (plain text, no extraction).
+    emits.single('这份文档记录了');
+    await tester.pump();
+    expect(bubbleMarkdown(), findsOneWidget);
+    expect(bubbleTextContaining('这份文档记录了'), findsOneWidget);
+    expect(bubbleText('正在阅读第 1/3 段'), findsOneWidget);
+
+    // Later deltas accumulate into the same surface.
+    emits.single('知识库的整体设计思路。');
+    await tester.pump();
+    expect(bubbleTextContaining('知识库的整体设计思路。'), findsOneWidget);
+
+    // Terminal: the validated result replaces the live partial; the
+    // generating rows are gone.
+    pending.complete(
+      const SummaryResult(
+        documentId: 'doc-1',
+        summary: '这份文档记录了知识库的整体设计思路。',
+        model: 'glm-4.7',
+        latencyMs: 1500,
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(bubbleTextContaining('这份文档记录了知识库的整体设计思路。'), findsOneWidget);
+    expect(bubbleText('正在生成摘要…'), findsNothing);
+    expect(bubbleText('正在阅读第 1/3 段'), findsNothing);
+    expect(bubbleText('同步生成可能需要数秒'), findsNothing);
+    expect(find.text('重新生成'), findsOneWidget);
+  });
+
+  testWidgets('summary error after deltas clears the partial and keeps the '
+      'recovery path', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.summarizeHandler = (id) async {
+      throw const ApiException(
+        code: 'llm_provider_error',
+        message: 'provider exploded',
+      );
+    };
+    repo.summarizeDeltaHandler = (id, emit) => emit('失败前的不完整摘要');
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, 'AI 摘要');
+    await tester.pumpAndSettle();
+
+    // The incremental partial is discarded with the failure; the existing
+    // failure path renders with its inline 重试 (dead-end rule).
+    expect(bubbleTextContaining('失败前的不完整摘要'), findsNothing);
+    expect(bubbleText('正在生成摘要…'), findsNothing);
+    expect(bubbleText('生成失败：provider exploded'), findsOneWidget);
+    expect(find.text('重试'), findsOneWidget);
+  });
+
   testWidgets('associations generation keeps the generic spinner hint (no '
       'progress copy)', (tester) async {
     final repo = repoWithDoc('# 设计笔记');
@@ -909,6 +1008,130 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(bubbleText('未找到相关文档'), findsOneWidget);
+  });
+
+  testWidgets('associations generating view renders streamed items as tiles '
+      'below the spinner; the final list replaces them', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    final pending = Completer<AssociationsResult>();
+    final reports = <void Function(AssociationItem)>[];
+    repo.listAssociationsHandler = (id) => pending.future;
+    repo.listAssociationsItemHandler = (id, report) => reports.add(report);
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, '相关文档');
+
+    // No items yet: spinner only — the cache-hit / empty-candidate shape
+    // (zero items) stays exactly like this until the result lands.
+    expect(bubbleText('正在生成关联…'), findsOneWidget);
+    expect(bubbleText('Riverpod 迁移笔记'), findsNothing);
+
+    // First streamed item renders as a full tile while still generating.
+    reports.single(
+      const AssociationItem(
+        documentId: 'doc-2',
+        title: 'Riverpod 迁移笔记',
+        tags: ['flutter', 'dart'],
+        reason: '共享状态管理的迁移经验。',
+        signal: 'tag_overlap',
+      ),
+    );
+    await tester.pump();
+    expect(bubbleText('Riverpod 迁移笔记'), findsOneWidget);
+    expect(bubbleText('#flutter'), findsOneWidget);
+    expect(bubbleText('#dart'), findsOneWidget);
+    expect(bubbleText('共享状态管理的迁移经验。'), findsOneWidget);
+    expect(
+      bubbleText('正在生成关联…'),
+      findsOneWidget,
+      reason: 'the spinner row stays while more items may arrive',
+    );
+
+    // A second item appends below in arrival (== position) order.
+    reports.single(
+      const AssociationItem(
+        documentId: 'doc-3',
+        title: '检索质量评估',
+        tags: ['es'],
+        reason: '评估检索召回。',
+        signal: 'vector',
+      ),
+    );
+    await tester.pump();
+    expect(bubbleText('检索质量评估'), findsOneWidget);
+
+    // Terminal: the validated list replaces the incremental tiles and the
+    // spinner row is gone.
+    pending.complete(
+      const AssociationsResult(
+        documentId: 'doc-1',
+        associations: [
+          AssociationItem(
+            documentId: 'doc-2',
+            title: 'Riverpod 迁移笔记',
+            tags: ['flutter', 'dart'],
+            reason: '共享状态管理的迁移经验。',
+            signal: 'tag_overlap',
+          ),
+          AssociationItem(
+            documentId: 'doc-3',
+            title: '检索质量评估',
+            tags: ['es'],
+            reason: '评估检索召回。',
+            signal: 'vector',
+          ),
+        ],
+        model: 'glm-4.7',
+        latencyMs: 900,
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(bubbleText('正在生成关联…'), findsNothing);
+    expect(bubbleText('Riverpod 迁移笔记'), findsOneWidget);
+    expect(bubbleText('检索质量评估'), findsOneWidget);
+    expect(bubbleText('未找到相关文档'), findsNothing);
+  });
+
+  testWidgets('associations error after streamed items: the incremental '
+      'tiles disappear and the recovery path renders', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    repo.listAssociationsHandler = (id) async {
+      throw const ApiException(
+        code: 'chat_unavailable',
+        message: 'No API key configured',
+        statusCode: 503,
+      );
+    };
+    repo.listAssociationsItemHandler = (id, report) => report(
+      const AssociationItem(
+        documentId: 'doc-2',
+        title: '失败前的关联',
+        tags: ['flutter'],
+        reason: '流式中途失败。',
+        signal: 'tag_overlap',
+      ),
+    );
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+
+    await selectEntry(tester, '相关文档');
+    await tester.pumpAndSettle();
+
+    // The incremental tiles are discarded with the failure; the existing
+    // failure path renders with its inline 重试 (dead-end rule).
+    expect(bubbleText('失败前的关联'), findsNothing);
+    expect(bubbleText('正在生成关联…'), findsNothing);
+    expect(bubbleText('AI 服务暂不可用，请稍后重试'), findsOneWidget);
+    expect(find.text('重试'), findsOneWidget);
   });
 
   testWidgets('summary 503 chat_unavailable renders the friendly copy with an '

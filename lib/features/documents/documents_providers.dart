@@ -222,11 +222,13 @@ final documentDetailProvider =
 
 /// On-demand AI generation state for one document (summary or
 /// associations): the last successful [result], an [isGenerating] flag, the
-/// raw [error] of the last failed attempt, and the latest streamed
-/// [progress] line while generating (summary streams only — the
-/// associations stream has no progress events, so it stays null there).
-/// Nothing is fetched on build — both endpoints are synchronous LLM calls
-/// whose results are not persisted server-side, so generation is always an
+/// raw [error] of the last failed attempt, the latest streamed [progress]
+/// line while generating (summary streams only — the associations stream
+/// has no progress events, so it stays null there), and the two additive
+/// incremental channels ([partialSummary] / [partialAssociations]) fed by
+/// the streams' `summary_delta` / `association_item` events. Nothing is
+/// fetched on build — both endpoints are synchronous LLM calls whose
+/// results are not persisted server-side, so generation is always an
 /// explicit user action. A failed attempt keeps the previous [result]
 /// visible and exposes the raw error, which the UI maps to Chinese copy
 /// (hook-guidelines: providers let [ApiException] propagate).
@@ -237,6 +239,8 @@ class OnDemandState<T> {
     this.isGenerating = false,
     this.error,
     this.progress,
+    this.partialSummary,
+    this.partialAssociations = const <AssociationItem>[],
   });
 
   final T? result;
@@ -249,6 +253,22 @@ class OnDemandState<T> {
   /// first progress event and on every terminal state (success, failure,
   /// new generation).
   final SummaryProgress? progress;
+
+  /// Concatenation of the in-flight summary generation's `summary_delta`
+  /// plain-text fragments (verbatim, in wire order — the concatenation
+  /// equals the final `summary`). Display-only live markdown: rendered
+  /// directly through the shared markdown pipeline, no extraction. Null on
+  /// every terminal state — the validated result replaces it in review, an
+  /// error discards it, and any new generation starts fresh — exactly like
+  /// [progress]. A cache hit legitimately never writes it.
+  final String? partialSummary;
+
+  /// `association_item` events of the in-flight associations generation,
+  /// in wire order (== final-list order; each item is final-state). Same
+  /// lifecycle as [partialSummary]: cleared on every terminal write and
+  /// replaced wholesale by the final `associations` result. Empty on cache
+  /// hits and empty-candidate runs — the UI must not assume any items.
+  final List<AssociationItem> partialAssociations;
 }
 
 /// Shared generate state machine behind [documentSummaryProvider] and
@@ -260,9 +280,16 @@ abstract class OnDemandGenerationNotifier<T>
     extends Notifier<OnDemandState<T>> {
   int _generation = 0;
 
-  /// The repository call this notifier drives; streamed progress (summary
-  /// only on the wire) is reported through [onProgress].
-  Future<T> fetch({void Function(SummaryProgress progress)? onProgress});
+  /// The repository call this notifier drives. Streamed process events are
+  /// reported through the callbacks — [onProgress] for summary progress,
+  /// [onSummaryDelta] for the summary stream's plain-text fragments,
+  /// [onAssociationItem] for the associations stream's final-state items
+  /// (each stream only ever fires the channels its wire carries).
+  Future<T> fetch({
+    void Function(SummaryProgress progress)? onProgress,
+    void Function(String text)? onSummaryDelta,
+    void Function(AssociationItem item)? onAssociationItem,
+  });
 
   @override
   OnDemandState<T> build() {
@@ -272,22 +299,60 @@ abstract class OnDemandGenerationNotifier<T>
   }
 
   /// Runs one generation; the UI's single entry point (buttons, 重试,
-  /// 重新生成 all land here). Progress events update [OnDemandState.progress]
-  /// in place; the field is cleared again by every terminal write.
+  /// 重新生成 all land here). Progress events update
+  /// [OnDemandState.progress] in place; `summary_delta` text accumulates
+  /// into [OnDemandState.partialSummary]; `association_item` events append
+  /// (wire order == final-list order) to
+  /// [OnDemandState.partialAssociations]. Every callback passes the same
+  /// generation guard as the terminal writes (a superseded generation's
+  /// late events are dropped), and the incremental fields are cleared again
+  /// by every terminal write — the validated result replaces them
+  /// wholesale, an error discards them, a new generation starts fresh.
   Future<void> generate() async {
     if (state.isGenerating) return;
     final generation = _generation;
     state = OnDemandState<T>(result: state.result, isGenerating: true);
+    final summary = StringBuffer();
+    var items = const <AssociationItem>[];
     try {
       final result = await fetch(
         onProgress: (progress) {
           // A superseded generation's late progress must not clobber the
           // newer state (same stale-guard as the terminal writes below).
           if (_generation != generation) return;
+          final live = state;
           state = OnDemandState<T>(
-            result: state.result,
+            result: live.result,
             isGenerating: true,
             progress: progress,
+            partialSummary: live.partialSummary,
+            partialAssociations: live.partialAssociations,
+          );
+        },
+        onSummaryDelta: (text) {
+          if (_generation != generation) return;
+          summary.write(text);
+          final live = state;
+          state = OnDemandState<T>(
+            result: live.result,
+            isGenerating: true,
+            progress: live.progress,
+            partialSummary: summary.toString(),
+            partialAssociations: live.partialAssociations,
+          );
+        },
+        onAssociationItem: (item) {
+          if (_generation != generation) return;
+          // Server streams items in final-list order — append as they
+          // arrive (no client-side dedup/ordering repair).
+          items = [...items, item];
+          final live = state;
+          state = OnDemandState<T>(
+            result: live.result,
+            isGenerating: true,
+            progress: live.progress,
+            partialSummary: live.partialSummary,
+            partialAssociations: items,
           );
         },
       );
@@ -310,9 +375,15 @@ class DocumentSummaryNotifier
   @override
   Future<SummaryResult> fetch({
     void Function(SummaryProgress progress)? onProgress,
+    void Function(String text)? onSummaryDelta,
+    void Function(AssociationItem item)? onAssociationItem,
   }) => ref
       .read(documentsRepositoryProvider)
-      .summarize(documentId, onProgress: onProgress);
+      .summarize(
+        documentId,
+        onProgress: onProgress,
+        onSummaryDelta: onSummaryDelta,
+      );
 }
 
 final documentSummaryProvider =
@@ -332,9 +403,15 @@ class DocumentAssociationsNotifier
   @override
   Future<AssociationsResult> fetch({
     void Function(SummaryProgress progress)? onProgress,
+    void Function(String text)? onSummaryDelta,
+    void Function(AssociationItem item)? onAssociationItem,
   }) => ref
       .read(documentsRepositoryProvider)
-      .listAssociations(documentId, onProgress: onProgress);
+      .listAssociations(
+        documentId,
+        onProgress: onProgress,
+        onAssociationItem: onAssociationItem,
+      );
 }
 
 final documentAssociationsProvider =

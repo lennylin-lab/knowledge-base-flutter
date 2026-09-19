@@ -64,6 +64,10 @@ class AgentStreamParser {
         return AgentRunStarted.fromJson(json);
       case 'summary_progress':
         return SummaryProgress.fromJson(json);
+      case 'summary_delta':
+        return AgentSummaryDeltaEvent.fromJson(json);
+      case 'association_item':
+        return AgentAssociationItemEvent.fromJson(json);
       case 'summary':
         return AgentSummaryEvent(SummaryResult.fromJson(json));
       case 'associations':
@@ -169,11 +173,18 @@ class AgentStreamClient {
   /// associations / draft): repositories stay stream-aware only through
   /// this call and [extract] unwraps the expected result event's payload
   /// (null for the other kinds — a server mix-up is treated like a missing
-  /// result). [onProgress] fires for every `summary_progress` event, in
-  /// wire order (streams without progress events never invoke it);
-  /// [onDelta] mirrors it for the writing stream's `draft_delta` events —
-  /// each raw fragment verbatim, in wire order, display-only (the fold
-  /// still settles exclusively on the result event).
+  /// result). The non-terminal process channels fire in wire order, each
+  /// only for the streams that carry its event:
+  /// - [onProgress] — every `summary_progress` event (streams without
+  ///   progress events never invoke it);
+  /// - [onDelta] — the writing stream's `draft_delta` events, each raw
+  ///   fragment verbatim (display-only; the fold still settles exclusively
+  ///   on the result event);
+  /// - [onSummaryDelta] — the summary stream's `summary_delta` events, each
+  ///   plain-text fragment verbatim (concatenation == the final summary);
+  /// - [onAssociationItem] — the associations stream's `association_item`
+  ///   events, each final-state item rebuilt as an [AssociationItem] in
+  ///   wire order (== final-list order).
   ///
   /// Failures surface as [ApiException]: a terminal `error` event keeps its
   /// wire `code`/`message`/`statusCode` (including the normalized pre-stream
@@ -186,6 +197,8 @@ class AgentStreamClient {
     required T? Function(AgentStreamEvent event) extract,
     void Function(SummaryProgress progress)? onProgress,
     void Function(String delta)? onDelta,
+    void Function(String text)? onSummaryDelta,
+    void Function(AssociationItem item)? onAssociationItem,
   }) async {
     await for (final event in run(uri)) {
       switch (event) {
@@ -195,6 +208,10 @@ class AgentStreamClient {
           onProgress?.call(progress);
         case final AgentDraftDeltaEvent delta:
           onDelta?.call(delta.delta);
+        case final AgentSummaryDeltaEvent delta:
+          onSummaryDelta?.call(delta.text);
+        case final AgentAssociationItemEvent association:
+          onAssociationItem?.call(association.item);
         case AgentErrorEvent(:final code, :final message, :final statusCode):
           throw ApiException(
             code: code,

@@ -750,10 +750,73 @@ void main() {
       },
     );
 
+    test('AgentSummaryDeltaEvent round-trips verbatim text (run_id/text)', () {
+      const text = '这份文档记录了 **知识库** 的设计。\n\n第二章：启航 🚀';
+      final model = AgentSummaryDeltaEvent.fromJson({
+        'run_id': '11111111-1111-1111-1111-111111111111',
+        'text': text,
+      });
+      expect(model.runId, '11111111-1111-1111-1111-111111111111');
+      // Verbatim opaque plain text: byte-for-byte round-trip, no
+      // normalization of markdown/CJK/emoji content.
+      expect(model.text, text);
+      assertRoundTrip(
+        model,
+        (m) => m.toJson(),
+        AgentSummaryDeltaEvent.fromJson,
+      );
+      final encoded = jsonEncode(model.toJson());
+      expect(encoded, contains('"run_id"'));
+      expect(encoded, contains('"text"'));
+    });
+
+    test('AgentAssociationItemEvent round-trips every field (CJK + multi-tag) '
+        'and rebuilds the shared AssociationItem', () {
+      final model = AgentAssociationItemEvent.fromJson({
+        'run_id': '33333333-3333-3333-3333-333333333333',
+        'position': 2,
+        'document_id': '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+        'title': 'Riverpod 迁移笔记',
+        'tags': ['flutter', 'dart', '状态管理'],
+        'reason': '共享状态管理的迁移经验。',
+        'signal': 'tag_overlap',
+      });
+      expect(model.runId, '33333333-3333-3333-3333-333333333333');
+      expect(model.position, 2);
+      expect(model.documentId, '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f');
+      expect(model.title, 'Riverpod 迁移笔记');
+      expect(model.tags, ['flutter', 'dart', '状态管理']);
+      expect(model.reason, '共享状态管理的迁移经验。');
+      expect(model.signal, 'tag_overlap');
+      assertRoundTrip(
+        model,
+        (m) => m.toJson(),
+        AgentAssociationItemEvent.fromJson,
+      );
+      final encoded = jsonEncode(model.toJson());
+      expect(encoded, contains('"run_id"'));
+      expect(encoded, contains('"position"'));
+      expect(encoded, contains('"document_id"'));
+      // The wire payload mirrors AssociationItem 1:1, so rebuilding the
+      // shared DTO is lossless — the UI renders items with zero
+      // adaptation.
+      expect(
+        model.item,
+        const AssociationItem(
+          documentId: '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+          title: 'Riverpod 迁移笔记',
+          tags: ['flutter', 'dart', '状态管理'],
+          reason: '共享状态管理的迁移经验。',
+          signal: 'tag_overlap',
+        ),
+      );
+    });
+
     test('agent events are a sealed hierarchy (exhaustive matching)', () {
       const List<AgentStreamEvent> events = [
         AgentRunStarted(runId: 'r', kind: 'summary', documentId: 'd'),
         SummaryProgress(phase: 'map_pass', passIndex: 1, passesTotal: 2),
+        AgentSummaryDeltaEvent(runId: 'r', text: 't'),
         AgentSummaryEvent(
           SummaryResult(
             documentId: 'd',
@@ -770,6 +833,15 @@ void main() {
             latencyMs: 1,
           ),
         ),
+        AgentAssociationItemEvent(
+          runId: 'r',
+          position: 1,
+          documentId: 'd',
+          title: 't',
+          tags: [],
+          reason: 'r',
+          signal: 's',
+        ),
         AgentDraftDeltaEvent(runId: 'r', delta: '{"d'),
         AgentDraftEvent(
           operationId: 'op',
@@ -784,8 +856,10 @@ void main() {
         (e) => switch (e) {
           AgentRunStarted() => 'run_started',
           SummaryProgress() => 'summary_progress',
+          AgentSummaryDeltaEvent() => 'summary_delta',
           AgentSummaryEvent() => 'summary',
           AgentAssociationsEvent() => 'associations',
+          AgentAssociationItemEvent() => 'association_item',
           AgentDraftDeltaEvent() => 'draft_delta',
           AgentDraftEvent() => 'draft',
           AgentDoneEvent() => 'done',
@@ -795,8 +869,10 @@ void main() {
       expect(names, [
         'run_started',
         'summary_progress',
+        'summary_delta',
         'summary',
         'associations',
+        'association_item',
         'draft_delta',
         'draft',
         'done',

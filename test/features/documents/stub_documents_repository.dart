@@ -16,6 +16,8 @@ class StubDocumentsRepository implements DocumentsRepository {
     this.summarizeHandler,
     this.listAssociationsHandler,
     this.summarizeProgressHandler,
+    this.summarizeDeltaHandler,
+    this.listAssociationsItemHandler,
   });
 
   Future<DocumentPage> Function(String? cursor, int limit, List<String> tags)?
@@ -33,6 +35,18 @@ class StubDocumentsRepository implements DocumentsRepository {
   /// progress lifecycle the way the SSE stream would.
   void Function(String id, void Function(SummaryProgress) report)?
   summarizeProgressHandler;
+
+  /// Optional streamed summary deltas: invoked with an emit callback right
+  /// before [summarizeHandler] runs, so tests can stream verbatim
+  /// `summary_delta` text the way the SSE stream would.
+  void Function(String id, void Function(String text) emit)?
+  summarizeDeltaHandler;
+
+  /// Optional streamed association items: invoked with a report callback
+  /// right before [listAssociationsHandler] runs, so tests can stream
+  /// final-state `association_item`s the way the SSE stream would.
+  void Function(String id, void Function(AssociationItem item) report)?
+  listAssociationsItemHandler;
 
   final List<({String? cursor, int limit, List<String> tags})> listCalls = [];
   final List<String> getCalls = [];
@@ -100,11 +114,16 @@ class StubDocumentsRepository implements DocumentsRepository {
   Future<SummaryResult> summarize(
     String id, {
     void Function(SummaryProgress progress)? onProgress,
+    void Function(String text)? onSummaryDelta,
   }) async {
     summarizeCalls.add(id);
     final progress = summarizeProgressHandler;
     if (progress != null) {
       progress(id, (p) => onProgress?.call(p));
+    }
+    final deltas = summarizeDeltaHandler;
+    if (deltas != null) {
+      deltas(id, (text) => onSummaryDelta?.call(text));
     }
     final handler = summarizeHandler;
     if (handler == null) {
@@ -119,8 +138,13 @@ class StubDocumentsRepository implements DocumentsRepository {
   Future<AssociationsResult> listAssociations(
     String id, {
     void Function(SummaryProgress progress)? onProgress,
+    void Function(AssociationItem item)? onAssociationItem,
   }) async {
     listAssociationsCalls.add(id);
+    final items = listAssociationsItemHandler;
+    if (items != null) {
+      items(id, (item) => onAssociationItem?.call(item));
+    }
     final handler = listAssociationsHandler;
     if (handler == null) {
       throw StateError(

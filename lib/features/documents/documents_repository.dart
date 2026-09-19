@@ -108,41 +108,52 @@ class DocumentsRepository {
   }
 
   /// Computes an LLM summary of the document by consuming its agent SSE
-  /// stream (`run_started → summary_progress* → summary → done`). Sends no
-  /// body and no query — the server takes only the path id.
+  /// stream (`run_started → summary_progress* → summary_delta* →
+  /// summary_progress* → summary → done`). Sends no body and no query —
+  /// the server takes only the path id.
   ///
   /// [onProgress] fires for every `summary_progress` event, in wire order.
-  /// The future completes with the `summary` event payload (identical
-  /// fields to the old JSON body). Failures surface as [ApiException]:
-  /// a terminal `error` event keeps its wire `code`/`message` (e.g. 503
-  /// `chat_unavailable`, `llm_provider_error`), a pre-stream non-2xx error
-  /// envelope (404 `not_found`, 401/403) keeps its code, and a stream that
-  /// ends — or a transport that drops — without a result is a
-  /// `network_error` (mirroring `SseClient`'s normalization).
+  /// [onSummaryDelta] fires for every `summary_delta` event, each verbatim
+  /// plain-text fragment in wire order (concatenation == the final
+  /// `summary`; a cache hit emits none). The future completes with the
+  /// `summary` event payload (identical fields to the old JSON body) — the
+  /// authoritative settle that replaces any accumulated partials. Failures
+  /// surface as [ApiException]: a terminal `error` event keeps its wire
+  /// `code`/`message` (e.g. 503 `chat_unavailable`, `llm_provider_error`),
+  /// a pre-stream non-2xx error envelope (404 `not_found`, 401/403) keeps
+  /// its code, and a stream that ends — or a transport that drops — without
+  /// a result is a `network_error` (mirroring `SseClient`'s normalization).
   Future<SummaryResult> summarize(
     String id, {
     void Function(SummaryProgress progress)? onProgress,
+    void Function(String text)? onSummaryDelta,
   }) {
     return _agentStream.fold(
       Uri.parse('${_client.baseUrl}$_basePath/$id/summary'),
       onProgress: onProgress,
+      onSummaryDelta: onSummaryDelta,
       extract: (event) => event is AgentSummaryEvent ? event.result : null,
     );
   }
 
   /// Computes LLM-curated related documents by consuming its agent SSE
-  /// stream (`run_started → associations → done`). Sends no body and no
-  /// query — the server takes only the path id; the result may be empty.
-  /// [onProgress] mirrors [summarize]'s for shape symmetry, but the
-  /// associations stream has no progress events today, so it never fires.
+  /// stream (`run_started → association_item* → associations → done`).
+  /// Sends no body and no query — the server takes only the path id; the
+  /// result may be empty. [onProgress] mirrors [summarize]'s for shape
+  /// symmetry, but the associations stream has no progress events today, so
+  /// it never fires. [onAssociationItem] fires for every `association_item`
+  /// event — each final-state item as an [AssociationItem], in wire order
+  /// (== final-list order; a cache hit or empty-candidate run emits none).
   /// Same failure surface as [summarize].
   Future<AssociationsResult> listAssociations(
     String id, {
     void Function(SummaryProgress progress)? onProgress,
+    void Function(AssociationItem item)? onAssociationItem,
   }) {
     return _agentStream.fold(
       Uri.parse('${_client.baseUrl}$_basePath/$id/associations'),
       onProgress: onProgress,
+      onAssociationItem: onAssociationItem,
       extract: (event) => event is AgentAssociationsEvent ? event.result : null,
     );
   }

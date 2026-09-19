@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:knowledge_base_flutter/core/network/agent_stream_client.dart';
 import 'package:knowledge_base_flutter/core/network/api_exception.dart';
 import 'package:knowledge_base_flutter/core/network/chat_transport.dart';
+import 'package:knowledge_base_flutter/shared/models/agents_result.dart';
 import 'package:knowledge_base_flutter/shared/models/agents_stream.dart';
 
 /// One SSE frame with `\r\n` line endings, as sse-starlette emits them.
@@ -244,6 +245,119 @@ void main() {
       expect(parser.isTerminated, isTrue);
     });
 
+    test('summary_delta events round-trip verbatim plain text — unicode, '
+        'markdown, emoji, empty — and never terminate the stream', () {
+      const runId = '11111111-1111-1111-1111-111111111111';
+      // Plain displayable summary text (no JSON handling): CJK, markdown
+      // emphasis, emoji and an empty fragment are all legal on the wire.
+      const deltas = <String>[
+        '这份文档记录了',
+        ' **知识库** 的整体设计。\n\n',
+        '第二章：启航 🚀',
+        '',
+      ];
+
+      final parser = AgentStreamParser();
+      final wire = StringBuffer(frame('run_started', runStartedJson));
+      for (final delta in deltas) {
+        wire.write(
+          frame(
+            'summary_delta',
+            jsonEncode(<String, String>{'run_id': runId, 'text': delta}),
+          ),
+        );
+      }
+      wire
+        ..write(frame('summary', summaryResultJson))
+        ..write(frame('done', summaryDoneJson));
+
+      final events = parser.push(wire.toString());
+
+      final deltaEvents = events.whereType<AgentSummaryDeltaEvent>().toList();
+      expect(deltaEvents, hasLength(deltas.length));
+      for (final (i, event) in deltaEvents.indexed) {
+        expect(event.runId, runId);
+        expect(
+          event.text,
+          deltas[i],
+          reason: 'fragment $i must round-trip byte-for-byte',
+        );
+      }
+      // Process events only: the stream stays open for the terminal
+      // summary + done, which arrive after every delta.
+      expect(events[events.length - 2], isA<AgentSummaryEvent>());
+      expect(events.last, isA<AgentDoneEvent>());
+      expect(parser.isTerminated, isTrue);
+    });
+
+    test('association_item events parse final-state items (CJK, multi-tag, '
+        '1-based position) and never terminate the stream', () {
+      const runId = '33333333-3333-3333-3333-333333333333';
+      final parser = AgentStreamParser();
+      final events = parser.push(
+        frame('run_started', runStartedJson) +
+            frame(
+              'association_item',
+              jsonEncode(<String, dynamic>{
+                'run_id': runId,
+                'position': 1,
+                'document_id': '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+                'title': 'Riverpod 迁移笔记',
+                'tags': ['flutter', 'dart', '状态管理'],
+                'reason': '共享状态管理的迁移经验。',
+                'signal': 'tag_overlap',
+              }),
+            ) +
+            frame(
+              'association_item',
+              jsonEncode(<String, dynamic>{
+                'run_id': runId,
+                'position': 2,
+                'document_id': '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e90',
+                'title': '检索质量评估',
+                'tags': ['es'],
+                'reason': '评估检索召回。',
+                'signal': 'vector',
+              }),
+            ) +
+            frame('summary', summaryResultJson) +
+            frame('done', summaryDoneJson),
+      );
+
+      expect(events, hasLength(5));
+      expect(events[0], isA<AgentRunStarted>());
+
+      final first = events[1] as AgentAssociationItemEvent;
+      expect(first.runId, runId);
+      expect(first.position, 1);
+      expect(first.documentId, '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f');
+      expect(first.title, 'Riverpod 迁移笔记');
+      expect(first.tags, ['flutter', 'dart', '状态管理']);
+      expect(first.reason, '共享状态管理的迁移经验。');
+      expect(first.signal, 'tag_overlap');
+      // The wire payload mirrors AssociationItem 1:1 — rebuilding the
+      // shared DTO is lossless, so tiles render with zero adaptation.
+      expect(
+        first.item,
+        const AssociationItem(
+          documentId: '0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f',
+          title: 'Riverpod 迁移笔记',
+          tags: ['flutter', 'dart', '状态管理'],
+          reason: '共享状态管理的迁移经验。',
+          signal: 'tag_overlap',
+        ),
+      );
+
+      final second = events[2] as AgentAssociationItemEvent;
+      expect(second.position, 2);
+      expect(second.tags, ['es']);
+
+      // The result event still follows the items and settles authoritatively.
+      expect(events[3], isA<AgentSummaryEvent>());
+      expect(events[4], isA<AgentDoneEvent>());
+      expect(parser.isTerminated, isTrue);
+    });
+
     test('error events parse and terminate', () {
       final parser = AgentStreamParser();
       final events = parser.push(
@@ -377,6 +491,75 @@ void main() {
       expect((events[2] as AgentDraftDeltaEvent).delta, ':"星际旅行"}');
       expect(events[3], isA<AgentDraftEvent>());
       expect(events[4], isA<AgentDoneEvent>());
+    });
+
+    test('summary stream: deltas pass through in order before the terminal '
+        'summary and done', () async {
+      final events = await _collect(
+        client.run(Uri.parse('http://localhost:8000/x')),
+        transport,
+        (t) {
+          t.addWire(
+            frame('run_started', runStartedJson) +
+                frame(
+                  'summary_progress',
+                  '{"phase":"map_pass","pass_index":1,"passes_total":2}',
+                ) +
+                frame('summary_delta', '{"run_id":"r-1","text":"这份文档记录了"}') +
+                frame(
+                  'summary_delta',
+                  '{"run_id":"r-1","text":"知识库的整体设计思路。"}',
+                ) +
+                frame('summary', summaryResultJson) +
+                frame('done', summaryDoneJson),
+          );
+          t.closeStream();
+        },
+      );
+
+      expect(events, hasLength(6));
+      expect(events[0], isA<AgentRunStarted>());
+      expect(events[1], isA<SummaryProgress>());
+      expect((events[2] as AgentSummaryDeltaEvent).text, '这份文档记录了');
+      expect((events[3] as AgentSummaryDeltaEvent).text, '知识库的整体设计思路。');
+      expect(events[4], isA<AgentSummaryEvent>());
+      expect(events[5], isA<AgentDoneEvent>());
+    });
+
+    test('associations stream: item events pass through in order before the '
+        'terminal associations and done', () async {
+      const item =
+          '{"run_id":"r-3","position":1,'
+          '"document_id":"0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f",'
+          '"title":"Riverpod 迁移笔记","tags":["flutter","dart"],'
+          '"reason":"共享状态管理的迁移经验。","signal":"tag_overlap"}';
+      final events = await _collect(
+        client.run(Uri.parse('http://localhost:8000/x')),
+        transport,
+        (t) {
+          t.addWire(
+            frame('run_started', runStartedJson) +
+                frame('association_item', item) +
+                frame(
+                  'associations',
+                  '{"document_id":"$documentId",'
+                      '"associations":[{"document_id":'
+                      '"0198c7a1-7b2a-7c1e-9f3a-2f4b5c6d7e8f","title":'
+                      '"Riverpod 迁移笔记","tags":["flutter","dart"],"reason":'
+                      '"共享状态管理的迁移经验。","signal":"tag_overlap"}],'
+                      '"model":"glm-4.7","latency_ms":12}',
+                ) +
+                frame('done', summaryDoneJson),
+          );
+          t.closeStream();
+        },
+      );
+
+      expect(events, hasLength(4));
+      expect(events[0], isA<AgentRunStarted>());
+      expect((events[1] as AgentAssociationItemEvent).position, 1);
+      expect(events[2], isA<AgentAssociationsEvent>());
+      expect(events[3], isA<AgentDoneEvent>());
     });
 
     test('terminal error event maps to code + message', () async {

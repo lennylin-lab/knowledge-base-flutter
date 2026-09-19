@@ -124,6 +124,15 @@ class AiBubbleContentLayer extends ConsumerWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+        // Live partial summary from the `summary_delta` plain-text
+        // fragments — rendered directly through the shared markdown
+        // pipeline (no extraction; LLM text stays verbatim). Nothing here
+        // before the first delta, and a cache hit legitimately streams
+        // none: spinner + progress rows alone until the result lands.
+        if (state.partialSummary != null) ...[
+          SizedBox(height: sizes.space8),
+          MarkdownContent(data: state.partialSummary!),
+        ],
         SizedBox(height: sizes.space8),
       ],
       if (state.error != null) ...[
@@ -177,6 +186,21 @@ class AiBubbleContentLayer extends ConsumerWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+        // Incremental `association_item` tiles below the spinner row —
+        // each streamed item is final-state and renders through the exact
+        // tile the review list uses. The final `associations` result
+        // replaces them wholesale; a cache hit / empty-candidate run
+        // legitimately streams none (spinner alone until it lands).
+        if (state.partialAssociations.isNotEmpty) ...[
+          SizedBox(height: sizes.space4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final item in state.partialAssociations)
+                _AssociationTile(item: item, onOpen: onOpenDocument),
+            ],
+          ),
+        ],
         SizedBox(height: sizes.space8),
       ],
       if (state.error != null) ...[

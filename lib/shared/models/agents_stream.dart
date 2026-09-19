@@ -10,12 +10,20 @@ part 'agents_stream.g.dart';
 /// `POST /api/v1/operations/draft`
 /// (backend `src/app/schemas/agent_stream.py`).
 ///
-/// Event order: `run_started → [summary_progress …] (summary only) →
-/// summary | associations → done` and `run_started → [draft_delta …] →
-/// draft → done` for the writing stream, or a terminal `error` at any
-/// point after HTTP 200 (the stream closes right after a terminal event).
-/// A cache hit skips the progress events entirely. Comments (`:` keep-alive
-/// frames) and unknown event names carry no event and are ignored.
+/// Event order: for the summary stream,
+/// `run_started → summary_progress(map) → [summary_delta …] →
+/// summary_progress(reduce) → summary → done` when the document is a single
+/// chunk, and `run_started → summary_progress(map) … →
+/// summary_progress(reduce) → [summary_delta …] → summary → done` when it
+/// spans multiple chunks (the deltas stream during the user-visible pass —
+/// single pass, or reduce); `run_started → [association_item …] →
+/// associations → done` for the associations stream, and
+/// `run_started → [draft_delta …] → draft → done`
+/// for the writing stream — or a terminal `error` at any point after
+/// HTTP 200 (the stream closes right after a terminal event). A cache hit
+/// skips the progress, delta and item events entirely (zero deltas/items is
+/// a legal shape the UI must cope with). Comments (`:` keep-alive frames)
+/// and unknown event names carry no event and are ignored.
 ///
 /// The result payloads reuse [SummaryResult] / [AssociationsResult]
 /// unchanged — the server emits the exact fields of the old JSON bodies as
@@ -61,6 +69,66 @@ abstract class SummaryProgress extends AgentStreamEvent with _$SummaryProgress {
 
   factory SummaryProgress.fromJson(Map<String, dynamic> json) =>
       _$SummaryProgressFromJson(json);
+}
+
+/// One `summary_delta` event (summary streams only, non-terminal): a
+/// verbatim **plain text** fragment of the summary, forwarded in provider
+/// order with no duplication or omission — the chunks' concatenation equals
+/// the final [AgentSummaryEvent]'s `summary` field exactly. Unlike
+/// [AgentDraftDeltaEvent] the text is displayable as-is (no partial-JSON
+/// extraction). A cache hit emits none — zero deltas is a legal shape and
+/// the authoritative result still settles atomically with the `summary`
+/// event; on `error` the accumulated text is simply discarded.
+@freezed
+abstract class AgentSummaryDeltaEvent extends AgentStreamEvent
+    with _$AgentSummaryDeltaEvent {
+  const AgentSummaryDeltaEvent._();
+
+  const factory AgentSummaryDeltaEvent({
+    required String runId,
+    required String text,
+  }) = _AgentSummaryDeltaEvent;
+
+  factory AgentSummaryDeltaEvent.fromJson(Map<String, dynamic> json) =>
+      _$AgentSummaryDeltaEventFromJson(json);
+}
+
+/// One `association_item` event (associations streams only, non-terminal):
+/// a single **final-state** confirmed association, 1-based [position],
+/// streamed in final-list order (the concatenation equals the final
+/// [AgentAssociationsEvent]'s list exactly). Every payload field mirrors
+/// [AssociationItem]; [item] rebuilds that shared DTO so the UI renders
+/// streamed items through the existing tile with zero adaptation. Cache
+/// hits and empty-candidate runs emit none; the final `associations` event
+/// remains the authoritative settle that replaces the incremental list; on
+/// `error` the accumulated items are simply discarded.
+@freezed
+abstract class AgentAssociationItemEvent extends AgentStreamEvent
+    with _$AgentAssociationItemEvent {
+  const AgentAssociationItemEvent._();
+
+  const factory AgentAssociationItemEvent({
+    required String runId,
+    required int position,
+    required String documentId,
+    required String title,
+    required List<String> tags,
+    required String reason,
+    required String signal,
+  }) = _AgentAssociationItemEvent;
+
+  factory AgentAssociationItemEvent.fromJson(Map<String, dynamic> json) =>
+      _$AgentAssociationItemEventFromJson(json);
+
+  /// The payload as the shared [AssociationItem] result DTO — the exact
+  /// shape the association tiles already consume.
+  AssociationItem get item => AssociationItem(
+    documentId: documentId,
+    title: title,
+    tags: tags,
+    reason: reason,
+    signal: signal,
+  );
 }
 
 /// The `summary` event — the run's result payload ([SummaryResult] flat,
