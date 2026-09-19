@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "质量检查入口"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "测试与质量门槛"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO 防御性解析核查"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层契约一致性核查"}

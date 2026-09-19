@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端入口规范与开发前检查清单"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO codegen、snake_case wire、防御性解析规则"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "riverpod 状态管理约定（编辑器/provider 改动）"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "AppBar/对话框等 UI 风格 token 与组件约定"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "EditDraftStore 等新文件归属目录"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "DTO↔后端契约对齐（content_hash/expected_content_hash）"}
