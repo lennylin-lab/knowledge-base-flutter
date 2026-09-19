@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Shared MarkdownContent rule, streaming render precedent, AppSizes tokens"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Chat SSE live-render precedent + agent SSE sections"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO/extraction conventions; raw delta is transport truth"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates"}
