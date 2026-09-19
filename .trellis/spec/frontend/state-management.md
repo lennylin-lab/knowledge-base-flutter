@@ -131,8 +131,9 @@ The document-agent endpoints stream `text/event-stream` over the **same wire
 discipline as chat** (issue #1 / server commits a16d933 + 9be2b39). Event
 order (server `schemas/agent_stream.py`; backend error-handling spec):
 
-- summary: `run_started → summary_progress* → summary → done`
-- associations: `run_started → associations → done`
+- summary: `run_started → summary_progress* → summary_delta* →
+  summary_progress* → summary → done`
+- associations: `run_started → association_item* → associations → done`
 - draft (`POST /operations/draft`): `run_started (kind "draft") →
   draft_delta* → draft → done`; `draft_delta{run_id, delta}` carries raw
   JSON fragments of the output-tool arguments, verbatim and in provider
@@ -151,15 +152,32 @@ order (server `schemas/agent_stream.py`; backend error-handling spec):
   persisted `failed`; the error event carries no operation id, so the UI's
   recovery path re-loads the document's operation history to surface it.
 
+`summary_delta{run_id, text}` carries **plain displayable summary text**
+(unlike `draft_delta`, no partial-JSON extraction — render it directly
+through `MarkdownContent`); the fragments' concatenation equals the final
+`summary` field. `association_item{run_id, position, …}` carries one
+**final-state** association (1-based `position`, fields mirroring
+`AssociationItem` 1:1), streamed in final-list order — append as they
+arrive; the final `associations` result replaces the incrementals
+wholesale. Delta placement differs by chunking: a single-chunk document streams
+`progress(map) → summary_delta* → progress(reduce) → summary`, while a
+multi-chunk document streams `progress(map)* → progress(reduce) →
+summary_delta* → summary` — deltas always belong to the user-visible pass
+(single pass, or reduce), so the UI must not assume they sit between two
+progress rows. Cache hits emit **zero** deltas/items (and zero progress) — the
+UI must not assume any; partials/items follow the same generation guard
+and clear-on-terminal pattern as progress.
+
 ```
-run_started → [summary_progress …] (summary only) → summary|associations → done
+run_started → [summary_progress / summary_delta / association_item …] → summary|associations → done
 failure after HTTP 200: … → error (terminal; stream closes)
 ```
 
 - Result events carry the old **flat** `SummaryResult` / `AssociationsResult`
   payloads — the DTOs did not change.
 - The repository folds the stream into `Future<Result>` (+
-  `onProgress(SummaryProgress)`): terminal `error` → `ApiException(code,
+  `onProgress(SummaryProgress)`, `onSummaryDelta(String)`,
+  `onAssociationItem(AssociationItem)`): terminal `error` → `ApiException(code,
   message)`; stream ending without a result → `ApiException(network_error)`;
   pre-stream 404/401/403 envelopes keep the normal path (the server primes
   document validation before the first event).
