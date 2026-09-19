@@ -172,9 +172,9 @@ void main() {
     expect(bubbleText('应用到文档'), findsOneWidget);
   });
 
-  testWidgets('generating view renders the draft_delta concatenation live as '
-      'plain text (not markdown); the review shows the validated draft '
-      'instead', (tester) async {
+  testWidgets('generating view renders the extracted draft live as markdown; '
+      'the raw JSON prefix is never visible; the review shows the validated '
+      'draft instead', (tester) async {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
     final pending = Completer<OperationDraftResult>();
@@ -192,43 +192,59 @@ void main() {
 
     await generateDraft(tester, '续写一章星际旅行');
 
-    // Spinner + seconds hint stay; the accumulating raw fragments appear
-    // below them as they arrive.
+    Finder bubbleMarkdown() => find.descendant(
+      of: find.byType(AiAssistantFab),
+      matching: find.byType(MarkdownContent),
+    );
+
+    // Spinner + seconds hint only: no content has arrived yet, so no
+    // markdown surface exists at all.
+    expect(bubbleText('正在生成草稿…'), findsOneWidget);
+    expect(bubbleText('同步生成可能需要数秒'), findsOneWidget);
+    expect(bubbleMarkdown(), findsNothing);
+
+    // Title-key fragment only: still no `content` → spinner only, and the
+    // raw JSON prefix is never rendered anywhere.
     emit!('{"title"');
     await tester.pump();
     expect(bubbleText('正在生成草稿…'), findsOneWidget);
-    expect(bubbleText('同步生成可能需要数秒'), findsOneWidget);
-    expect(bubbleTextContaining('{"title"'), findsOneWidget);
+    expect(bubbleTextContaining('"title"'), findsNothing);
+    expect(bubbleMarkdown(), findsNothing);
 
-    emit!(':"星际旅行"}');
+    emit!(':"星际旅行"');
     await tester.pump();
-    expect(bubbleTextContaining('{"title":"星际旅行"}'), findsOneWidget);
+    expect(bubbleMarkdown(), findsNothing);
 
-    // Raw JSON fragments — a plain Text, never the markdown pipeline.
-    expect(
-      find.descendant(
-        of: find.byType(AiAssistantFab),
-        matching: find.byType(MarkdownContent),
-      ),
-      findsNothing,
-    );
+    // Content fragments arrive as raw JSON (escaped newlines, `\uXXXX` CJK,
+    // escaped quotes with a "content" decoy): the live view renders the
+    // DECODED markdown through the shared pipeline — a `#` heading parsed
+    // into a heading widget (no raw `#`), bold parsed (no asterisks), and
+    // escapes decoded (no raw scaffolding visible).
+    emit!(r', "content": "# 星际启航\n\n这是**加粗**的正文：\u4f60\u597d，\"content\" 伪键。');
+    await tester.pump();
 
-    // Terminal draft: the review presents the validated result — the
-    // concatenation never leaks into it.
+    expect(bubbleMarkdown(), findsOneWidget);
+    expect(find.text('星际启航'), findsOneWidget); // heading text, `#` consumed
+    expect(find.textContaining('# 星际启航'), findsNothing);
+    expect(find.textContaining('**'), findsNothing);
+    expect(find.textContaining('加粗'), findsOneWidget);
+    expect(find.textContaining(r'\u4f60'), findsNothing);
+    expect(find.textContaining('你好'), findsOneWidget);
+    expect(find.textContaining(r'\"'), findsNothing);
+    expect(find.textContaining('"content" 伪键'), findsOneWidget);
+    expect(bubbleTextContaining('{"title"'), findsNothing);
+    expect(bubbleTextContaining('"content":'), findsNothing);
+
+    // Terminal draft: the review presents the validated result — the live
+    // partial is replaced by the shared markdown pipeline showing it.
     pending.complete(completedDraftResult());
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(bubbleTextContaining('{"title"'), findsNothing);
     expect(bubbleText('星际旅行草稿'), findsOneWidget);
     expect(bubbleTextContaining('续写正文第一段'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byType(AiAssistantFab),
-        matching: find.byType(MarkdownContent),
-      ),
-      findsOneWidget,
-    );
+    expect(bubbleTextContaining('星际启航'), findsNothing);
+    expect(bubbleMarkdown(), findsOneWidget);
   });
 
   testWidgets('mid-stream failure after deltas: the partial disappears and '
@@ -821,6 +837,72 @@ void main() {
     expect(
       tester.getRect(bubbleTextContaining('草稿段落 0')).top,
       lessThan(firstRect.top),
+    );
+    final lastRect = tester.getRect(bubbleTextContaining('草稿段落 119'));
+    expect(
+      lastRect.bottom,
+      lessThanOrEqualTo(tester.getRect(viewport).bottom + 0.5),
+    );
+  });
+
+  testWidgets('long live markdown during generation: the bubble stays '
+      'height-bounded and the layer scrolls internally (markdown is the tall '
+      'case of the generating view too)', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repo = repoWithDoc('# 设计笔记');
+    final operations = StubOperationsRepository();
+    final pending = Completer<OperationDraftResult>();
+    void Function(String)? emit;
+    operations.draftHandler = ({required documentId, instruction, onDelta}) {
+      emit = onDelta;
+      return pending.future;
+    };
+
+    await pumpApp(tester, repo, operations);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+    await openWritingLayer(tester);
+    await generateDraft(tester, '长草稿');
+
+    // One delta carrying the whole JSON-escaped draft: the extracted live
+    // markdown is far taller than the surface.
+    final paragraphs = List.generate(120, (i) => '草稿段落 $i。');
+    emit!('{"content": "${paragraphs.join('\\n\\n')}');
+    await tester.pump();
+
+    final viewport = find.descendant(
+      of: find.byType(AiAssistantFab),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(viewport, findsOneWidget);
+    final bubbleCard = find.ancestor(
+      of: viewport,
+      matching: find.byType(Material),
+    );
+
+    // Bounded by the configured fraction of the surface, top edge on screen.
+    const surfaceHeight = 900.0;
+    final bubbleHeight = tester.getSize(bubbleCard.first).height;
+    expect(bubbleHeight, lessThanOrEqualTo(surfaceHeight * 0.9));
+    expect(tester.getTopLeft(bubbleCard.first).dy, greaterThanOrEqualTo(0));
+
+    // The tail is reachable by internal scrolling (position resolved from
+    // the seconds hint — a plain Text child of the content layer).
+    final position = Scrollable.of(
+      tester.element(bubbleText('同步生成可能需要数秒')),
+      axis: Axis.vertical,
+    ).position;
+    expect(position.maxScrollExtent, greaterThan(0));
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+
+    expect(
+      tester.getRect(bubbleTextContaining('草稿段落 0')).top,
+      lessThan(0),
+      reason: 'the head scrolled out through the bounded viewport',
     );
     final lastRect = tester.getRect(bubbleTextContaining('草稿段落 119'));
     expect(

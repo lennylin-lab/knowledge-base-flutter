@@ -90,8 +90,11 @@ class WritingState {
   final Object? error;
 
   /// Display-only concatenation of the in-flight generation's `draft_delta`
-  /// raw fragments (opaque tool-call-argument JSON text — the UI renders it
-  /// verbatim as plain text, never parsed, never markdown). Null on every
+  /// raw fragments (opaque tool-call-argument JSON text — the transport-level
+  /// truth; the UI never renders it directly: [extractPartialContent] —
+  /// shared/utils/partial_json_content.dart — decodes the live `content`
+  /// string out of it at render time and the result goes through the shared
+  /// markdown pipeline). Null on every
   /// terminal state: the validated draft replaces it in review, an error
   /// discards it (丢弃已拼接的部分内容), and any workflow reset clears it.
   /// It never leaks into [current] or the history.
