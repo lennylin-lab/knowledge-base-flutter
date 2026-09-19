@@ -621,3 +621,26 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 28: 编辑草稿落地与 checkbox 写回
+<!-- trellis-session: v=2 fp=a4926359ccdb96b6 -->
+
+**Date**: 2026-09-20
+**Task**: 编辑草稿落地与 checkbox 写回
+**Branch**: `main`
+
+### Summary
+
+两项功能直接提交 main：1) markdown 任务列表渲染可点击勾选框（builder 注册在 input 元素规避包的文本委托丢字问题），文档详情页乐观翻转 + PATCH 写回，聊天/AI 视图只读；2) 编辑草稿落地 flutter#5 方案：粘性 dirty flag（无哈希热路径）、debounce 落盘 shared_preferences（登出不清）、三级恢复（hash/基线原文/冲突对话框）、保存携带 expected_content_hash 且成功后置 null 防误 409。质量检查通过（506 测试绿）；依赖后端 knowledge-base-server#2（本地已实现未推送，需一起部署）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `90f6ffd` | feat(markdown): interactive task-list checkboxes with document write-back |
+| `a4d1c81` | feat(documents): edit drafts survive expiry via dirty flag and local persistence |
+
+### Status
+
+[OK] **Completed**
