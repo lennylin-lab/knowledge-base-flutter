@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 26
-- **Last Active**: 2026-09-17
+- **Total Sessions**: 27
+- **Last Active**: 2026-09-19
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~600 | Active |
+| `journal-1.md` | ~623 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 27 | 2026-09-19 | draft 流逐字增量对接（issue #4 评论） | `81f4425`, `8f28546` | `main` |
 | 26 | 2026-09-17 | dev/prod 环境隔离 | `02ff43f`, `8db7b68` | `main` |
 | 25 | 2026-09-17 | draft 端点对接 SSE 流式响应（issue #4） | `b5eb69c`, `b56d47c` | `main` |
 | 24 | 2026-09-16 | 气泡「AI 续写」写作代理流 | `c6a72db`, `883fb0f` | `main` |

@@ -598,3 +598,26 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 27: draft 流逐字增量对接（issue #4 评论）
+<!-- trellis-session: v=2 fp=dec9bca113729378 -->
+
+**Date**: 2026-09-19
+**Task**: draft 流逐字增量对接（issue #4 评论）
+**Branch**: `main`
+
+### Summary
+
+按 issue #4 最新评论对齐：draft 流新增 draft_delta 事件（{run_id, delta}，原始 JSON 片段按序不重不漏）。新增 AgentDraftDeltaEvent 模型与解析，共享 fold 增 onDelta 通道（仅 draft 流触达，summary/associations 零变化），repository.draft 转发原始片段；WritingState.partialContent 在工作流代际守卫下拼接（过期代际丢弃、error 清空、draft 终态以完整结果落定、历史切片双向保活），生成视图以纯文本实时渲染拼接内容（非 markdown 非结果推导）。analyze 干净、448 测试全绿；check PASS 无待修问题。spec 同步 draft 流增量契约。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `81f4425` | feat(operations): render draft generation from draft_delta stream fragments |
+| `8f28546` | docs(spec): draft stream gains display-only delta fragments |
+
+### Status
+
+[OK] **Completed**
