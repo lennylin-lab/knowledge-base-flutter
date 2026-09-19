@@ -68,6 +68,8 @@ class AgentStreamParser {
         return AgentSummaryEvent(SummaryResult.fromJson(json));
       case 'associations':
         return AgentAssociationsEvent(AssociationsResult.fromJson(json));
+      case 'draft_delta':
+        return AgentDraftDeltaEvent.fromJson(json);
       case 'draft':
         return AgentDraftEvent.fromJson(json);
       case 'done':
@@ -168,7 +170,10 @@ class AgentStreamClient {
   /// this call and [extract] unwraps the expected result event's payload
   /// (null for the other kinds — a server mix-up is treated like a missing
   /// result). [onProgress] fires for every `summary_progress` event, in
-  /// wire order (streams without progress events never invoke it).
+  /// wire order (streams without progress events never invoke it);
+  /// [onDelta] mirrors it for the writing stream's `draft_delta` events —
+  /// each raw fragment verbatim, in wire order, display-only (the fold
+  /// still settles exclusively on the result event).
   ///
   /// Failures surface as [ApiException]: a terminal `error` event keeps its
   /// wire `code`/`message`/`statusCode` (including the normalized pre-stream
@@ -180,6 +185,7 @@ class AgentStreamClient {
     Uri uri, {
     required T? Function(AgentStreamEvent event) extract,
     void Function(SummaryProgress progress)? onProgress,
+    void Function(String delta)? onDelta,
   }) async {
     await for (final event in run(uri)) {
       switch (event) {
@@ -187,6 +193,8 @@ class AgentStreamClient {
           break; // stream lifecycle only — nothing to render, nothing to keep
         case final SummaryProgress progress:
           onProgress?.call(progress);
+        case final AgentDraftDeltaEvent delta:
+          onDelta?.call(delta.delta);
         case AgentErrorEvent(:final code, :final message, :final statusCode):
           throw ApiException(
             code: code,

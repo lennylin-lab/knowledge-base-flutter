@@ -21,8 +21,10 @@ import 'document_ai_bubble.dart';
 ///   the still-working actions on failure (dead-end rule), and the 历史
 ///   操作 affordance whose first tap loads the list (a draft failure
 ///   auto-loads/refreshes it so the newest failed operation is reachable);
-/// - generating: spinner + seconds hint (the draft stream emits no progress
-///   events); resume reuses the same in-flight view;
+/// - generating: spinner + seconds hint and the live `draft_delta`
+///   concatenation as plain text (raw JSON fragments — display only; the
+///   validated `draft` event remains authoritative); resume reuses the same
+///   in-flight view;
 /// - review + `completed` draft: draft title, body via the shared
 ///   [MarkdownContent] (front matter stripped), 应用到文档 (confirm dialog
 ///   first — apply overwrites and cannot be undone), 重新生成 (back to the
@@ -125,7 +127,7 @@ class _WritingContentLayerState extends ConsumerState<WritingContentLayer> {
     final state = ref.watch(writingProvider(widget.documentId));
     final List<Widget> children = switch (state.phase) {
       WritingPhase.idle => _idleChildren(context, state),
-      WritingPhase.generating => _generatingChildren(context),
+      WritingPhase.generating => _generatingChildren(context, state),
       WritingPhase.review ||
       WritingPhase.applying => _operationChildren(context, state),
     };
@@ -155,7 +157,7 @@ class _WritingContentLayerState extends ConsumerState<WritingContentLayer> {
       OperationState.failed => _failedChildren(context, state),
       // A running operation (set externally server-side) renders as the
       // generic in-flight view; it is not an offered history target.
-      OperationState.running => _generatingChildren(context),
+      OperationState.running => _generatingChildren(context, state),
     };
   }
 
@@ -196,11 +198,16 @@ class _WritingContentLayerState extends ConsumerState<WritingContentLayer> {
     ];
   }
 
-  /// Generating (and resume) in flight: plain spinner + seconds hint — the
-  /// draft endpoint streams no progress events.
-  List<Widget> _generatingChildren(BuildContext context) {
+  /// Generating (and resume) in flight: spinner + seconds hint, plus the
+  /// accumulating `draft_delta` concatenation rendered live below it — a
+  /// plain [Text] because the partial is raw JSON fragments of the model's
+  /// tool-call arguments, NOT markdown. It scrolls inside the bubble like
+  /// every other layer content (the whole column sits in one
+  /// SingleChildScrollView, per the height-bound contract).
+  List<Widget> _generatingChildren(BuildContext context, WritingState state) {
     final theme = Theme.of(context);
     final sizes = context.sizes;
+    final partial = state.partialContent;
     return [
       const GenerationProgressRow('正在生成草稿…'),
       SizedBox(height: sizes.space4),
@@ -210,6 +217,10 @@ class _WritingContentLayerState extends ConsumerState<WritingContentLayer> {
           color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
+      if (partial != null && partial.isNotEmpty) ...[
+        SizedBox(height: sizes.space8),
+        Text(partial),
+      ],
     ];
   }
 

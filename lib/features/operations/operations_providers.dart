@@ -73,6 +73,7 @@ class WritingState {
     this.current,
     this.phase = WritingPhase.idle,
     this.error,
+    this.partialContent,
     this.history,
     this.historyLoading = false,
     this.historyError,
@@ -87,6 +88,14 @@ class WritingState {
   /// Raw error of the last failed generate/resume/apply; null after any
   /// successful action and on [WritingNotifier.clearCurrent].
   final Object? error;
+
+  /// Display-only concatenation of the in-flight generation's `draft_delta`
+  /// raw fragments (opaque tool-call-argument JSON text — the UI renders it
+  /// verbatim as plain text, never parsed, never markdown). Null on every
+  /// terminal state: the validated draft replaces it in review, an error
+  /// discards it (丢弃已拼接的部分内容), and any workflow reset clears it.
+  /// It never leaks into [current] or the history.
+  final String? partialContent;
 
   /// The document's operation history (server sends newest first), loaded on
   /// demand by the 历史操作 affordance; null until the first load. Survives
@@ -146,16 +155,36 @@ class WritingNotifier extends Notifier<WritingState> {
   /// lightweight current draft. Also the landing action of 重新生成： the
   /// layer keeps the previous instruction in its field and sends it back
   /// through here. A tap while busy is a synchronous no-op.
+  ///
+  /// Streamed `draft_delta` fragments accumulate into
+  /// [WritingState.partialContent] for live process display only — each
+  /// chunk passes the same generation guard as the terminal writes, so a
+  /// superseded generation's deltas are dropped (latest-wins rendering).
+  /// The terminal `draft` settles the review with the validated result and
+  /// clears the concatenation; a terminal `error` discards it and runs the
+  /// existing failure path.
   Future<void> generate({String? instruction}) async {
     if (state.isBusy) return;
     final generation = _generation;
     final previousPhase = state.phase;
     final current = state.current;
     state = _write(current: current, phase: WritingPhase.generating);
+    final partial = StringBuffer();
     try {
       final result = await _repository.draft(
         documentId: documentId,
         instruction: instruction,
+        onDelta: (delta) {
+          // A superseded generation's late deltas must not clobber the
+          // newer state (same stale-guard as the terminal writes below).
+          if (_generation != generation) return;
+          partial.write(delta);
+          state = _write(
+            current: current,
+            phase: WritingPhase.generating,
+            partialContent: partial.toString(),
+          );
+        },
       );
       if (_generation != generation) return;
       state = _write(
@@ -166,6 +195,7 @@ class WritingNotifier extends Notifier<WritingState> {
       if (_generation != generation) return;
       // Failure keeps the prior view (input, previous draft, or failure)
       // visible; the error renders as inline copy above working actions.
+      // The accumulated partial is dropped with it (display-only).
       state = _write(current: current, phase: previousPhase, error: error);
       // The stream's terminal `error` carries no operation id — the failed
       // operation is only reachable through the history. Auto-load it on
@@ -301,7 +331,10 @@ class WritingNotifier extends Notifier<WritingState> {
   /// for the workflow fields, so a generate/apply action completing
   /// mid-fetch is never reverted (and vice versa — a late history result
   /// never clobbers a newer phase, and a 返回菜单 mid-fetch cannot strand
-  /// the loading flag: the fetch simply lands).
+  /// the loading flag: the fetch simply lands). The accumulating
+  /// [WritingState.partialContent] is part of that workflow slice: a
+  /// history write preserves it so a fetch landing mid-generation never
+  /// wipes the live partial text.
   Future<void> _fetchHistory() async {
     final historyGeneration = _historyGeneration;
     final start = state;
@@ -309,6 +342,7 @@ class WritingNotifier extends Notifier<WritingState> {
       current: start.current,
       phase: start.phase,
       error: start.error,
+      partialContent: start.partialContent,
       history: start.history,
       historyLoading: true,
     );
@@ -320,6 +354,7 @@ class WritingNotifier extends Notifier<WritingState> {
         current: live.current,
         phase: live.phase,
         error: live.error,
+        partialContent: live.partialContent,
         history: items,
       );
     } catch (error) {
@@ -329,6 +364,7 @@ class WritingNotifier extends Notifier<WritingState> {
         current: live.current,
         phase: live.phase,
         error: live.error,
+        partialContent: live.partialContent,
         history: live.history,
         historyError: error,
       );
@@ -338,16 +374,21 @@ class WritingNotifier extends Notifier<WritingState> {
   /// Replaces the workflow fields while preserving whatever history fields
   /// are live at write time — the workflow and the history fetch update
   /// disjoint slices of one state object and must not clobber each other.
+  /// [partialContent] follows the [error] convention: passing nothing
+  /// clears it, so every terminal/reset write drops the concatenation and
+  /// only the in-flight accumulation keeps it alive.
   WritingState _write({
     CurrentDraft? current,
     required WritingPhase phase,
     Object? error,
+    String? partialContent,
   }) {
     final live = state;
     return WritingState(
       current: current,
       phase: phase,
       error: error,
+      partialContent: partialContent,
       history: live.history,
       historyLoading: live.historyLoading,
       historyError: live.historyError,

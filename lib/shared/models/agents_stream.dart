@@ -11,7 +11,8 @@ part 'agents_stream.g.dart';
 /// (backend `src/app/schemas/agent_stream.py`).
 ///
 /// Event order: `run_started → [summary_progress …] (summary only) →
-/// summary | associations | draft → done`, or a terminal `error` at any
+/// summary | associations → done` and `run_started → [draft_delta …] →
+/// draft → done` for the writing stream, or a terminal `error` at any
 /// point after HTTP 200 (the stream closes right after a terminal event).
 /// A cache hit skips the progress events entirely. Comments (`:` keep-alive
 /// frames) and unknown event names carry no event and are ignored.
@@ -78,12 +79,38 @@ final class AgentAssociationsEvent extends AgentStreamEvent {
   final AssociationsResult result;
 }
 
+/// One `draft_delta` event of the writing-agent stream
+/// (`POST /api/v1/operations/draft`): a verbatim raw fragment of the
+/// model's structured-output tool-call arguments, forwarded in provider
+/// order with no duplication or omission — the chunks' concatenation equals
+/// the final argument JSON exactly.
+///
+/// [delta] is **opaque display-only raw text**: the client never parses or
+/// validates it (no incremental JSON handling, no result derivation from
+/// the concatenation). The authoritative result still arrives atomically
+/// with the terminal [AgentDraftEvent]; on `error` the accumulated
+/// fragments are simply discarded.
+@freezed
+abstract class AgentDraftDeltaEvent extends AgentStreamEvent
+    with _$AgentDraftDeltaEvent {
+  const AgentDraftDeltaEvent._();
+
+  const factory AgentDraftDeltaEvent({
+    required String runId,
+    required String delta,
+  }) = _AgentDraftDeltaEvent;
+
+  factory AgentDraftDeltaEvent.fromJson(Map<String, dynamic> json) =>
+      _$AgentDraftDeltaEventFromJson(json);
+}
+
 /// The `draft` event of the writing-agent stream
 /// (`POST /api/v1/operations/draft`): the finished operation's draft,
-/// emitted **flat** (`operation_id` / `state` / `content` / `title`) and
-/// atomically — no incremental tokens; the server commits the terminal
-/// operation state BEFORE emitting, so a client that stops reading never
-/// sees a draft for unpersisted work.
+/// emitted **flat** (`operation_id` / `state` / `content` / `title`) — the
+/// authoritative result that follows any number of [AgentDraftDeltaEvent]
+/// process fragments. The server commits the terminal operation state
+/// BEFORE emitting, so a client that stops reading never sees a draft for
+/// unpersisted work.
 ///
 /// [state] stays the raw wire string (the literal `"completed"` today): a
 /// received draft event always means "a draft arrived" and is presented as

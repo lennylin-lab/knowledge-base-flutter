@@ -43,7 +43,7 @@ void main() {
       () async {
         final (container, ops, _) = containerFor();
         final pending = Completer<OperationDraftResult>();
-        ops.draftHandler = ({required documentId, instruction}) =>
+        ops.draftHandler = ({required documentId, instruction, onDelta}) =>
             pending.future;
 
         // Building the provider state never touches the repository.
@@ -81,7 +81,7 @@ void main() {
       'auto-loads the history so the failed operation is reachable',
       () async {
         final (container, ops, _) = containerFor();
-        ops.draftHandler = ({required documentId, instruction}) async {
+        ops.draftHandler = ({required documentId, instruction, onDelta}) async {
           throw const ApiException(
             code: 'chat_unavailable',
             message: 'No API key configured',
@@ -117,7 +117,7 @@ void main() {
         'draft failure, and the failed op opens into 恢复', () async {
       final (container, ops, _) = containerFor();
       var failed = false;
-      ops.draftHandler = ({required documentId, instruction}) async {
+      ops.draftHandler = ({required documentId, instruction, onDelta}) async {
         if (failed) {
           throw const ApiException(
             code: 'llm_provider_error',
@@ -169,7 +169,8 @@ void main() {
     test('a superseded generation must not write stale state', () async {
       final (container, ops, _) = containerFor();
       final pending = Completer<OperationDraftResult>();
-      ops.draftHandler = ({required documentId, instruction}) => pending.future;
+      ops.draftHandler = ({required documentId, instruction, onDelta}) =>
+          pending.future;
       final notifier = container.read(writingProvider('doc-1').notifier);
 
       final stale = notifier.generate();
@@ -194,7 +195,7 @@ void main() {
       () async {
         final (container, ops, _) = containerFor();
         final pending = Completer<OperationDraftResult>();
-        ops.draftHandler = ({required documentId, instruction}) =>
+        ops.draftHandler = ({required documentId, instruction, onDelta}) =>
             pending.future;
         final notifier = container.read(writingProvider('doc-1').notifier);
 
@@ -215,6 +216,206 @@ void main() {
         expect(state.current, isNull);
       },
     );
+  });
+
+  group('writingProvider.generate draft deltas (partialContent)', () {
+    test('onDelta chunks accumulate latest-wins; the terminal draft replaces '
+        'the concatenation (cleared) with the validated result', () async {
+      final (container, ops, _) = containerFor();
+      final pending = Completer<OperationDraftResult>();
+      void Function(String)? emit;
+      ops.draftHandler = ({required documentId, instruction, onDelta}) {
+        emit = onDelta;
+        return pending.future;
+      };
+      final notifier = container.read(writingProvider('doc-1').notifier);
+
+      final run = notifier.generate();
+      await container.pump();
+      // Nothing accumulated before the first delta.
+      expect(container.read(writingProvider('doc-1')).partialContent, isNull);
+
+      emit!('{"title"');
+      expect(
+        container.read(writingProvider('doc-1')).partialContent,
+        '{"title"',
+      );
+      emit!(':"星际旅行"}');
+      final generating = container.read(writingProvider('doc-1'));
+      expect(generating.partialContent, '{"title":"星际旅行"}');
+      expect(generating.phase, WritingPhase.generating);
+
+      // Terminal draft: the review shows the validated result, the raw
+      // concatenation is gone.
+      pending.complete(completedDraftResult());
+      await run;
+
+      final review = container.read(writingProvider('doc-1'));
+      expect(review.phase, WritingPhase.review);
+      expect(review.partialContent, isNull);
+      expect(review.current?.draft?.title, '星际旅行草稿');
+    });
+
+    test('a superseded generation drops its deltas; only the latest '
+        "generation's fragments render", () async {
+      final (container, ops, _) = containerFor();
+      final stalePending = Completer<OperationDraftResult>();
+      final latestPending = Completer<OperationDraftResult>();
+      var call = 0;
+      final emitters = <void Function(String)>[];
+      ops.draftHandler = ({required documentId, instruction, onDelta}) {
+        emitters.add(onDelta!);
+        // Neither generation settles on its own — the first is
+        // superseded below, the second after its deltas were asserted.
+        return ++call == 1 ? stalePending.future : latestPending.future;
+      };
+      final notifier = container.read(writingProvider('doc-1').notifier);
+
+      final stale = notifier.generate();
+      await container.pump();
+
+      // The provider rebuilds mid-flight (generation bump), then the
+      // user starts a fresh generation — the latest one wins.
+      container.invalidate(writingProvider('doc-1'));
+      await container.pump();
+      final run = notifier.generate(instruction: '再来一次');
+      await container.pump();
+
+      // The stale generation's deltas are dropped…
+      emitters[0]('stale ');
+      emitters[0]('fragments');
+      expect(container.read(writingProvider('doc-1')).partialContent, isNull);
+
+      // …while the latest generation's land.
+      emitters[1]('{"latest"');
+      expect(
+        container.read(writingProvider('doc-1')).partialContent,
+        '{"latest"',
+      );
+
+      // The superseded stream's late result lands nowhere either; the
+      // latest generation settles the review and clears the partial.
+      latestPending.complete(completedDraftResult());
+      stalePending.complete(completedDraftResult());
+      await stale;
+      await run;
+      final settled = container.read(writingProvider('doc-1'));
+      expect(settled.phase, WritingPhase.review);
+      expect(settled.partialContent, isNull);
+    });
+
+    test(
+      'clearCurrent drops the accumulation and any in-flight deltas',
+      () async {
+        final (container, ops, _) = containerFor();
+        final pending = Completer<OperationDraftResult>();
+        void Function(String)? emit;
+        ops.draftHandler = ({required documentId, instruction, onDelta}) {
+          emit = onDelta;
+          return pending.future;
+        };
+        final notifier = container.read(writingProvider('doc-1').notifier);
+
+        final run = notifier.generate();
+        await container.pump();
+        emit!('{"partial"');
+        expect(
+          container.read(writingProvider('doc-1')).partialContent,
+          '{"partial"',
+        );
+
+        // 返回菜单 mid-generation: reset clears the concatenation…
+        notifier.clearCurrent();
+        final cleared = container.read(writingProvider('doc-1'));
+        expect(cleared.phase, WritingPhase.idle);
+        expect(cleared.partialContent, isNull);
+
+        // …and the superseded stream's late deltas never land.
+        emit!(' more');
+        pending.complete(completedDraftResult());
+        await run;
+
+        final state = container.read(writingProvider('doc-1'));
+        expect(state.phase, WritingPhase.idle);
+        expect(state.partialContent, isNull);
+        expect(state.current, isNull);
+      },
+    );
+
+    test(
+      'deltas then terminal error: the partial is discarded and the '
+      'existing failure path (history auto-load with the failed op) runs',
+      () async {
+        final (container, ops, _) = containerFor();
+        ops.draftHandler = ({required documentId, instruction, onDelta}) async {
+          onDelta!('{"content":"未完成的片段');
+          throw const ApiException(
+            code: 'llm_provider_error',
+            message: 'provider exploded',
+          );
+        };
+        ops.operationsForDocumentHandler = (documentId) async => [
+          operationFixture(
+            id: 'op-f',
+            state: OperationState.failed,
+            error: {'error_class': 'LLMProviderError'},
+          ),
+        ];
+        final notifier = container.read(writingProvider('doc-1').notifier);
+
+        await notifier.generate();
+
+        final failed = container.read(writingProvider('doc-1'));
+        expect(failed.partialContent, isNull, reason: '丢弃已拼接的部分内容');
+        expect(failed.phase, WritingPhase.idle);
+        expect(failed.current, isNull);
+        final error = failed.error;
+        expect(error, isA<ApiException>());
+        expect((error as ApiException).code, 'llm_provider_error');
+        // Failure recovery unchanged: history auto-loaded with the failed op.
+        expect(ops.operationsForDocumentCalls, ['doc-1']);
+        expect(failed.history?.single.id, 'op-f');
+      },
+    );
+
+    test('a history fetch landing mid-generation preserves the accumulating '
+        'partial (disjoint state slices)', () async {
+      final (container, ops, _) = containerFor();
+      final draftPending = Completer<OperationDraftResult>();
+      final historyPending = Completer<List<OperationReadDetail>>();
+      void Function(String)? emit;
+      ops.draftHandler = ({required documentId, instruction, onDelta}) {
+        emit = onDelta;
+        return draftPending.future;
+      };
+      ops.operationsForDocumentHandler = (documentId) => historyPending.future;
+      final notifier = container.read(writingProvider('doc-1').notifier);
+
+      final run = notifier.generate();
+      await container.pump();
+      emit!('{"title"');
+
+      final fetch = notifier.loadHistory();
+      await container.pump();
+      emit!(':"星际旅行"}');
+      expect(
+        container.read(writingProvider('doc-1')).partialContent,
+        '{"title":"星际旅行"}',
+      );
+
+      // The history result lands while the generation is still running —
+      // its write must not wipe the workflow slice's partial.
+      historyPending.complete([completedDraftOperation(id: 'op-h')]);
+      await fetch;
+      final landed = container.read(writingProvider('doc-1'));
+      expect(landed.partialContent, '{"title":"星际旅行"}');
+      expect(landed.history?.single.id, 'op-h');
+
+      // And the terminal draft still clears it.
+      draftPending.complete(completedDraftResult());
+      await run;
+      expect(container.read(writingProvider('doc-1')).partialContent, isNull);
+    });
   });
 
   group('writingProvider.resumeCurrent', () {
@@ -290,7 +491,7 @@ void main() {
       docs.getHandler = (id) async =>
           documentReadDetail(documentRead(id: id), content: '正文$id');
       final (container, ops, _) = containerFor(documents: docs);
-      ops.draftHandler = ({required documentId, instruction}) async =>
+      ops.draftHandler = ({required documentId, instruction, onDelta}) async =>
           completedDraftResult();
       ops.applyHandler = (operationId) async =>
           applyResultFor(completedDraftOperation(id: operationId));
@@ -326,7 +527,7 @@ void main() {
     test('apply fires with no expected base version and 409 keeps the prior '
         'draft state + surfaces the conflict code', () async {
       final (container, ops, _) = containerFor();
-      ops.draftHandler = ({required documentId, instruction}) async =>
+      ops.draftHandler = ({required documentId, instruction, onDelta}) async =>
           completedDraftResult();
       ops.applyHandler = (operationId) async {
         throw const ApiException(
@@ -375,8 +576,9 @@ void main() {
             documentReadDetail(documentRead(id: id), content: '正文');
         final (container, ops, _) = containerFor(documents: docs);
         final pending = Completer<ApplyResult>();
-        ops.draftHandler = ({required documentId, instruction}) async =>
-            completedDraftResult();
+        ops.draftHandler =
+            ({required documentId, instruction, onDelta}) async =>
+                completedDraftResult();
         ops.applyHandler = (operationId) => pending.future;
 
         container.listen(documentsProvider, (_, _) {});
@@ -524,7 +726,7 @@ void main() {
       final historyPending = Completer<List<OperationReadDetail>>();
       final draftPending = Completer<OperationDraftResult>();
       ops.operationsForDocumentHandler = (documentId) => historyPending.future;
-      ops.draftHandler = ({required documentId, instruction}) =>
+      ops.draftHandler = ({required documentId, instruction, onDelta}) =>
           draftPending.future;
       final notifier = container.read(writingProvider('doc-1').notifier);
 

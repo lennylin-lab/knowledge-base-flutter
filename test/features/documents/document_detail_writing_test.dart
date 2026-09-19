@@ -140,7 +140,7 @@ void main() {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
     final pending = Completer<OperationDraftResult>();
-    operations.draftHandler = ({required documentId, instruction}) =>
+    operations.draftHandler = ({required documentId, instruction, onDelta}) =>
         pending.future;
 
     await pumpApp(tester, repo, operations);
@@ -172,14 +172,117 @@ void main() {
     expect(bubbleText('应用到文档'), findsOneWidget);
   });
 
+  testWidgets('generating view renders the draft_delta concatenation live as '
+      'plain text (not markdown); the review shows the validated draft '
+      'instead', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    final operations = StubOperationsRepository();
+    final pending = Completer<OperationDraftResult>();
+    void Function(String)? emit;
+    operations.draftHandler = ({required documentId, instruction, onDelta}) {
+      emit = onDelta;
+      return pending.future;
+    };
+
+    await pumpApp(tester, repo, operations);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+    await openWritingLayer(tester);
+
+    await generateDraft(tester, '续写一章星际旅行');
+
+    // Spinner + seconds hint stay; the accumulating raw fragments appear
+    // below them as they arrive.
+    emit!('{"title"');
+    await tester.pump();
+    expect(bubbleText('正在生成草稿…'), findsOneWidget);
+    expect(bubbleText('同步生成可能需要数秒'), findsOneWidget);
+    expect(bubbleTextContaining('{"title"'), findsOneWidget);
+
+    emit!(':"星际旅行"}');
+    await tester.pump();
+    expect(bubbleTextContaining('{"title":"星际旅行"}'), findsOneWidget);
+
+    // Raw JSON fragments — a plain Text, never the markdown pipeline.
+    expect(
+      find.descendant(
+        of: find.byType(AiAssistantFab),
+        matching: find.byType(MarkdownContent),
+      ),
+      findsNothing,
+    );
+
+    // Terminal draft: the review presents the validated result — the
+    // concatenation never leaks into it.
+    pending.complete(completedDraftResult());
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(bubbleTextContaining('{"title"'), findsNothing);
+    expect(bubbleText('星际旅行草稿'), findsOneWidget);
+    expect(bubbleTextContaining('续写正文第一段'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AiAssistantFab),
+        matching: find.byType(MarkdownContent),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('mid-stream failure after deltas: the partial disappears and '
+      'the recovery path (error copy + history) appears', (tester) async {
+    final repo = repoWithDoc('# 设计笔记');
+    final operations = StubOperationsRepository();
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async {
+          onDelta!('{"content":"未完成的片段');
+          throw const ApiException(
+            code: 'llm_provider_error',
+            message: 'provider exploded',
+          );
+        };
+    operations.operationsForDocumentHandler = (documentId) async => [
+      operationFixture(
+        id: 'op-f',
+        state: OperationState.failed,
+        error: {'error_class': 'LLMProviderError'},
+      ),
+    ];
+
+    await pumpApp(tester, repo, operations);
+    await tester.pumpAndSettle();
+    await openDetail(tester);
+    await openBubble(tester);
+    await openWritingLayer(tester);
+
+    await generateDraft(tester, '续写');
+    await tester.pumpAndSettle();
+
+    // The discarded concatenation is gone…
+    expect(bubbleTextContaining('未完成的片段'), findsNothing);
+    expect(bubbleText('正在生成草稿…'), findsNothing);
+    // …the existing failure path runs unchanged: inline error copy above
+    // the still-working 生成草稿, and the history auto-loaded with the
+    // failed operation.
+    expect(bubbleText('生成失败：provider exploded'), findsOneWidget);
+    expect(bubbleText('生成草稿'), findsOneWidget);
+    expect(operations.operationsForDocumentCalls, ['doc-1']);
+    await tester.tap(bubbleText('历史操作'));
+    await tester.pumpAndSettle();
+    expect(bubbleText('失败'), findsOneWidget);
+  });
+
   testWidgets('draft review renders the shared markdown pipeline with the '
       'front matter stripped and the fallback title', (tester) async {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
     // No explicit draft title — the fallback 未命名草稿 shows; the YAML front
     // matter (where the apply-time title derives from) must not render.
-    operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftResult(title: null);
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async =>
+            completedDraftResult(title: null);
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -225,8 +328,9 @@ void main() {
       );
     };
     final operations = StubOperationsRepository();
-    operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftResult();
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async =>
+            completedDraftResult();
     final applyPending = Completer<ApplyResult>();
     operations.applyHandler = (operationId) => applyPending.future;
 
@@ -297,8 +401,9 @@ void main() {
   ) async {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
-    operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftResult();
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async =>
+            completedDraftResult();
     operations.applyHandler = (operationId) async {
       throw const ApiException(
         code: 'conflict',
@@ -483,8 +588,9 @@ void main() {
     final historyPending = Completer<List<OperationReadDetail>>();
     operations.operationsForDocumentHandler = (documentId) =>
         historyPending.future;
-    operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftResult();
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async =>
+            completedDraftResult();
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -542,7 +648,7 @@ void main() {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
     final pending = Completer<OperationDraftResult>();
-    operations.draftHandler = ({required documentId, instruction}) =>
+    operations.draftHandler = ({required documentId, instruction, onDelta}) =>
         pending.future;
 
     await pumpApp(tester, repo, operations);
@@ -598,8 +704,9 @@ void main() {
       'draft (layer navigation only)', (tester) async {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
-    operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftResult();
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async =>
+            completedDraftResult();
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -668,8 +775,9 @@ void main() {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
     final draft = List.generate(120, (i) => '草稿段落 $i。').join('\n\n');
-    operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftResult(content: draft, title: null);
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async =>
+            completedDraftResult(content: draft, title: null);
 
     await pumpApp(tester, repo, operations);
     await tester.pumpAndSettle();
@@ -725,13 +833,14 @@ void main() {
       'copy above the still-working 生成草稿 button', (tester) async {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
-    operations.draftHandler = ({required documentId, instruction}) async {
-      throw const ApiException(
-        code: 'chat_unavailable',
-        message: 'No API key configured',
-        statusCode: 503,
-      );
-    };
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async {
+          throw const ApiException(
+            code: 'chat_unavailable',
+            message: 'No API key configured',
+            statusCode: 503,
+          );
+        };
     // A failure auto-loads the history (failure recovery) — the newest
     // failed operation shows up there.
     operations.operationsForDocumentHandler = (documentId) async => [
@@ -763,8 +872,9 @@ void main() {
     expect(bubbleText('失败'), findsOneWidget);
 
     // Retry succeeds.
-    operations.draftHandler = ({required documentId, instruction}) async =>
-        completedDraftResult();
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async =>
+            completedDraftResult();
     await tester.tap(bubbleText('生成草稿'));
     await tester.pumpAndSettle();
     expect(bubbleTextContaining('续写正文第一段'), findsOneWidget);
@@ -775,12 +885,13 @@ void main() {
       'through 历史操作 → openOperation → 恢复 completes it', (tester) async {
     final repo = repoWithDoc('# 设计笔记');
     final operations = StubOperationsRepository();
-    operations.draftHandler = ({required documentId, instruction}) async {
-      throw const ApiException(
-        code: 'llm_provider_error',
-        message: 'provider exploded',
-      );
-    };
+    operations.draftHandler =
+        ({required documentId, instruction, onDelta}) async {
+          throw const ApiException(
+            code: 'llm_provider_error',
+            message: 'provider exploded',
+          );
+        };
     // The stream error carries no operation id — the auto-loaded history is
     // the only path to the persisted failed operation (newest first).
     operations.operationsForDocumentHandler = (documentId) async => [

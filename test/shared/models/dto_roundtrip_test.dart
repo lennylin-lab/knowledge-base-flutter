@@ -659,6 +659,30 @@ void main() {
       },
     );
 
+    test(
+      'AgentDraftDeltaEvent round-trips verbatim fragments (run_id/delta)',
+      () {
+        const fragment =
+            '{"content":"---\\ntitle: 星际旅行\\n---\\n\\n{第一章} \\"引混排\\""}';
+        final model = AgentDraftDeltaEvent.fromJson({
+          'run_id': '22222222-2222-2222-2222-222222222222',
+          'delta': fragment,
+        });
+        expect(model.runId, '22222222-2222-2222-2222-222222222222');
+        // Opaque display-only text: codegen decode is the only handling —
+        // byte-for-byte round-trip, no normalization.
+        expect(model.delta, fragment);
+        assertRoundTrip(
+          model,
+          (m) => m.toJson(),
+          AgentDraftDeltaEvent.fromJson,
+        );
+        final encoded = jsonEncode(model.toJson());
+        expect(encoded, contains('"run_id"'));
+        expect(encoded, contains('"delta"'));
+      },
+    );
+
     test('agent events are a sealed hierarchy (exhaustive matching)', () {
       const List<AgentStreamEvent> events = [
         AgentRunStarted(runId: 'r', kind: 'summary', documentId: 'd'),
@@ -679,6 +703,7 @@ void main() {
             latencyMs: 1,
           ),
         ),
+        AgentDraftDeltaEvent(runId: 'r', delta: '{"d'),
         AgentDraftEvent(
           operationId: 'op',
           state: 'completed',
@@ -694,6 +719,7 @@ void main() {
           SummaryProgress() => 'summary_progress',
           AgentSummaryEvent() => 'summary',
           AgentAssociationsEvent() => 'associations',
+          AgentDraftDeltaEvent() => 'draft_delta',
           AgentDraftEvent() => 'draft',
           AgentDoneEvent() => 'done',
           AgentErrorEvent() => 'error',
@@ -704,6 +730,7 @@ void main() {
         'summary_progress',
         'summary',
         'associations',
+        'draft_delta',
         'draft',
         'done',
         'error',

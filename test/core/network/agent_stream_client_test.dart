@@ -199,6 +199,51 @@ void main() {
       expect(draft.content, '无标题正文');
     });
 
+    test('draft_delta events round-trip verbatim — CJK, brace-laden, empty — '
+        'and never terminate the stream', () {
+      const runId = '22222222-2222-2222-2222-222222222222';
+      // Raw fragments of the model's tool-call arguments: the delta text
+      // itself is JSON (braces, escaped quotes/backslashes), CJK and
+      // emoji included; the empty fragment is legal on the wire.
+      const deltas = <String>[
+        '{"content":"---\\ntitle: 星际旅行草稿\\n---\\n\\n第一章：{启航}。"}',
+        '"notes":"花括号 } { 与引号 \\" 及反斜杠 \\\\ 混排 🚀"',
+        '',
+      ];
+
+      final parser = AgentStreamParser();
+      final wire = StringBuffer(frame('run_started', draftRunStartedJson));
+      for (final delta in deltas) {
+        wire.write(
+          frame(
+            'draft_delta',
+            jsonEncode(<String, String>{'run_id': runId, 'delta': delta}),
+          ),
+        );
+      }
+      wire
+        ..write(frame('draft', draftEventJson))
+        ..write(frame('done', draftDoneJson));
+
+      final events = parser.push(wire.toString());
+
+      final deltaEvents = events.whereType<AgentDraftDeltaEvent>().toList();
+      expect(deltaEvents, hasLength(deltas.length));
+      for (final (i, event) in deltaEvents.indexed) {
+        expect(event.runId, runId);
+        expect(
+          event.delta,
+          deltas[i],
+          reason: 'fragment $i must round-trip byte-for-byte',
+        );
+      }
+      // Process events only: the stream is still open for the terminal
+      // draft + done, which arrive after every delta.
+      expect(events[events.length - 2], isA<AgentDraftEvent>());
+      expect(events.last, isA<AgentDoneEvent>());
+      expect(parser.isTerminated, isTrue);
+    });
+
     test('error events parse and terminate', () {
       final parser = AgentStreamParser();
       final events = parser.push(
@@ -302,6 +347,37 @@ void main() {
         expect(events[2], isA<AgentDoneEvent>());
       },
     );
+
+    test('draft stream: deltas pass through in order before the terminal '
+        'draft and done', () async {
+      final events = await _collect(
+        client.run(Uri.parse('http://localhost:8000/x')),
+        transport,
+        (t) {
+          t.addWire(
+            frame('run_started', draftRunStartedJson) +
+                frame(
+                  'draft_delta',
+                  '{"run_id":"r-2","delta":"{\\"title\\""}',
+                ) +
+                frame(
+                  'draft_delta',
+                  '{"run_id":"r-2","delta":":\\"星际旅行\\"}"}',
+                ) +
+                frame('draft', draftEventJson) +
+                frame('done', draftDoneJson),
+          );
+          t.closeStream();
+        },
+      );
+
+      expect(events, hasLength(5));
+      expect(events[0], isA<AgentRunStarted>());
+      expect((events[1] as AgentDraftDeltaEvent).delta, '{"title"');
+      expect((events[2] as AgentDraftDeltaEvent).delta, ':"星际旅行"}');
+      expect(events[3], isA<AgentDraftEvent>());
+      expect(events[4], isA<AgentDoneEvent>());
+    });
 
     test('terminal error event maps to code + message', () async {
       final events = await _collect(

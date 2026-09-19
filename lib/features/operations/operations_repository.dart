@@ -45,7 +45,8 @@ class OperationDraftResult {
 /// All `/api/v1/operations` endpoints — the only place the operations
 /// feature calls the network (directory-structure spec). Five routes are
 /// synchronous JSON; `draft` streams `text/event-stream`
-/// (`run_started → draft → done`, terminal `error` mutually exclusive) and
+/// (`run_started → draft_delta* → draft → done`, terminal `error` mutually
+/// exclusive) and
 /// is consumed through the shared [AgentStreamClient.fold]. Errors are
 /// normalized to [ApiException] — features never parse the error envelope
 /// themselves, so 409 `conflict` (with `details.state` /
@@ -77,11 +78,15 @@ class OperationsRepository {
   }
 
   /// Runs the writing agent on the document and folds its SSE stream
-  /// (`run_started → draft → done`, terminal `error` mutually exclusive)
-  /// into the lightweight [OperationDraftResult] via the shared
-  /// [AgentStreamClient.fold]. Parameters travel as **query** params per the
-  /// server contract — [instruction] is omitted when null or empty — and the
-  /// request carries **no body**.
+  /// (`run_started → draft_delta* → draft → done`, terminal `error` mutually
+  /// exclusive) into the lightweight [OperationDraftResult] via the shared
+  /// [AgentStreamClient.fold]. Each `draft_delta` raw fragment is forwarded
+  /// verbatim, in wire order, through [onDelta] — display-only process text
+  /// (opaque tool-call-argument JSON fragments; never parsed client-side);
+  /// the fold still settles exclusively on the `draft` event and the raw
+  /// deltas never touch the result type. Parameters travel as **query**
+  /// params per the server contract — [instruction] is omitted when null or
+  /// empty — and the request carries **no body**.
   ///
   /// Failure surface: 503 `chat_unavailable` (provider not configured) and
   /// 404 `not_found` (missing/soft-deleted document) fire before the first
@@ -94,6 +99,7 @@ class OperationsRepository {
   Future<OperationDraftResult> draft({
     required String documentId,
     String? instruction,
+    void Function(String delta)? onDelta,
   }) {
     return _agentStream.fold(
       Uri.parse('${_client.baseUrl}$_basePath/draft').replace(
@@ -106,6 +112,7 @@ class OperationsRepository {
       extract: (event) => event is AgentDraftEvent
           ? OperationDraftResult.fromEvent(event)
           : null,
+      onDelta: onDelta,
     );
   }
 

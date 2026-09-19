@@ -267,17 +267,39 @@ void main() {
     const operationId = 'aa0b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d';
 
     test('posts document_id/instruction as QUERY params with no body and folds '
-        'run_started → draft → done into the lightweight result', () async {
+        'run_started → draft_delta* → draft → done into the lightweight '
+        'result, forwarding each delta verbatim in wire order', () async {
       final (repo, transport) = _makeAgentRepo();
+      const fragments = <String>[
+        '{"content":"---\\ntitle: AI 续写\\n---\\n\\n',
+        '这是续写的正文。',
+        '',
+        '"}',
+      ];
+      final deltas = <String>[];
 
-      final future = repo.draft(documentId: docId, instruction: '续写一章');
+      final future = repo.draft(
+        documentId: docId,
+        instruction: '续写一章',
+        onDelta: deltas.add,
+      );
       // Let open() resolve before driving the scripted stream.
       await Future<void>.delayed(Duration.zero);
+      final deltaWire = StringBuffer();
+      for (final fragment in fragments) {
+        deltaWire.write(
+          sseFrame(
+            'draft_delta',
+            jsonEncode(<String, String>{'run_id': 'r-1', 'delta': fragment}),
+          ),
+        );
+      }
       transport.addWire(
         sseFrame(
               'run_started',
               '{"run_id":"r-1","kind":"draft","document_id":"$docId"}',
             ) +
+            deltaWire.toString() +
             sseFrame(
               'draft',
               '{"operation_id":"$operationId","state":"completed",'
@@ -292,6 +314,8 @@ void main() {
       transport.closeStream();
 
       final result = await future;
+      // Every fragment verbatim, in wire order, empty ones included.
+      expect(deltas, fragments);
       expect(result.operationId, operationId);
       expect(result.state, OperationState.completed);
       expect(result.draft.content, '---\ntitle: AI 续写\n---\n\n这是续写的正文。');
@@ -417,6 +441,45 @@ void main() {
         );
       },
     );
+
+    test('error after deltas throws ApiException and yields no result — the '
+        'already-forwarded fragments stay display-only', () async {
+      final (repo, transport) = _makeAgentRepo();
+      final deltas = <String>[];
+
+      final future = repo.draft(documentId: docId, onDelta: deltas.add);
+      await Future<void>.delayed(Duration.zero);
+      transport.addWire(
+        sseFrame(
+              'run_started',
+              '{"run_id":"r-1","kind":"draft","document_id":"$docId"}',
+            ) +
+            sseFrame(
+              'draft_delta',
+              jsonEncode(const {
+                'run_id': 'r-1',
+                'delta': '{"content":"未完成的片段',
+              }),
+            ) +
+            sseFrame(
+              'error',
+              '{"code":"rate_limited","message":"quota exceeded"}',
+            ),
+      );
+      transport.closeStream();
+
+      await expectLater(
+        future,
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', 'rate_limited')
+              .having((e) => e.message, 'message', 'quota exceeded'),
+        ),
+      );
+      // The fragment was forwarded before the terminal error — but no
+      // result ever settles from it.
+      expect(deltas, ['{"content":"未完成的片段']);
+    });
 
     test('a stream that ends without a result is a network_error', () async {
       final (repo, transport) = _makeAgentRepo();

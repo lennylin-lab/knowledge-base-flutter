@@ -34,6 +34,17 @@ Map<String, dynamic> _$SummaryProgressToJson(_SummaryProgress instance) =>
       'passes_total': instance.passesTotal,
     };
 
+_AgentDraftDeltaEvent _$AgentDraftDeltaEventFromJson(
+  Map<String, dynamic> json,
+) => _AgentDraftDeltaEvent(
+  runId: json['run_id'] as String,
+  delta: json['delta'] as String,
+);
+
+Map<String, dynamic> _$AgentDraftDeltaEventToJson(
+  _AgentDraftDeltaEvent instance,
+) => <String, dynamic>{'run_id': instance.runId, 'delta': instance.delta};
+
 _AgentDraftEvent _$AgentDraftEventFromJson(Map<String, dynamic> json) =>
     _AgentDraftEvent(
       operationId: json['operation_id'] as String,

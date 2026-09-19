@@ -18,6 +18,7 @@ class StubOperationsRepository implements OperationsRepository {
   Future<OperationDraftResult> Function({
     required String documentId,
     String? instruction,
+    void Function(String delta)? onDelta,
   })?
   draftHandler;
   Future<OperationReadDetail> Function(String operationId)? resumeHandler;
@@ -48,13 +49,18 @@ class StubOperationsRepository implements OperationsRepository {
   Future<OperationDraftResult> draft({
     required String documentId,
     String? instruction,
+    void Function(String delta)? onDelta,
   }) async {
     draftCalls.add((documentId: documentId, instruction: instruction));
     final handler = draftHandler;
     if (handler == null) {
       throw StateError('OperationsRepository.draft called without a handler');
     }
-    return handler(documentId: documentId, instruction: instruction);
+    return handler(
+      documentId: documentId,
+      instruction: instruction,
+      onDelta: onDelta,
+    );
   }
 
   @override

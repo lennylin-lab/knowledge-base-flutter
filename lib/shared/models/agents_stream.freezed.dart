@@ -551,6 +551,272 @@ as int,
 
 
 /// @nodoc
+mixin _$AgentDraftDeltaEvent {
+
+ String get runId; String get delta;
+/// Create a copy of AgentDraftDeltaEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AgentDraftDeltaEventCopyWith<AgentDraftDeltaEvent> get copyWith => _$AgentDraftDeltaEventCopyWithImpl<AgentDraftDeltaEvent>(this as AgentDraftDeltaEvent, _$identity);
+
+  /// Serializes this AgentDraftDeltaEvent to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AgentDraftDeltaEvent&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.delta, delta) || other.delta == delta));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,runId,delta);
+
+@override
+String toString() {
+  return 'AgentDraftDeltaEvent(runId: $runId, delta: $delta)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AgentDraftDeltaEventCopyWith<$Res>  {
+  factory $AgentDraftDeltaEventCopyWith(AgentDraftDeltaEvent value, $Res Function(AgentDraftDeltaEvent) _then) = _$AgentDraftDeltaEventCopyWithImpl;
+@useResult
+$Res call({
+ String runId, String delta
+});
+
+
+
+
+}
+/// @nodoc
+class _$AgentDraftDeltaEventCopyWithImpl<$Res>
+    implements $AgentDraftDeltaEventCopyWith<$Res> {
+  _$AgentDraftDeltaEventCopyWithImpl(this._self, this._then);
+
+  final AgentDraftDeltaEvent _self;
+  final $Res Function(AgentDraftDeltaEvent) _then;
+
+/// Create a copy of AgentDraftDeltaEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? runId = null,Object? delta = null,}) {
+  return _then(_self.copyWith(
+runId: null == runId ? _self.runId : runId // ignore: cast_nullable_to_non_nullable
+as String,delta: null == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [AgentDraftDeltaEvent].
+extension AgentDraftDeltaEventPatterns on AgentDraftDeltaEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _AgentDraftDeltaEvent value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _AgentDraftDeltaEvent() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _AgentDraftDeltaEvent value)  $default,){
+final _that = this;
+switch (_that) {
+case _AgentDraftDeltaEvent():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _AgentDraftDeltaEvent value)?  $default,){
+final _that = this;
+switch (_that) {
+case _AgentDraftDeltaEvent() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String runId,  String delta)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _AgentDraftDeltaEvent() when $default != null:
+return $default(_that.runId,_that.delta);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String runId,  String delta)  $default,) {final _that = this;
+switch (_that) {
+case _AgentDraftDeltaEvent():
+return $default(_that.runId,_that.delta);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String runId,  String delta)?  $default,) {final _that = this;
+switch (_that) {
+case _AgentDraftDeltaEvent() when $default != null:
+return $default(_that.runId,_that.delta);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _AgentDraftDeltaEvent extends AgentDraftDeltaEvent {
+  const _AgentDraftDeltaEvent({required this.runId, required this.delta}): super._();
+  factory _AgentDraftDeltaEvent.fromJson(Map<String, dynamic> json) => _$AgentDraftDeltaEventFromJson(json);
+
+@override final  String runId;
+@override final  String delta;
+
+/// Create a copy of AgentDraftDeltaEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$AgentDraftDeltaEventCopyWith<_AgentDraftDeltaEvent> get copyWith => __$AgentDraftDeltaEventCopyWithImpl<_AgentDraftDeltaEvent>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$AgentDraftDeltaEventToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AgentDraftDeltaEvent&&(identical(other.runId, runId) || other.runId == runId)&&(identical(other.delta, delta) || other.delta == delta));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,runId,delta);
+
+@override
+String toString() {
+  return 'AgentDraftDeltaEvent(runId: $runId, delta: $delta)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$AgentDraftDeltaEventCopyWith<$Res> implements $AgentDraftDeltaEventCopyWith<$Res> {
+  factory _$AgentDraftDeltaEventCopyWith(_AgentDraftDeltaEvent value, $Res Function(_AgentDraftDeltaEvent) _then) = __$AgentDraftDeltaEventCopyWithImpl;
+@override @useResult
+$Res call({
+ String runId, String delta
+});
+
+
+
+
+}
+/// @nodoc
+class __$AgentDraftDeltaEventCopyWithImpl<$Res>
+    implements _$AgentDraftDeltaEventCopyWith<$Res> {
+  __$AgentDraftDeltaEventCopyWithImpl(this._self, this._then);
+
+  final _AgentDraftDeltaEvent _self;
+  final $Res Function(_AgentDraftDeltaEvent) _then;
+
+/// Create a copy of AgentDraftDeltaEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? runId = null,Object? delta = null,}) {
+  return _then(_AgentDraftDeltaEvent(
+runId: null == runId ? _self.runId : runId // ignore: cast_nullable_to_non_nullable
+as String,delta: null == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$AgentDraftEvent {
 
  String get operationId; String get state; String get content; String? get title;
