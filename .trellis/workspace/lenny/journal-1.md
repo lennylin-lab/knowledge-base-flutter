@@ -644,3 +644,26 @@ AI 气泡中的摘要结果从裸 Text 改为共享 MarkdownContent 渲染（与
 ### Status
 
 [OK] **Completed**
+
+
+## Session 29: Chat citation links + history sources/paged loading (issue 6)
+<!-- trellis-session: v=2 fp=a01955a234a444d6 -->
+
+**Date**: 2026-09-20
+**Task**: Chat citation links + history sources/paged loading (issue 6)
+**Branch**: `main`
+
+### Summary
+
+Implemented issue 6 and its backend follow-up. Base: custom markdown inline syntax (CitationInlineSyntax, code-span-safe with negative lookaheads so real links win) + CitationElementBuilder in the shared renderer; bare [n] renders as a tappable accent badge when the caller's resolver maps the 1-based index to a document id, plain text otherwise; only the chat run view passes a resolver (run's accumulated sources) and pushes /documents/{id}. Follow-up: MessageRead now carries sources: SourceRef[] (position = citation number) — history bubbles resolve [n] via their own message.sources; finished runs commit their sources (SearchHit→SourceRef) into history so citations survive; SessionRepository.getSessionPage replaces full-detail fetch (limit 1–100 clamp, default 30, cursor passthrough); openSession loads page 1 only; conversation list is a reverse ListView.builder (opens at the newest message, prepending cannot jump the viewport, lazy item building); loadOlderHistory prepends with a supersession guard and a failure latch (「加载失败，点击重试」 explicit retry instead of invisible auto-retry loop); exhausted cursor shows 「已加载全部历史」. trellis-check verdict PASS twice; robustness fixes applied (race guard, failure latch). docs/chat-api.md §1/§6.2/§8 updated. flutter analyze clean; 511 tests pass.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0cbfac9` | feat(chat): clickable [n] citations linking to cited documents (issue #6) |
+| `2b09af3` | feat(chat): history citations from message sources + paged session loading (issue #6 follow-up) |
+
+### Status
+
+[OK] **Completed**

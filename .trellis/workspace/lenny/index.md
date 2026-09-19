@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
+- **Total Sessions**: 29
 - **Last Active**: 2026-09-20
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~646 | Active |
+| `journal-1.md` | ~669 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-09-20 | Chat citation links + history sources/paged loading (issue 6) | `0cbfac9`, `2b09af3` | `main` |
 | 28 | 2026-09-20 | 编辑草稿落地与 checkbox 写回 | `90f6ffd`, `a4d1c81` | `main` |
 | 27 | 2026-09-19 | draft 流逐字增量对接（issue #4 评论） | `81f4425`, `8f28546` | `main` |
 | 26 | 2026-09-17 | dev/prod 环境隔离 | `02ff43f`, `8db7b68` | `main` |
