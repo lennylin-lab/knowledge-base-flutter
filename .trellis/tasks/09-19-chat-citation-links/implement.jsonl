@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Shared renderer rules (markdown, citations, index_status patterns)"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO boundaries for the sources mapping"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "analyze/test gates"}
+{"file": "docs/chat-api.md", "reason": "sources accumulation / citation numbering contract (§4.2, §8)"}

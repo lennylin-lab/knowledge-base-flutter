@@ -222,6 +222,15 @@ class _RunView extends StatelessWidget {
   /// 右侧栏承载，避免同屏重复）。
   final bool showInlineSources;
 
+  /// 答案中 `[n]` 引用 → 文档 id 的解析器（issue #6）：基于本轮按序累积
+  /// 的 sources（1 起）。越界或无来源时返回 null，引用保持纯文本。sources
+  /// 事件晚于正文到达时，状态更新触发重渲染，引用随之变为可点击。
+  String? Function(int) _citationDocumentId(ChatState state) {
+    final sources = state.sources;
+    return (int index) =>
+        index >= 1 && index <= sources.length ? sources[index - 1].documentId : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -243,7 +252,12 @@ class _RunView extends StatelessWidget {
         switch (part) {
           ChatAnswerPart(:final text) => Padding(
               padding: EdgeInsets.only(top: sizes.space8),
-              child: MarkdownContent(data: text),
+              child: MarkdownContent(
+                data: text,
+                citationDocumentId: _citationDocumentId(state),
+                onCitationTap: (index, documentId) =>
+                    context.push('/documents/$documentId'),
+              ),
             ),
           ChatRewriteEntry() => _RewriteRow(entry: part),
           ChatToolCallView() => _ToolCallRow(call: part),

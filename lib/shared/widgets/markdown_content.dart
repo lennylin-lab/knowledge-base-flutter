@@ -5,6 +5,7 @@ import 'package:markdown/markdown.dart' as pmd;
 import '../../core/theme/app_sizes.dart';
 import 'markdown/callout.dart';
 import 'markdown/code_highlight.dart';
+import 'markdown/citations.dart';
 
 /// The app's single Markdown renderer configuration — the document detail
 /// page and chat answers must render identically (component-guidelines
@@ -25,10 +26,22 @@ class MarkdownContent extends StatelessWidget {
     super.key,
     required this.data,
     this.selectable = true,
+    this.citationDocumentId,
+    this.onCitationTap,
   });
 
   final String data;
   final bool selectable;
+
+  /// Maps a 1-based `[n]` citation index in [data] to the cited document id.
+  /// When null (document pages, AI summaries, history bubbles without
+  /// sources) or when the index is unmapped, `[n]` renders as plain text —
+  /// never a dead link.
+  final String? Function(int citationIndex)? citationDocumentId;
+
+  /// Invoked when a mapped citation badge is tapped. Only effective together
+  /// with [citationDocumentId].
+  final void Function(int citationIndex, String documentId)? onCitationTap;
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +77,7 @@ class MarkdownContent extends StatelessWidget {
         ),
       ),
       blockSyntaxes: const [CalloutBlockSyntax()],
+      inlineSyntaxes: [CitationInlineSyntax()],
       builders: {
         // All heading levels get a hairline rule under the heading text,
         // separating the document outline; see _HeadingRuleBuilder.
@@ -81,6 +95,12 @@ class MarkdownContent extends StatelessWidget {
         ),
         // Obsidian callouts with optional folding; see callout.dart.
         'callout': CalloutElementBuilder(selectable: selectable),
+        // `[n]` answer citations (issue #6): tappable when the caller maps
+        // the index to a document; plain text otherwise; see citations.dart.
+        'cite': CitationElementBuilder(
+          resolver: citationDocumentId,
+          onTap: onCitationTap,
+        ),
       },
     );
   }

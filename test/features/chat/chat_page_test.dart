@@ -131,7 +131,7 @@ void main() {
         ],
       ),
     );
-    controller.add(answerDelta('见来源'));
+    controller.add(answerDelta('见 [1] 与 [2]。'));
     controller.add(chatDone());
     await tester.pumpAndSettle();
 
@@ -139,6 +139,16 @@ void main() {
     expect(find.text('参考来源'), findsOneWidget);
     expect(find.text('答案中的 [1][2] 对应下方来源序号'), findsOneWidget);
     expect(find.text('检索笔记'), findsNothing);
+
+    // 引用徽标可点击，跳转对应文档（issue #6）。
+    await tester.tap(find.text('[1]'));
+    await tester.pumpAndSettle();
+    expect(docsRepo.getCalls.single, 'doc-a');
+    expect(find.text('来源文档 doc-a'), findsWidgets);
+
+    // 回到问答页，展开来源面板后点击来源条目同样跳转。
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('参考来源'));
     await tester.pump(const Duration(milliseconds: 400));
@@ -155,7 +165,8 @@ void main() {
     await tester.tap(find.text('向量入门'));
     await tester.pumpAndSettle();
 
-    expect(docsRepo.getCalls.single, 'doc-b');
+    // 引用徽标已打开 doc-a，来源条目再打开 doc-b。
+    expect(docsRepo.getCalls, ['doc-a', 'doc-b']);
     expect(find.text('来源文档 doc-b'), findsWidgets); // detail app bar + headline
 
     await controller.close();
@@ -264,12 +275,14 @@ void main() {
 
     expect(find.text('正在生成回答…'), findsNothing);
     expect(find.text('mcp_weather'), findsOneWidget, reason: 'process log stays after done');
-    expect(find.text('仍能回答 [1]。'), findsOneWidget);
+    // [1] has a mapped source → renders as a tappable badge (issue #6).
+    expect(find.text('[1]'), findsOneWidget);
+    expect(find.textContaining('仍能回答'), findsOneWidget);
     // Strict event order top-to-bottom: rewrite row above the tool row,
     // the tool row above the answer text.
     final rewriteTop = tester.getTopLeft(find.text('已改写检索词')).dy;
     final toolTop = tester.getTopLeft(find.text('mcp_weather')).dy;
-    final answerTop = tester.getTopLeft(find.text('仍能回答 [1]。')).dy;
+    final answerTop = tester.getTopLeft(find.text('[1]')).dy;
     expect(rewriteTop < toolTop && toolTop < answerTop, isTrue,
         reason: 'run parts render in event arrival order');
 
