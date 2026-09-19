@@ -690,3 +690,26 @@ Implemented issue 6 and its backend follow-up. Base: custom markdown inline synt
 ### Status
 
 [OK] **Completed**
+
+
+## Session 31: 摘要/联想增量事件对接（issue #7）
+<!-- trellis-session: v=2 fp=5765a0bf9dc2068b -->
+
+**Date**: 2026-09-20
+**Task**: 摘要/联想增量事件对接（issue #7）
+**Branch**: `main`
+
+### Summary
+
+按 issue #7 与服务端 3013843 对齐：summary 流新增 summary_delta{text}（逐字纯文本，拼接==最终 summary 字段，缓存命中零 delta），associations 流新增 association_item（position 1 起逐条最终态，服务端保证顺序与去重）。新增两个事件模型（item getter 复用 AssociationItem 零适配渲染），共享 fold 增 onSummaryDelta/onAssociationItem 通道（draft onDelta 不变），OnDemandState 增 partialSummary/partialAssociations 增量状态（代际守卫、终态整体替换、缓存命中安全）。摘要生成中 Markdown 实时渲染+progress 行保留，联想生成中逐条插入卡片。实现代理同步更新 type-safety/state-management spec，主会话修正多块文档时序描述（delta 在 reduce 遍产生）。analyze 干净、563 测试全绿；check PASS。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `296276d` | feat(documents): stream summary deltas and association items incrementally |
+| `af78597` | docs(spec): incremental summary/association stream events |
+
+### Status
+
+[OK] **Completed**
