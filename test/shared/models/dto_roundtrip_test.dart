@@ -87,6 +87,42 @@ void main() {
       expect(fromWire.content, isNull);
       expect(fromWire.title, '仅改标题');
     });
+
+    test('DocumentUpdate omits expectedContentHash from the wire when null', () {
+      // includeIfNull: false — a null guard must not reach the server as an
+      // explicit null (the guard field is optional, absent == no check).
+      const withoutGuard = DocumentUpdate(content: '# 正文');
+      expect(withoutGuard.toJson().containsKey('expected_content_hash'), isFalse);
+      assertRoundTrip(
+        withoutGuard,
+        (m) => m.toJson(),
+        DocumentUpdate.fromJson,
+      );
+
+      const withGuard = DocumentUpdate(
+        content: '# 正文',
+        expectedContentHash: 'abc123',
+      );
+      expect(withGuard.toJson()['expected_content_hash'], 'abc123');
+      assertRoundTrip(withGuard, (m) => m.toJson(), DocumentUpdate.fromJson);
+    });
+
+    test('DocumentUpdate guard alone never carries content (documented '
+        'server-side 422)', () {
+      // Documented here (not validated client-side): the server treats the
+      // guard as a precondition only — a request without real content/title
+      // changes is still a 422 validation_failed.
+      const guardOnly = DocumentUpdate(expectedContentHash: 'abc123');
+      expect(guardOnly.content, isNull);
+      expect(guardOnly.title, isNull);
+      // Unset content/title stay explicit nulls on the wire (default
+      // includeIfNull), while the guard is present.
+      expect(guardOnly.toJson(), {
+        'content': null,
+        'title': null,
+        'expected_content_hash': 'abc123',
+      });
+    });
   });
 
   group('DocumentRead / Detail / Page', () {
@@ -125,6 +161,37 @@ void main() {
         expect(projected.toJson().containsKey('content'), isFalse);
       },
     );
+
+    test('DocumentReadDetail round-trips content_hash when present', () {
+      final model = DocumentReadDetail.fromJson({
+        ...documentReadJson,
+        'content': '# 正文',
+        'content_hash': 'e3b0c44298fc1c14',
+      });
+      expect(model.contentHash, 'e3b0c44298fc1c14');
+      expect(model.toJson()['content_hash'], 'e3b0c44298fc1c14');
+      assertRoundTrip(model, (m) => m.toJson(), DocumentReadDetail.fromJson);
+    });
+
+    test('DocumentReadDetail tolerates an absent / null content_hash '
+        '(old backend, pre-backfill)', () {
+      // Old backend responses don't carry the key at all; pre-backfill rows
+      // carry an explicit null. Both decode to null = "unknown, skip the
+      // optimistic-concurrency guard" — never a parse failure.
+      final absent = DocumentReadDetail.fromJson({
+        ...documentReadJson,
+        'content': '# 正文',
+      });
+      expect(absent.contentHash, isNull);
+
+      final explicitNull = DocumentReadDetail.fromJson({
+        ...documentReadJson,
+        'content': '# 正文',
+        'content_hash': null,
+      });
+      expect(explicitNull.contentHash, isNull);
+      assertRoundTrip(explicitNull, (m) => m.toJson(), DocumentReadDetail.fromJson);
+    });
 
     test('DocumentPage round-trips with a cursor', () {
       final model = DocumentPage.fromJson({

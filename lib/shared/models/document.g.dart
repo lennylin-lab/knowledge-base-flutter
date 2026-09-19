@@ -19,10 +19,15 @@ _DocumentUpdate _$DocumentUpdateFromJson(Map<String, dynamic> json) =>
     _DocumentUpdate(
       content: json['content'] as String?,
       title: json['title'] as String?,
+      expectedContentHash: json['expected_content_hash'] as String?,
     );
 
 Map<String, dynamic> _$DocumentUpdateToJson(_DocumentUpdate instance) =>
-    <String, dynamic>{'content': instance.content, 'title': instance.title};
+    <String, dynamic>{
+      'content': instance.content,
+      'title': instance.title,
+      'expected_content_hash': ?instance.expectedContentHash,
+    };
 
 _DocumentRead _$DocumentReadFromJson(Map<String, dynamic> json) =>
     _DocumentRead(
@@ -67,6 +72,7 @@ _DocumentReadDetail _$DocumentReadDetailFromJson(Map<String, dynamic> json) =>
       createdAt: json['created_at'] as String,
       updatedAt: json['updated_at'] as String,
       content: json['content'] as String,
+      contentHash: json['content_hash'] as String?,
     );
 
 Map<String, dynamic> _$DocumentReadDetailToJson(_DocumentReadDetail instance) =>
@@ -78,6 +84,7 @@ Map<String, dynamic> _$DocumentReadDetailToJson(_DocumentReadDetail instance) =>
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,
       'content': instance.content,
+      'content_hash': instance.contentHash,
     };
 
 _DocumentPage _$DocumentPageFromJson(Map<String, dynamic> json) =>

@@ -149,9 +149,13 @@ DocumentRead documentRead({
 }
 
 /// Detail fixture projecting [base] plus a `content` field.
+///
+/// [contentHash] mirrors the server-computed `content_hash` (null = old
+/// backend / pre-backfill: the optimistic-concurrency guard must be skipped).
 DocumentReadDetail documentReadDetail(
   DocumentRead base, {
   String content = '# 内容',
+  String? contentHash,
 }) {
   return DocumentReadDetail(
     id: base.id,
@@ -161,5 +165,6 @@ DocumentReadDetail documentReadDetail(
     createdAt: base.createdAt,
     updatedAt: base.updatedAt,
     content: content,
+    contentHash: contentHash,
   );
 }

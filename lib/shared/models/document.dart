@@ -27,11 +27,19 @@ abstract class DocumentCreate with _$DocumentCreate {
 
 /// Partial-update payload; at least one field must be set (validated
 /// server-side, surfaced as 422 `validation_failed`).
+///
+/// [expectedContentHash] is the optimistic-concurrency guard: when set, the
+/// server 409s (`conflict`) unless it matches the stored `content_hash`. It
+/// is a guard only — sending it alone never mutates (still 422 without
+/// content/title) — and `includeIfNull: false` keeps it off the wire when
+/// unset (null baseline: old backend / pre-backfill row / already-saved-this-
+/// session → plain last-write-wins PATCH, byte-identical to the old behavior).
 @freezed
 abstract class DocumentUpdate with _$DocumentUpdate {
   const factory DocumentUpdate({
     String? content,
     String? title,
+    @JsonKey(includeIfNull: false) String? expectedContentHash,
   }) = _DocumentUpdate;
 
   factory DocumentUpdate.fromJson(Map<String, dynamic> json) =>
@@ -59,7 +67,9 @@ abstract class DocumentRead with _$DocumentRead {
 }
 
 /// Single-document view: everything in [DocumentRead] plus the full Markdown
-/// `content`.
+/// `content` and the server-computed `content_hash` (sha256; the client never
+/// hashes locally — it only passes the value back as
+/// `DocumentUpdate.expectedContentHash`).
 ///
 /// freezed has no field inheritance, so the fields are repeated and a
 /// projection helper converts back to the list-item shape.
@@ -74,6 +84,11 @@ abstract class DocumentReadDetail with _$DocumentReadDetail {
     required String createdAt,
     required String updatedAt,
     required String content,
+    // Nullable + not `required`: the key is absent entirely from old backend
+    // responses (field not yet deployed) and null on pre-backfill rows — both
+    // decode to null = "unknown, skip the optimistic-concurrency guard"
+    // (defensive parsing per the type-safety spec).
+    String? contentHash,
   }) = _DocumentReadDetail;
 
   factory DocumentReadDetail.fromJson(Map<String, dynamic> json) =>
