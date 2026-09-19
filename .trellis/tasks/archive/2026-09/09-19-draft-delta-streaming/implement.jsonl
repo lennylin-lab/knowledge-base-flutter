@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/archive/2026-09/09-17-draft-sse-alignment/research-draft-sse-contract.md", "reason": "Prior draft SSE contract (delta event supersedes the atomic-only story; terminal semantics unchanged)"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Agent SSE sections + generation-guard idioms"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO conventions incl. agent stream events"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "OnDemand/Writing patterns, independent slice counters"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Analyze/test gates"}
