@@ -667,3 +667,26 @@ Implemented issue 6 and its backend follow-up. Base: custom markdown inline synt
 ### Status
 
 [OK] **Completed**
+
+
+## Session 30: 草稿生成中实时 Markdown 渲染
+<!-- trellis-session: v=2 fp=d456fed80dd5e51d -->
+
+**Date**: 2026-09-20
+**Task**: 草稿生成中实时 Markdown 渲染
+**Branch**: `main`
+
+### Summary
+
+草稿流式生成不再以纯文本渲染拼接原文：新增宽松部分 JSON 提取器 extractPartialContent（单遍 code-unit 状态机，容忍转义截断/\uXXXX 跨块/孤立反斜杠/键序无关/缺失键/"content" 诱饵，malformed 永不抛错返回 null），生成视图以共享 MarkdownContent 实时渲染提取出的 content（无 content 时仅 spinner+提示，原始 JSON 前缀永不展示）；draft 终态事件仍以完整校验结果落定，error 清空。提取器 25 例单测含逐字节切分矩阵（valid-prefix + 单调增长断言），高度上限回归钉扩展到实时 markdown 场景。analyze 干净、537 测试全绿；check PASS（疑难前缀手工追踪通过）。spec 更新为拼接=传输真相、渲染时宽松提取。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `20f0f5c` | feat(documents): render draft generation as live markdown |
+| `d07ce2d` | docs(spec): live markdown render for streaming drafts |
+
+### Status
+
+[OK] **Completed**
