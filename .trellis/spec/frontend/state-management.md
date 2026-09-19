@@ -133,10 +133,14 @@ order (server `schemas/agent_stream.py`; backend error-handling spec):
 
 - summary: `run_started → summary_progress* → summary → done`
 - associations: `run_started → associations → done`
-- draft (`POST /operations/draft`): `run_started (kind "draft") → draft →
-  done`; the `draft` event is flat `{operation_id, state: "completed",
-  content, title?}` — no timestamps, so the client models it as a
-  lightweight `OperationDraftResult`, never a synthesized
+- draft (`POST /operations/draft`): `run_started (kind "draft") →
+  draft_delta* → draft → done`; `draft_delta{run_id, delta}` carries raw
+  JSON fragments of the output-tool arguments, verbatim and in provider
+  order (their sum equals the final argument JSON exactly) — **display-only
+  concatenation, never incrementally parsed**; it is discarded on the
+  terminal `error`. The `draft` event is flat `{operation_id,
+  state: "completed", content, title?}` — no timestamps, so the client
+  models it as a lightweight `OperationDraftResult`, never a synthesized
   `OperationReadDetail`. A mid-stream `error` leaves the operation
   persisted `failed`; the error event carries no operation id, so the UI's
   recovery path re-loads the document's operation history to surface it.
