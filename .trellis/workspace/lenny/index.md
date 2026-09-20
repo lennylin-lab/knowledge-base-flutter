@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 31
+- **Total Sessions**: 32
 - **Last Active**: 2026-09-20
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~715 | Active |
+| `journal-1.md` | ~738 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 32 | 2026-09-20 | 续写流式草稿对接修复（issue #4） | `3f3d934`, `21f23b4` | `main` |
 | 31 | 2026-09-20 | 摘要/联想增量事件对接（issue #7） | `296276d`, `af78597` | `main` |
 | 30 | 2026-09-20 | 草稿生成中实时 Markdown 渲染 | `20f0f5c`, `d07ce2d` | `main` |
 | 29 | 2026-09-20 | Chat citation links + history sources/paged loading (issue 6) | `0cbfac9`, `2b09af3` | `main` |

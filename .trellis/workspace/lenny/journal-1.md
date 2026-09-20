@@ -713,3 +713,26 @@ Implemented issue 6 and its backend follow-up. Base: custom markdown inline synt
 ### Status
 
 [OK] **Completed**
+
+
+## Session 32: 续写流式草稿对接修复（issue #4）
+<!-- trellis-session: v=2 fp=0a9ebc47a9924b2a -->
+
+**Date**: 2026-09-20
+**Task**: 续写流式草稿对接修复（issue #4）
+**Branch**: `main`
+
+### Summary
+
+修复「AI 续写」流式草稿只空转、最终报错的两个线缆层根因（issue #4，会话未建任务按小任务处理）。抓包实锤：① 幻影空对象片段——网关给 pydantic-ai 的开帧 arguments 为空串，args_as_json_str() 对 falsy args 序列化出 '{}'，服务端 _output_tool_delta 只挡 args is None 导致它被当真实片段下发；前端 extractPartialContent 扫到第一个顶层闭合即放弃，全程返回 null → live markdown 永不渲染（空转）。前端：提取器支持跨幻影顶层对象重同步（捕获一次性语义与逐字节单调/前缀保证不变，30 例含生产真实形状），repository 测试改用真实线缆形状（幻影 delta+ping 注释帧+跨块转义）。服务端（knowledge-base-server 2a49d53+86d5dd7）：falsy args 一律不流，回归测试脚本化空开帧。② 网关 30s stall 掐断推理停顿——gpt-5.5 生成中 30~45s 静默触发 GATEWAY_STREAM_STALL_TIMEOUT(默认30s) 截断 provider 流 → 参数 JSON 截断（EOF while parsing a string）→ ModelRetry 耗尽 → UnexpectedModelBehavior → error 事件（超时报错）；dev 网关 compose（本地未跟踪文件）已加 GATEWAY_STREAM_STALL_TIMEOUT=2m 并重建生效。验证：flutter analyze 干净、569 测试全绿；服务端 718 测试全绿（新回归对老代码失败、新代码通过）；真实抓包拼接串喂提取器全程可渲染。剩余已知限制：长文档续写的 tool-call args 超上游输出预算仍被截断（断点 2.6K/3.4K/8.8K 字符不定、非 length finish），失败路径按契约工作（error→生成失败→历史可恢复），属 issue 评论中另一任务（网关 09-20-stream-stall-timeout 已落地帧间隙检测）+ 提示词/模型容量范畴。网关仓库脏文件（.env.example/README.md/bootstrap-openai.sh）为其他窗口工作未动。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3f3d934` | fix(documents): resync live draft render across phantom {} fragments |
+| `21f23b4` | docs(spec): live draft render tolerates phantom {} fragments |
+
+### Status
+
+[OK] **Completed**
