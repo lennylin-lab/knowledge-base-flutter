@@ -138,11 +138,15 @@ order (server `schemas/agent_stream.py`; backend error-handling spec):
   draft_delta* → draft → done`; `draft_delta{run_id, delta}` carries raw
   JSON fragments of the output-tool arguments, verbatim and in provider
   order (their sum equals the final argument JSON exactly). The
-  concatenation is the transport-level truth; the **live render** decodes
-  the top-level `content` string from the accumulating prefix with the
-  lenient extractor `extractPartialContent` (`lib/shared/utils/
-  partial_json_content.dart` — escape/truncation-tolerant, never throws)
-  and renders it through the shared `MarkdownContent`, exactly like chat
+  concatenation is the transport-level truth — forwarded verbatim, never
+  editorialized client-side; the **live render** decodes the top-level
+  `content` string from the accumulating prefix with the lenient extractor
+  `extractPartialContent` (`lib/shared/utils/partial_json_content.dart` —
+  escape/truncation-tolerant, never throws, and tolerant of a phantom
+  leading `{}` fragment: servers that predate the empty-opening-args fix
+  emit one, so the extractor resynchronizes across a top-level close that
+  captured nothing) and renders it through the shared
+  `MarkdownContent`, exactly like chat
   answers; the raw prefix is never shown. Partials are discarded on the
   terminal `error`. The `draft` event is flat `{operation_id,
   state: "completed", content, title?}` — no timestamps, so the client
