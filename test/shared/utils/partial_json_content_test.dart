@@ -188,6 +188,70 @@ void main() {
     });
   });
 
+  group('phantom top-level fragments', () {
+    // The observed real-world wire: the provider delivers an empty argument
+    // object before the real one, and a server that forwards PartStart
+    // serializations verbatim puts `{}` at the head of the concatenation.
+    // The extractor must resynchronize instead of failing the whole stream.
+    const phantomPrefixArgs =
+        '{}{"title":"Flutter Web 性能优化","content":"# Flutter Web 性能优化\\n\\n'
+        '## 发布后监控\\n\\n- 页面加载失败率；\\n- 首屏加载时间；"}';
+    const phantomPrefixContent =
+        '# Flutter Web 性能优化\n\n## 发布后监控\n\n- 页面加载失败率；\n- 首屏加载时间；';
+
+    test('production phantom-`{}` prefix split at every byte: valid prefix '
+        'with monotone growth', () {
+      var previousLength = 0;
+      var sawContent = false;
+      for (var end = 0; end <= phantomPrefixArgs.length; end++) {
+        final extracted = extractPartialContent(
+          phantomPrefixArgs.substring(0, end),
+        );
+        if (extracted != null && extracted.isNotEmpty) {
+          sawContent = true;
+          expect(
+            extracted.length,
+            greaterThanOrEqualTo(previousLength),
+            reason: 'split at $end shrunk the extraction',
+          );
+          previousLength = extracted.length;
+        }
+        expect(
+          extracted == null || phantomPrefixContent.startsWith(extracted),
+          isTrue,
+          reason: 'split at $end produced a non-prefix: $extracted',
+        );
+      }
+      expect(sawContent, isTrue, reason: 'content must surface despite the phantom');
+      expect(extractPartialContent(phantomPrefixArgs), phantomPrefixContent);
+    });
+
+    test('several phantom objects and whitespace between them', () {
+      expect(extractPartialContent('{}{}{"content":"hi"}'), 'hi');
+      expect(extractPartialContent('{} {"content": "hi"}'), 'hi');
+      expect(extractPartialContent('  {}  {}  {"content":"宽松"}'), '宽松');
+    });
+
+    test('a non-empty phantom object resyncs too', () {
+      expect(extractPartialContent('{"a":1}{"content":"x"}'), 'x');
+      expect(extractPartialContent('{"a":{"deep":[1,2]}}{"content":"x"}'), 'x');
+    });
+
+    test('empty args and truncated resync never throw', () {
+      expect(extractPartialContent('{}'), isNull);
+      expect(extractPartialContent('{}{'), isNull);
+      expect(extractPartialContent('{}{}'), isNull);
+      expect(extractPartialContent('{}{"content"'), isNull);
+      expect(extractPartialContent('{}{"content":'), isNull);
+    });
+
+    test('a captured content still wins; a trailing phantom is never seen', () {
+      // The capture returns at the content string's close — anything after
+      // (including another object) is irrelevant.
+      expect(extractPartialContent('{"content":"x"}{}'), 'x');
+    });
+  });
+
   group('malformed input never throws and yields null', () {
     const malformed = [
       'not-json',

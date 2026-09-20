@@ -352,6 +352,65 @@ void main() {
       expect(result.state, OperationState.completed);
     });
 
+    test('real-world wire: a phantom leading `{}` delta, ping comment frames '
+        'and split escapes all forward verbatim; the fold still settles on '
+        'the draft event', () async {
+      // Shape captured from a deployed server whose PartStart serialization
+      // leaks a `{}` fragment before the real arguments (the concatenation
+      // is `{}{...}` — the live renderer resyncs; the repository must NOT
+      // editorialize the transport-level truth).
+      final (repo, transport) = _makeAgentRepo();
+      final fragments = <String>[
+        '{}',
+        '{"',
+        'title',
+        '":"Flutter Web 性能优化","content":"# Flutter Web 性能优化\\n\\n',
+        '## 发布后监控\\n',
+        '\\', // a JSON escape SPLIT across fragments
+        'n2. 首屏；"}',
+      ];
+      final deltas = <String>[];
+
+      final future = repo.draft(documentId: docId, onDelta: deltas.add);
+      await Future<void>.delayed(Duration.zero);
+      final deltaWire = StringBuffer();
+      for (final fragment in fragments) {
+        deltaWire.write(sseFrame('draft_delta', jsonEncode(<String, String>{'run_id': 'r-1', 'delta': fragment})));
+        // sse-starlette keep-alives interleave the data frames.
+        deltaWire.write(': ping - 2026-09-20T11:43:04\r\n\r\n');
+      }
+      transport.addWire(
+        sseFrame(
+              'run_started',
+              '{"run_id":"r-1","kind":"draft","document_id":"$docId"}',
+            ) +
+            deltaWire.toString() +
+            sseFrame(
+              'draft',
+              '{"operation_id":"$operationId","state":"completed",'
+                  '"content":"# Flutter Web 性能优化\\n\\n## 发布后监控\\n\\n2. 首屏；",'
+                  '"title":"Flutter Web 性能优化"}',
+            ) +
+            sseFrame(
+              'done',
+              '{"run_id":"r-1","outcome":"success","latency_ms":146000.0}',
+            ),
+      );
+      transport.closeStream();
+
+      final result = await future;
+      // Every fragment verbatim — including the phantom `{}` (display-only
+      // extraction handles it; the fold never parses the concatenation).
+      expect(deltas, fragments);
+      expect(result.operationId, operationId);
+      expect(result.state, OperationState.completed);
+      expect(
+        result.draft.content,
+        '# Flutter Web 性能优化\n\n## 发布后监控\n\n2. 首屏；',
+      );
+      expect(result.draft.title, 'Flutter Web 性能优化');
+    });
+
     test(
       'an unknown wire state still yields a reviewable (completed) draft',
       () async {

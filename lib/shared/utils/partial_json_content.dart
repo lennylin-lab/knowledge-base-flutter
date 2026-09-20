@@ -18,6 +18,12 @@
 /// - arbitrary key order (`title` may come before `content`), missing keys,
 ///   and nested objects/arrays carrying `content` decoys (only the
 ///   top-level key is extracted);
+/// - a **phantom leading `{}` fragment**: the provider can deliver an empty
+///   argument object before the real one (older servers forward its
+///   serialization verbatim), so the top level may close without a capture
+///   while input remains — the scanner resynchronizes on the next top-level
+///   `{` and keeps scanning (this is display-only hardening; the
+///   concatenation contract makes such fragments illegal on current wire);
 /// - the content string already closed (the complete decode is returned —
 ///   still partial relative to the whole draft).
 ///
@@ -60,24 +66,16 @@ enum _Phase {
 String? extractPartialContent(String rawPrefix) {
   final n = rawPrefix.length;
 
-  // Leading whitespace, then the argument object must be opening.
-  var i = 0;
-  while (i < n) {
-    final c = rawPrefix.codeUnitAt(i);
-    if (c == _space || c == _tab || c == _lf || c == _cr) {
-      i++;
-    } else {
-      break;
-    }
-  }
-  if (i >= n || rawPrefix.codeUnitAt(i) != _lbrace) return null;
-  i++;
-
   // Open containers (true = object, false = array). Keys only matter at the
   // top level, but nested containers must be skipped with real depth and
   // string tracking so their braces/quotes stay invisible to the scan.
-  final containers = <bool>[true];
+  final containers = <bool>[];
   var phase = _Phase.key;
+
+  // True while the scanner sits BETWEEN top-level objects (before the first
+  // one and after a phantom top-level close): only whitespace and a new
+  // top-level `{` are legal there.
+  var expectObject = true;
 
   var inString = false;
   var stringIsKey = false;
@@ -93,6 +91,22 @@ String? extractPartialContent(String rawPrefix) {
   /// The string being scanned is the top-level `content` value — decode it.
   var capture = false;
 
+  /// Drops every per-object bit of scanner state after a top-level object
+  /// closed without a capture and input remains — the next characters must
+  /// open another top-level object ([expectObject]).
+  void resyncAfterTopLevelClose() {
+    expectObject = true;
+    inString = false;
+    stringIsKey = false;
+    escaped = false;
+    unicodeLeft = 0;
+    keyWasContent = false;
+    capture = false;
+    keyBuffer = StringBuffer();
+    valueBuffer = StringBuffer();
+  }
+
+  var i = 0;
   while (i < n) {
     final c = rawPrefix.codeUnitAt(i);
 
@@ -180,6 +194,19 @@ String? extractPartialContent(String rawPrefix) {
       continue;
     }
 
+    // Between top-level objects: the next non-whitespace character must open
+    // a fresh object (a phantom fragment was skipped, or this is the start).
+    if (expectObject) {
+      if (c != _lbrace) return null; // malformed: expected a top-level object.
+      containers
+        ..clear()
+        ..add(true);
+      phase = _Phase.key;
+      expectObject = false;
+      i++;
+      continue;
+    }
+
     switch (phase) {
       case _Phase.key:
         if (c == _quote) {
@@ -190,7 +217,13 @@ String? extractPartialContent(String rawPrefix) {
           i++;
         } else if (c == _rbrace) {
           containers.removeLast();
-          if (containers.isEmpty) return null; // no content was captured.
+          if (containers.isEmpty) {
+            // Top-level object closed with no content captured — resync and
+            // let the loop head demand the next top-level object.
+            resyncAfterTopLevelClose();
+            i++;
+            continue;
+          }
           phase = _Phase.afterValue;
           i++;
         } else {
@@ -220,7 +253,11 @@ String? extractPartialContent(String rawPrefix) {
         } else if (c == _rbrace || c == _rbracket) {
           // Empty container.
           containers.removeLast();
-          if (containers.isEmpty) return null;
+          if (containers.isEmpty) {
+            resyncAfterTopLevelClose();
+            i++;
+            continue;
+          }
           phase = _Phase.afterValue;
           i++;
         } else if (_isLiteralStart(c)) {
@@ -250,7 +287,13 @@ String? extractPartialContent(String rawPrefix) {
           i++;
         } else if (c == _rbrace || c == _rbracket) {
           containers.removeLast();
-          if (containers.isEmpty) return null; // top object closed.
+          if (containers.isEmpty) {
+            // Top-level object closed with no content captured — a phantom
+            // fragment; resync for a possible next top-level object.
+            resyncAfterTopLevelClose();
+            i++;
+            continue;
+          }
           phase = _Phase.afterValue;
           i++;
         } else {
