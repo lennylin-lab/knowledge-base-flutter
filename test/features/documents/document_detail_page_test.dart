@@ -234,7 +234,12 @@ void main() {
     await tester.tap(find.byIcon(Icons.check_box_outline_blank).first);
     await tester.pump(); // optimistic flip renders before any network I/O
     expect(find.byIcon(Icons.check_box), findsOneWidget);
+    expect(
+      repo.updateCalls,
+      isEmpty,
+    ); // debounced: nothing on the wire yet
 
+    await tester.pump(const Duration(milliseconds: 600)); // debounce fires
     await tester.pumpAndSettle(); // PATCH + detail refetch land
 
     expect(repo.updateCalls, [
@@ -245,6 +250,161 @@ void main() {
     ]);
     // The refetched server content (marker flipped) keeps the box checked.
     expect(find.byIcon(Icons.check_box), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('rapid checkbox bursts collapse into a single PATCH', (
+    tester,
+  ) async {
+    final document = documentRead(id: 'doc-1', title: '清单文档');
+    var stored = '- [ ] 甲\n- [ ] 乙\n';
+    final repo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async {
+            return DocumentPage(items: [document], nextCursor: null);
+          }
+          ..getHandler = (id) async {
+            return documentReadDetail(document, content: stored);
+          }
+          ..updateHandler = (id, payload) async {
+            stored = payload.content!;
+            return documentRead(id: id);
+          };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('清单文档'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.check_box_outline_blank).first);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byIcon(Icons.check_box_outline_blank));
+    await tester.pump(const Duration(milliseconds: 100));
+    // Both flips render optimistically; the burst has not hit the wire.
+    expect(find.byIcon(Icons.check_box), findsNWidgets(2));
+    expect(repo.updateCalls, isEmpty);
+
+    // Each tap re-arms the debounce; only the last content of the burst is
+    // sent — one PATCH carrying both flips.
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    expect(repo.updateCalls, [
+      (
+        id: 'doc-1',
+        payload: const DocumentUpdate(content: '- [x] 甲\n- [x] 乙\n'),
+      ),
+    ]);
+    expect(find.byIcon(Icons.check_box), findsNWidgets(2));
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a refetch echo landing mid-burst keeps the pending flips', (
+    tester,
+  ) async {
+    final document = documentRead(id: 'doc-1', title: '清单文档');
+    var stored = '- [ ] 甲\n- [ ] 乙\n';
+    final firstPatchReleased = Completer<void>();
+    var patches = 0;
+    final repo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async {
+            return DocumentPage(items: [document], nextCursor: null);
+          }
+          ..getHandler = (id) async {
+            return documentReadDetail(document, content: stored);
+          }
+          ..updateHandler = (id, payload) async {
+            patches += 1;
+            if (patches == 1) await firstPatchReleased.future;
+            stored = payload.content!;
+            return documentRead(id: id);
+          };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('清单文档'));
+    await tester.pumpAndSettle();
+
+    // 甲 flips; debounce fires while PATCH #1 is held in flight.
+    await tester.tap(find.byIcon(Icons.check_box_outline_blank).first);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(repo.updateCalls, hasLength(1));
+
+    // 乙 flips while PATCH #1 is still in flight; its debounce re-arms and
+    // enqueues PATCH #2 behind the held request.
+    await tester.tap(find.byIcon(Icons.check_box_outline_blank));
+    await tester.pump(const Duration(milliseconds: 600));
+
+    firstPatchReleased.complete();
+    await tester.pumpAndSettle();
+
+    // The refetch after PATCH #1 carries only 甲 — an echo of our own send,
+    // not an external edit — so 乙's pending flip must survive it.
+    expect(repo.updateCalls, [
+      (
+        id: 'doc-1',
+        payload: const DocumentUpdate(content: '- [x] 甲\n- [ ] 乙\n'),
+      ),
+      (
+        id: 'doc-1',
+        payload: const DocumentUpdate(content: '- [x] 甲\n- [x] 乙\n'),
+      ),
+    ]);
+    expect(find.byIcon(Icons.check_box), findsNWidgets(2));
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('leaving the page flushes an unsent checkbox burst', (
+    tester,
+  ) async {
+    final document = documentRead(id: 'doc-1', title: '清单文档');
+    var stored = '- [ ] 甲\n- [ ] 乙\n';
+    final repo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async {
+            return DocumentPage(items: [document], nextCursor: null);
+          }
+          ..getHandler = (id) async {
+            return documentReadDetail(document, content: stored);
+          }
+          ..updateHandler = (id, payload) async {
+            stored = payload.content!;
+            return documentRead(id: id);
+          };
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('清单文档'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.check_box_outline_blank).first);
+    await tester.pump();
+    expect(repo.updateCalls, isEmpty);
+
+    // Back out before the debounce fires — dispose must flush the burst.
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    expect(
+      repo.updateCalls,
+      [
+        (
+          id: 'doc-1',
+          payload: const DocumentUpdate(content: '- [x] 甲\n- [ ] 乙\n'),
+        ),
+      ],
+    );
+    expect(find.text('清单文档'), findsOneWidget); // back on the list
 
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
@@ -275,8 +435,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.check_box_outline_blank));
-    // The stub PATCH fails within this same pump, so the optimistic flip
-    // and the revert both land here — assert the settled outcome below.
+    await tester.pump();
+    // Debounce fires, the stub PATCH fails, the optimistic flip reverts.
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.check_box), findsNothing);

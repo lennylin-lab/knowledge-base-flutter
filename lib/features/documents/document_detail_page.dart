@@ -257,48 +257,103 @@ class DocumentDetailBody extends ConsumerStatefulWidget {
 
 class _DocumentDetailBodyState extends ConsumerState<DocumentDetailBody> {
   /// Optimistic task-list checkbox state: tapping a checkbox flips its
-  /// `- [ ]`/`- [x]` marker in this copy and re-renders immediately, while
-  /// the PATCH and the detail refetch it triggers run in the background.
-  /// Cleared whenever server content changes (own PATCH refetch, or an
-  /// external edit that wins the race).
+  /// `- [ ]`/`- [x]` marker in this copy and re-renders immediately. The
+  /// matching PATCH is debounced (a checkbox burst collapses into one), so
+  /// this override can hold flips that are not on the wire yet. Cleared
+  /// when the server catches up with every flip, or when an external edit
+  /// wins the race — see didUpdateWidget.
   String? _contentOverride;
 
+  /// Content of the most recently dispatched PATCH. The detail refetch it
+  /// triggers may land while newer flips are still pending; telling the
+  /// "echo of our own send" apart from an external change is what keeps
+  /// those pending flips from being wiped by didUpdateWidget.
+  String? _lastSentContent;
+
+  /// Checkbox bursts collapse into one PATCH: every tap re-arms this timer,
+  /// only the last content of a burst goes over the wire.
+  Timer? _saveDebounce;
+  static const _saveDebounceDelay = Duration(milliseconds: 600);
+
   /// Tail of the in-flight content PATCHes. Every PATCH carries the full
-  /// content, so a second toggle racing the first must wait its turn or
-  /// the server could end up with the older string.
+  /// content, so a second save racing the first must wait its turn or the
+  /// server could end up with the older string.
   Future<void> _pendingSave = Future.value();
 
   String get _content => _contentOverride ?? widget.document.content;
 
   @override
+  void dispose() {
+    // A burst cut short by leaving the page still gets sent — the notifier
+    // outlives this widget. Its failure path no-ops silently (mounted is
+    // already false); the next visit simply shows server truth.
+    _saveDebounce?.cancel();
+    final pending = _contentOverride;
+    if (pending != null && pending != _lastSentContent) {
+      _enqueueContentSave(pending, widget.document.id);
+    }
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(DocumentDetailBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.document.content != oldWidget.document.content) {
+    if (widget.document.id != oldWidget.document.id) {
+      // Pane switched documents: send the old document's unsent burst
+      // before dropping state that was computed against its content.
+      final pending = _contentOverride;
+      if (pending != null && pending != _lastSentContent) {
+        _enqueueContentSave(pending, oldWidget.document.id);
+      }
       _contentOverride = null;
+      _lastSentContent = null;
+      _saveDebounce?.cancel();
+      return;
     }
+    if (widget.document.content == oldWidget.document.content) return;
+    if (widget.document.content == _contentOverride) {
+      // The refetch echoes every local flip — server caught up.
+      _contentOverride = null;
+      _lastSentContent = null;
+    } else if (widget.document.content != _lastSentContent) {
+      // Not our own echo: the document changed elsewhere. External wins.
+      _contentOverride = null;
+      _lastSentContent = null;
+    }
+    // else: the echo of an in-flight PATCH landed while newer flips are
+    // still pending — keep the override (and the armed debounce).
   }
 
   void _toggleTask(int taskIndex, bool checked) {
-    final source = _content;
-    final updated = toggleTaskListItem(source, taskIndex);
+    final updated = toggleTaskListItem(_content, taskIndex);
     if (updated == null) return;
     setState(() => _contentOverride = updated);
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(_saveDebounceDelay, () {
+      final pending = _contentOverride;
+      if (pending != null) _enqueueContentSave(pending, widget.document.id);
+    });
+  }
 
+  /// Sends [content] as the full content of [documentId], serialized behind
+  /// any in-flight PATCH (out-of-order landings could let an older
+  /// full-content string win on the server).
+  void _enqueueContentSave(String content, String documentId) {
+    _lastSentContent = content;
     final previous = _pendingSave;
     final save = () async {
       await previous;
       try {
         await ref
             .read(documentsProvider.notifier)
-            .updateDocument(
-              widget.document.id,
-              DocumentUpdate(content: updated),
-            );
+            .updateDocument(documentId, DocumentUpdate(content: content));
       } catch (error) {
+        _lastSentContent = null;
         if (!mounted) return;
-        // Revert to the pre-toggle string; the detail refetch (own success
-        // or another surface's edit) will overwrite it with server truth.
-        setState(() => _contentOverride = source);
+        // Drop the unconfirmed flips and show the latest server state; the
+        // detail refetch (own success or another surface's edit) keeps it
+        // fresh.
+        setState(() => _contentOverride = null);
         _showToast(context, '保存失败：${toApiException(error).message}');
       }
     }();
