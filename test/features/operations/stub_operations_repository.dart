@@ -190,6 +190,7 @@ ApplyResult applyResultFor(OperationReadDetail operation) {
       id: operation.documentId ?? 'doc-1',
       title: '应用后的标题',
       tags: const ['flutter'],
+      description: '',
       indexStatus: IndexStatus.pending,
       updatedAt: '2026-09-16T08:01:00Z',
     ),

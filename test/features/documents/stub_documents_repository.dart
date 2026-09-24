@@ -159,12 +159,14 @@ class StubDocumentsRepository implements DocumentsRepository {
 DocumentRead documentRead({
   required String id,
   String? title,
+  String description = '',
   IndexStatus indexStatus = IndexStatus.done,
   List<String> tags = const [],
 }) {
   return DocumentRead(
     id: id,
     title: title ?? '文档 $id',
+    description: description,
     tags: tags,
     indexStatus: indexStatus,
     createdAt: '2026-08-30T08:00:00Z',
@@ -185,6 +187,7 @@ DocumentReadDetail documentReadDetail(
     id: base.id,
     title: base.title,
     tags: base.tags,
+    description: base.description,
     indexStatus: base.indexStatus,
     createdAt: base.createdAt,
     updatedAt: base.updatedAt,

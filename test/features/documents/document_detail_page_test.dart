@@ -54,6 +54,53 @@ void main() {
     expect(find.text('混合检索正文'), findsOneWidget);
   });
 
+  testWidgets('the fixed header shows the description blurb under the tags', (
+    tester,
+  ) async {
+    final document = documentRead(
+      id: 'doc-1',
+      title: '设计笔记',
+      description: '检索与索引的设计要点。',
+    );
+    final repo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async {
+            return DocumentPage(items: [document], nextCursor: null);
+          }
+          ..getHandler =
+              (id) async => documentReadDetail(document, content: '# 设计笔记');
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('设计笔记'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('检索与索引的设计要点。'), findsOneWidget);
+  });
+
+  testWidgets('an empty description renders nothing in the header', (
+    tester,
+  ) async {
+    final document = documentRead(id: 'doc-1', title: '设计笔记');
+    final repo =
+        StubDocumentsRepository()
+          ..listHandler = (cursor, limit, tag) async {
+            return DocumentPage(items: [document], nextCursor: null);
+          }
+          ..getHandler =
+              (id) async => documentReadDetail(document, content: '# 设计笔记');
+
+    await pumpApp(tester, repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('设计笔记'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('设计笔记'), findsWidgets);
+    expect(find.text(''), findsNothing);
+  });
+
   testWidgets('404 toasts 文档不存在或已删除 and pops back to the list', (
     tester,
   ) async {

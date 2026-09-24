@@ -328,6 +328,17 @@ class _DocumentTile extends StatelessWidget {
                 color: theme.colorScheme.primary,
               ),
             ),
+          // Front-matter `description:` blurb as the card subtitle; empty
+          // (old backend or unset) takes no line.
+          if (document.description.isNotEmpty)
+            Text(
+              document.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
         ],
       ),
     );

@@ -76,6 +76,31 @@ void main() {
     },
   );
 
+  testWidgets('cards show the description subtitle only when non-empty', (
+    tester,
+  ) async {
+    final repo = StubDocumentsRepository()
+      ..listHandler = (cursor, limit, tags) async => DocumentPage(
+        items: [
+          documentRead(
+            id: 'a',
+            title: '有描述的文档',
+            description: '一句话摘要。',
+          ),
+          documentRead(id: 'b', title: '无描述的文档'),
+        ],
+        nextCursor: null,
+      );
+
+    await pumpApp(tester, repo);
+    await tester.pump(); // first frame, provider starts fetching
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('一句话摘要。'), findsOneWidget);
+    expect(find.text('有描述的文档'), findsOneWidget);
+    expect(find.text('无描述的文档'), findsOneWidget);
+  });
+
   testWidgets('loads the next keyset page when scrolled near the end', (
     tester,
   ) async {

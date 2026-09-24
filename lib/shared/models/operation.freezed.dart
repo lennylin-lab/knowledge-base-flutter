@@ -1735,7 +1735,9 @@ as String,
 /// @nodoc
 mixin _$DocumentInResult {
 
- String get id; String get title; List<String> get tags;@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus get indexStatus; String get updatedAt;
+ String get id; String get title; List<String> get tags;// Same front-matter-derived blurb as DocumentRead; same missing-key
+// tolerance (old backend responses decode to "").
+@JsonKey(defaultValue: '') String get description;@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus get indexStatus; String get updatedAt;
 /// Create a copy of DocumentInResult
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1748,16 +1750,16 @@ $DocumentInResultCopyWith<DocumentInResult> get copyWith => _$DocumentInResultCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentInResult&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.tags, tags)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentInResult&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.tags, tags)&&(identical(other.description, description) || other.description == description)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(tags),indexStatus,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(tags),description,indexStatus,updatedAt);
 
 @override
 String toString() {
-  return 'DocumentInResult(id: $id, title: $title, tags: $tags, indexStatus: $indexStatus, updatedAt: $updatedAt)';
+  return 'DocumentInResult(id: $id, title: $title, tags: $tags, description: $description, indexStatus: $indexStatus, updatedAt: $updatedAt)';
 }
 
 
@@ -1768,7 +1770,7 @@ abstract mixin class $DocumentInResultCopyWith<$Res>  {
   factory $DocumentInResultCopyWith(DocumentInResult value, $Res Function(DocumentInResult) _then) = _$DocumentInResultCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, List<String> tags,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String updatedAt
+ String id, String title, List<String> tags,@JsonKey(defaultValue: '') String description,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String updatedAt
 });
 
 
@@ -1785,12 +1787,13 @@ class _$DocumentInResultCopyWithImpl<$Res>
 
 /// Create a copy of DocumentInResult
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? indexStatus = null,Object? updatedAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? description = null,Object? indexStatus = null,Object? updatedAt = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,tags: null == tags ? _self.tags : tags // ignore: cast_nullable_to_non_nullable
-as List<String>,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
+as List<String>,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
 as IndexStatus,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -1877,10 +1880,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DocumentInResult() when $default != null:
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.updatedAt);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.updatedAt);case _:
   return orElse();
 
 }
@@ -1898,10 +1901,10 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.updatedA
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String updatedAt)  $default,) {final _that = this;
 switch (_that) {
 case _DocumentInResult():
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.updatedAt);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.updatedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1918,10 +1921,10 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.updatedA
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String updatedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _DocumentInResult() when $default != null:
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.updatedAt);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.updatedAt);case _:
   return null;
 
 }
@@ -1933,7 +1936,7 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.updatedA
 @JsonSerializable()
 
 class _DocumentInResult implements DocumentInResult {
-  const _DocumentInResult({required this.id, required this.title, required final  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed) required this.indexStatus, required this.updatedAt}): _tags = tags;
+  const _DocumentInResult({required this.id, required this.title, required final  List<String> tags, @JsonKey(defaultValue: '') required this.description, @JsonKey(unknownEnumValue: IndexStatus.failed) required this.indexStatus, required this.updatedAt}): _tags = tags;
   factory _DocumentInResult.fromJson(Map<String, dynamic> json) => _$DocumentInResultFromJson(json);
 
 @override final  String id;
@@ -1945,6 +1948,9 @@ class _DocumentInResult implements DocumentInResult {
   return EqualUnmodifiableListView(_tags);
 }
 
+// Same front-matter-derived blurb as DocumentRead; same missing-key
+// tolerance (old backend responses decode to "").
+@override@JsonKey(defaultValue: '') final  String description;
 @override@JsonKey(unknownEnumValue: IndexStatus.failed) final  IndexStatus indexStatus;
 @override final  String updatedAt;
 
@@ -1961,16 +1967,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentInResult&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._tags, _tags)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentInResult&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._tags, _tags)&&(identical(other.description, description) || other.description == description)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(_tags),indexStatus,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(_tags),description,indexStatus,updatedAt);
 
 @override
 String toString() {
-  return 'DocumentInResult(id: $id, title: $title, tags: $tags, indexStatus: $indexStatus, updatedAt: $updatedAt)';
+  return 'DocumentInResult(id: $id, title: $title, tags: $tags, description: $description, indexStatus: $indexStatus, updatedAt: $updatedAt)';
 }
 
 
@@ -1981,7 +1987,7 @@ abstract mixin class _$DocumentInResultCopyWith<$Res> implements $DocumentInResu
   factory _$DocumentInResultCopyWith(_DocumentInResult value, $Res Function(_DocumentInResult) _then) = __$DocumentInResultCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, List<String> tags,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String updatedAt
+ String id, String title, List<String> tags,@JsonKey(defaultValue: '') String description,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String updatedAt
 });
 
 
@@ -1998,12 +2004,13 @@ class __$DocumentInResultCopyWithImpl<$Res>
 
 /// Create a copy of DocumentInResult
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? indexStatus = null,Object? updatedAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? description = null,Object? indexStatus = null,Object? updatedAt = null,}) {
   return _then(_DocumentInResult(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,tags: null == tags ? _self._tags : tags // ignore: cast_nullable_to_non_nullable
-as List<String>,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
+as List<String>,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
 as IndexStatus,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as String,
   ));

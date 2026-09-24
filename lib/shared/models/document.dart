@@ -56,6 +56,10 @@ abstract class DocumentRead with _$DocumentRead {
     required String id,
     required String title,
     required List<String> tags,
+    // Front-matter-derived one-line blurb ("" when absent). defaultValue
+    // keeps old-backend responses without the key decoding to "" instead of
+    // crashing (defensive parsing per the type-safety spec).
+    @JsonKey(defaultValue: '') required String description,
     @JsonKey(unknownEnumValue: IndexStatus.failed)
     required IndexStatus indexStatus,
     required String createdAt,
@@ -79,6 +83,9 @@ abstract class DocumentReadDetail with _$DocumentReadDetail {
     required String id,
     required String title,
     required List<String> tags,
+    // Same front-matter-derived blurb as [DocumentRead]; same missing-key
+    // tolerance (old backend responses decode to "").
+    @JsonKey(defaultValue: '') required String description,
     @JsonKey(unknownEnumValue: IndexStatus.failed)
     required IndexStatus indexStatus,
     required String createdAt,
@@ -104,6 +111,7 @@ extension DocumentReadDetailProjection on DocumentReadDetail {
         id: id,
         title: title,
         tags: tags,
+        description: description,
         indexStatus: indexStatus,
         createdAt: createdAt,
         updatedAt: updatedAt,

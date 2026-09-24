@@ -134,6 +134,9 @@ abstract class DocumentInResult with _$DocumentInResult {
     required String id,
     required String title,
     required List<String> tags,
+    // Same front-matter-derived blurb as DocumentRead; same missing-key
+    // tolerance (old backend responses decode to "").
+    @JsonKey(defaultValue: '') required String description,
     @JsonKey(unknownEnumValue: IndexStatus.failed)
     required IndexStatus indexStatus,
     required String updatedAt,

@@ -407,6 +407,18 @@ class _DocumentDetailBodyState extends ConsumerState<DocumentDetailBody> {
                       runSpacing: sizes.space4,
                     ),
                   ),
+                // Front-matter `description:` blurb — sits between the tags
+                // and the body divider; absent (empty) takes no height.
+                if (document.description.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: sizes.space4),
+                    child: Text(
+                      document.description,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
                 Divider(height: sizes.space32),
                 MarkdownContent(
                   data: stripYamlFrontMatter(_content),

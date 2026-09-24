@@ -121,6 +121,7 @@ _DocumentInResult _$DocumentInResultFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       title: json['title'] as String,
       tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
+      description: json['description'] as String? ?? '',
       indexStatus: $enumDecode(
         _$IndexStatusEnumMap,
         json['index_status'],
@@ -134,6 +135,7 @@ Map<String, dynamic> _$DocumentInResultToJson(_DocumentInResult instance) =>
       'id': instance.id,
       'title': instance.title,
       'tags': instance.tags,
+      'description': instance.description,
       'index_status': _$IndexStatusEnumMap[instance.indexStatus]!,
       'updated_at': instance.updatedAt,
     };

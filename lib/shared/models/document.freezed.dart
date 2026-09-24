@@ -550,7 +550,10 @@ as String?,
 /// @nodoc
 mixin _$DocumentRead {
 
- String get id; String get title; List<String> get tags;@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus get indexStatus; String get createdAt; String get updatedAt;
+ String get id; String get title; List<String> get tags;// Front-matter-derived one-line blurb ("" when absent). defaultValue
+// keeps old-backend responses without the key decoding to "" instead of
+// crashing (defensive parsing per the type-safety spec).
+@JsonKey(defaultValue: '') String get description;@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus get indexStatus; String get createdAt; String get updatedAt;
 /// Create a copy of DocumentRead
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -563,16 +566,16 @@ $DocumentReadCopyWith<DocumentRead> get copyWith => _$DocumentReadCopyWithImpl<D
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentRead&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.tags, tags)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentRead&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.tags, tags)&&(identical(other.description, description) || other.description == description)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(tags),indexStatus,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(tags),description,indexStatus,createdAt,updatedAt);
 
 @override
 String toString() {
-  return 'DocumentRead(id: $id, title: $title, tags: $tags, indexStatus: $indexStatus, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'DocumentRead(id: $id, title: $title, tags: $tags, description: $description, indexStatus: $indexStatus, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -583,7 +586,7 @@ abstract mixin class $DocumentReadCopyWith<$Res>  {
   factory $DocumentReadCopyWith(DocumentRead value, $Res Function(DocumentRead) _then) = _$DocumentReadCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, List<String> tags,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String createdAt, String updatedAt
+ String id, String title, List<String> tags,@JsonKey(defaultValue: '') String description,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String createdAt, String updatedAt
 });
 
 
@@ -600,12 +603,13 @@ class _$DocumentReadCopyWithImpl<$Res>
 
 /// Create a copy of DocumentRead
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? indexStatus = null,Object? createdAt = null,Object? updatedAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? description = null,Object? indexStatus = null,Object? createdAt = null,Object? updatedAt = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,tags: null == tags ? _self.tags : tags // ignore: cast_nullable_to_non_nullable
-as List<String>,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
+as List<String>,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
 as IndexStatus,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as String,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as String,
@@ -693,10 +697,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DocumentRead() when $default != null:
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.createdAt,_that.updatedAt);case _:
   return orElse();
 
 }
@@ -714,10 +718,10 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdA
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt)  $default,) {final _that = this;
 switch (_that) {
 case _DocumentRead():
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.createdAt,_that.updatedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -734,10 +738,10 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdA
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _DocumentRead() when $default != null:
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.createdAt,_that.updatedAt);case _:
   return null;
 
 }
@@ -749,7 +753,7 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdA
 @JsonSerializable()
 
 class _DocumentRead implements DocumentRead {
-  const _DocumentRead({required this.id, required this.title, required final  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed) required this.indexStatus, required this.createdAt, required this.updatedAt}): _tags = tags;
+  const _DocumentRead({required this.id, required this.title, required final  List<String> tags, @JsonKey(defaultValue: '') required this.description, @JsonKey(unknownEnumValue: IndexStatus.failed) required this.indexStatus, required this.createdAt, required this.updatedAt}): _tags = tags;
   factory _DocumentRead.fromJson(Map<String, dynamic> json) => _$DocumentReadFromJson(json);
 
 @override final  String id;
@@ -761,6 +765,10 @@ class _DocumentRead implements DocumentRead {
   return EqualUnmodifiableListView(_tags);
 }
 
+// Front-matter-derived one-line blurb ("" when absent). defaultValue
+// keeps old-backend responses without the key decoding to "" instead of
+// crashing (defensive parsing per the type-safety spec).
+@override@JsonKey(defaultValue: '') final  String description;
 @override@JsonKey(unknownEnumValue: IndexStatus.failed) final  IndexStatus indexStatus;
 @override final  String createdAt;
 @override final  String updatedAt;
@@ -778,16 +786,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentRead&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._tags, _tags)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentRead&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._tags, _tags)&&(identical(other.description, description) || other.description == description)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(_tags),indexStatus,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(_tags),description,indexStatus,createdAt,updatedAt);
 
 @override
 String toString() {
-  return 'DocumentRead(id: $id, title: $title, tags: $tags, indexStatus: $indexStatus, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'DocumentRead(id: $id, title: $title, tags: $tags, description: $description, indexStatus: $indexStatus, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -798,7 +806,7 @@ abstract mixin class _$DocumentReadCopyWith<$Res> implements $DocumentReadCopyWi
   factory _$DocumentReadCopyWith(_DocumentRead value, $Res Function(_DocumentRead) _then) = __$DocumentReadCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, List<String> tags,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String createdAt, String updatedAt
+ String id, String title, List<String> tags,@JsonKey(defaultValue: '') String description,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String createdAt, String updatedAt
 });
 
 
@@ -815,12 +823,13 @@ class __$DocumentReadCopyWithImpl<$Res>
 
 /// Create a copy of DocumentRead
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? indexStatus = null,Object? createdAt = null,Object? updatedAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? description = null,Object? indexStatus = null,Object? createdAt = null,Object? updatedAt = null,}) {
   return _then(_DocumentRead(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,tags: null == tags ? _self._tags : tags // ignore: cast_nullable_to_non_nullable
-as List<String>,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
+as List<String>,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
 as IndexStatus,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as String,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as String,
@@ -834,7 +843,9 @@ as String,
 /// @nodoc
 mixin _$DocumentReadDetail {
 
- String get id; String get title; List<String> get tags;@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus get indexStatus; String get createdAt; String get updatedAt; String get content;// Nullable + not `required`: the key is absent entirely from old backend
+ String get id; String get title; List<String> get tags;// Same front-matter-derived blurb as [DocumentRead]; same missing-key
+// tolerance (old backend responses decode to "").
+@JsonKey(defaultValue: '') String get description;@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus get indexStatus; String get createdAt; String get updatedAt; String get content;// Nullable + not `required`: the key is absent entirely from old backend
 // responses (field not yet deployed) and null on pre-backfill rows — both
 // decode to null = "unknown, skip the optimistic-concurrency guard"
 // (defensive parsing per the type-safety spec).
@@ -851,16 +862,16 @@ $DocumentReadDetailCopyWith<DocumentReadDetail> get copyWith => _$DocumentReadDe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentReadDetail&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.tags, tags)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DocumentReadDetail&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.tags, tags)&&(identical(other.description, description) || other.description == description)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(tags),indexStatus,createdAt,updatedAt,content,contentHash);
+int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(tags),description,indexStatus,createdAt,updatedAt,content,contentHash);
 
 @override
 String toString() {
-  return 'DocumentReadDetail(id: $id, title: $title, tags: $tags, indexStatus: $indexStatus, createdAt: $createdAt, updatedAt: $updatedAt, content: $content, contentHash: $contentHash)';
+  return 'DocumentReadDetail(id: $id, title: $title, tags: $tags, description: $description, indexStatus: $indexStatus, createdAt: $createdAt, updatedAt: $updatedAt, content: $content, contentHash: $contentHash)';
 }
 
 
@@ -871,7 +882,7 @@ abstract mixin class $DocumentReadDetailCopyWith<$Res>  {
   factory $DocumentReadDetailCopyWith(DocumentReadDetail value, $Res Function(DocumentReadDetail) _then) = _$DocumentReadDetailCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, List<String> tags,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String createdAt, String updatedAt, String content, String? contentHash
+ String id, String title, List<String> tags,@JsonKey(defaultValue: '') String description,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String createdAt, String updatedAt, String content, String? contentHash
 });
 
 
@@ -888,12 +899,13 @@ class _$DocumentReadDetailCopyWithImpl<$Res>
 
 /// Create a copy of DocumentReadDetail
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? indexStatus = null,Object? createdAt = null,Object? updatedAt = null,Object? content = null,Object? contentHash = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? description = null,Object? indexStatus = null,Object? createdAt = null,Object? updatedAt = null,Object? content = null,Object? contentHash = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,tags: null == tags ? _self.tags : tags // ignore: cast_nullable_to_non_nullable
-as List<String>,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
+as List<String>,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
 as IndexStatus,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as String,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -983,10 +995,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt,  String content,  String? contentHash)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt,  String content,  String? contentHash)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DocumentReadDetail() when $default != null:
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdAt,_that.updatedAt,_that.content,_that.contentHash);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.createdAt,_that.updatedAt,_that.content,_that.contentHash);case _:
   return orElse();
 
 }
@@ -1004,10 +1016,10 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdA
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt,  String content,  String? contentHash)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt,  String content,  String? contentHash)  $default,) {final _that = this;
 switch (_that) {
 case _DocumentReadDetail():
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdAt,_that.updatedAt,_that.content,_that.contentHash);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.createdAt,_that.updatedAt,_that.content,_that.contentHash);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1024,10 +1036,10 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdA
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt,  String content,  String? contentHash)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  List<String> tags, @JsonKey(defaultValue: '')  String description, @JsonKey(unknownEnumValue: IndexStatus.failed)  IndexStatus indexStatus,  String createdAt,  String updatedAt,  String content,  String? contentHash)?  $default,) {final _that = this;
 switch (_that) {
 case _DocumentReadDetail() when $default != null:
-return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdAt,_that.updatedAt,_that.content,_that.contentHash);case _:
+return $default(_that.id,_that.title,_that.tags,_that.description,_that.indexStatus,_that.createdAt,_that.updatedAt,_that.content,_that.contentHash);case _:
   return null;
 
 }
@@ -1039,7 +1051,7 @@ return $default(_that.id,_that.title,_that.tags,_that.indexStatus,_that.createdA
 @JsonSerializable()
 
 class _DocumentReadDetail implements DocumentReadDetail {
-  const _DocumentReadDetail({required this.id, required this.title, required final  List<String> tags, @JsonKey(unknownEnumValue: IndexStatus.failed) required this.indexStatus, required this.createdAt, required this.updatedAt, required this.content, this.contentHash}): _tags = tags;
+  const _DocumentReadDetail({required this.id, required this.title, required final  List<String> tags, @JsonKey(defaultValue: '') required this.description, @JsonKey(unknownEnumValue: IndexStatus.failed) required this.indexStatus, required this.createdAt, required this.updatedAt, required this.content, this.contentHash}): _tags = tags;
   factory _DocumentReadDetail.fromJson(Map<String, dynamic> json) => _$DocumentReadDetailFromJson(json);
 
 @override final  String id;
@@ -1051,6 +1063,9 @@ class _DocumentReadDetail implements DocumentReadDetail {
   return EqualUnmodifiableListView(_tags);
 }
 
+// Same front-matter-derived blurb as [DocumentRead]; same missing-key
+// tolerance (old backend responses decode to "").
+@override@JsonKey(defaultValue: '') final  String description;
 @override@JsonKey(unknownEnumValue: IndexStatus.failed) final  IndexStatus indexStatus;
 @override final  String createdAt;
 @override final  String updatedAt;
@@ -1074,16 +1089,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentReadDetail&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._tags, _tags)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DocumentReadDetail&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._tags, _tags)&&(identical(other.description, description) || other.description == description)&&(identical(other.indexStatus, indexStatus) || other.indexStatus == indexStatus)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.content, content) || other.content == content)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(_tags),indexStatus,createdAt,updatedAt,content,contentHash);
+int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(_tags),description,indexStatus,createdAt,updatedAt,content,contentHash);
 
 @override
 String toString() {
-  return 'DocumentReadDetail(id: $id, title: $title, tags: $tags, indexStatus: $indexStatus, createdAt: $createdAt, updatedAt: $updatedAt, content: $content, contentHash: $contentHash)';
+  return 'DocumentReadDetail(id: $id, title: $title, tags: $tags, description: $description, indexStatus: $indexStatus, createdAt: $createdAt, updatedAt: $updatedAt, content: $content, contentHash: $contentHash)';
 }
 
 
@@ -1094,7 +1109,7 @@ abstract mixin class _$DocumentReadDetailCopyWith<$Res> implements $DocumentRead
   factory _$DocumentReadDetailCopyWith(_DocumentReadDetail value, $Res Function(_DocumentReadDetail) _then) = __$DocumentReadDetailCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, List<String> tags,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String createdAt, String updatedAt, String content, String? contentHash
+ String id, String title, List<String> tags,@JsonKey(defaultValue: '') String description,@JsonKey(unknownEnumValue: IndexStatus.failed) IndexStatus indexStatus, String createdAt, String updatedAt, String content, String? contentHash
 });
 
 
@@ -1111,12 +1126,13 @@ class __$DocumentReadDetailCopyWithImpl<$Res>
 
 /// Create a copy of DocumentReadDetail
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? indexStatus = null,Object? createdAt = null,Object? updatedAt = null,Object? content = null,Object? contentHash = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? tags = null,Object? description = null,Object? indexStatus = null,Object? createdAt = null,Object? updatedAt = null,Object? content = null,Object? contentHash = freezed,}) {
   return _then(_DocumentReadDetail(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,tags: null == tags ? _self._tags : tags // ignore: cast_nullable_to_non_nullable
-as List<String>,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
+as List<String>,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String,indexStatus: null == indexStatus ? _self.indexStatus : indexStatus // ignore: cast_nullable_to_non_nullable
 as IndexStatus,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as String,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable

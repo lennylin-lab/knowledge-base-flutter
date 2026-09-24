@@ -34,6 +34,7 @@ _DocumentRead _$DocumentReadFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       title: json['title'] as String,
       tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
+      description: json['description'] as String? ?? '',
       indexStatus: $enumDecode(
         _$IndexStatusEnumMap,
         json['index_status'],
@@ -48,6 +49,7 @@ Map<String, dynamic> _$DocumentReadToJson(_DocumentRead instance) =>
       'id': instance.id,
       'title': instance.title,
       'tags': instance.tags,
+      'description': instance.description,
       'index_status': _$IndexStatusEnumMap[instance.indexStatus]!,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,
@@ -64,6 +66,7 @@ _DocumentReadDetail _$DocumentReadDetailFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       title: json['title'] as String,
       tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
+      description: json['description'] as String? ?? '',
       indexStatus: $enumDecode(
         _$IndexStatusEnumMap,
         json['index_status'],
@@ -80,6 +83,7 @@ Map<String, dynamic> _$DocumentReadDetailToJson(_DocumentReadDetail instance) =>
       'id': instance.id,
       'title': instance.title,
       'tags': instance.tags,
+      'description': instance.description,
       'index_status': _$IndexStatusEnumMap[instance.indexStatus]!,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,

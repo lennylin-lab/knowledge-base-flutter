@@ -26,6 +26,7 @@ const documentReadJson = {
   'id': '0b6df9a2-1cbd-4a0f-9b1a-3f8f7f1a2e01',
   'title': '知识库设计笔记',
   'tags': ['flutter', 'backend'],
+  'description': '检索与索引的设计要点。',
   'index_status': 'done',
   'created_at': '2026-08-31T10:00:00Z',
   'updated_at': '2026-08-31T12:30:00Z',
@@ -144,6 +145,16 @@ void main() {
         'index_status': 'quarantined',
       });
       expect(model.indexStatus, IndexStatus.failed);
+    });
+
+    test('description decodes; a missing key (old backend) falls back to ""', () {
+      final model = DocumentRead.fromJson(documentReadJson);
+      expect(model.description, '检索与索引的设计要点。');
+
+      final legacy = DocumentRead.fromJson({
+        ...documentReadJson,
+      }..remove('description'));
+      expect(legacy.description, '');
     });
 
     test(
