@@ -36,7 +36,8 @@ class DocumentEditorPage extends ConsumerStatefulWidget {
 }
 
 class _DocumentEditorPageState extends ConsumerState<DocumentEditorPage> {
-  static const String _createTemplate = '---\ntitle: 新文档\ntags: []\n\n';
+  static const String _createTemplate =
+      '---\ntitle: 新文档\ntags: []\ndescription: 文档描述\n\n';
 
   /// How long after the last keystroke the dirty buffer is persisted locally.
   static const Duration _draftDebounceDelay = Duration(seconds: 1);
