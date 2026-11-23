@@ -28,6 +28,9 @@ flutter run -d chrome \
   --dart-define=OIDC_CLIENT_ID=kb-web
 ```
 
+> 也可将上述配置统一写入 `.env.dev` / `.env.prod`，通过 Flutter 原生
+> `--dart-define-from-file` 批量加载，见下方「使用 `--dart-define-from-file` 批量配置」。
+
 | dart-define | 默认值 | 说明 |
 |---|---|---|
 | `OIDC_ISSUER` | 空（**兼容模式**：不登录、不带 token，等同旧行为） | IdP issuer，须与后端 `KB_OIDC_ISSUER` 逐字一致 |
@@ -152,6 +155,40 @@ release 构建默认 prod；无法识别的值同样按构建模式回退（不�
 - 任一必填项缺失/不合规时，`AppConfig.load()` / `OidcConfig.load()`
   在启动阶段（`runApp` 之前）抛 `StateError` **fail-fast**，错误信息
   中给出对应的 `--dart-define` 修复方式。
+
+### 使用 `--dart-define-from-file` 批量配置
+
+仓库根目录提供了两份编译期环境配置模板，可直接复制修改，通过 Flutter 原生
+`--dart-define-from-file` 注入（无需引入额外的 dotenv 运行时依赖）：
+
+- `.env.dev.example` — 开发环境模板（允许 `http://`；`OIDC_ISSUER` 留空即为无认证兼容模式）
+- `.env.prod.example` — 生产环境模板（要求 `API_BASE_URL` 为 `https://` 且 `OIDC_ISSUER` 非空）
+
+**开发环境**：
+
+```bash
+cp .env.dev.example .env.dev
+# 按需编辑 .env.dev
+flutter run -d chrome --dart-define-from-file=.env.dev
+```
+
+**生产构建**：
+
+```bash
+cp .env.prod.example .env.prod
+# 填入真实生产域名与 Keycloak Issuer 后构建
+flutter build web --release --wasm --dart-define-from-file=.env.prod
+flutter build apk --release --dart-define-from-file=.env.prod
+flutter build windows --release --dart-define-from-file=.env.prod
+```
+
+**注意事项**：
+
+- **编译期生效**：`--dart-define-from-file` 与 `--dart-define` 一样在编译期烘焙进产物，修改 `.env.*` 后需重新运行或重新构建。
+- **格式约定**：每行使用 `KEY=VALUE`，值不要包裹引号，也不要在值末尾追加行内 `#` 注释；未设置的项可整行注释以回退到默认值。
+- **单键覆盖**：可与 `--dart-define` 混用临时覆盖个别项（例如 `--dart-define-from-file=.env.dev --dart-define=API_BASE_URL=http://192.168.1.100:8000`）。
+- **版本控制**：`.gitignore` 已忽略 `.env` 与 `.env.*`（保留 `*.example` 模板），本地环境文件不会被误提交。
+- **优先级提醒**：`dev` 环境下本地 `shared_preferences` 持久化覆盖优先于 `--dart-define-from-file`；`prod` 环境下会忽略一切持久化覆盖。
 
 ## 后端联调
 

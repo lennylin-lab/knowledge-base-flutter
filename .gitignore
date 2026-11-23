@@ -44,3 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/build/
+
+# Local --dart-define-from-file env files (keep *.example templates tracked)
+.env
+.env.*
+!.env.example
+!.env.*.example
