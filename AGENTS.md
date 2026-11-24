@@ -19,3 +19,11 @@ If you're using Codex or another agent-capable tool, additional project-scoped h
 Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
 
 <!-- TRELLIS:END -->
+
+## Documentation
+
+- **Repo-local (`docs/`)**: Store documentation that applies only to this repository under `docs/` (internal design, platform notes, local runbooks). Keep cross-repo architecture and integration contracts in `../knowledge-base-docs/`.
+- **Cross-workspace (`../knowledge-base-docs/`)**: Read `../knowledge-base-docs/architecture.md` when checking system topology or boundaries, and follow `../knowledge-base-docs/README.md` (and `.trellis/spec/guides/cross-workspace-docs-guide.md`) for document templates and `list.md` conventions.
+  - **Incoming adaptations**: Check `../knowledge-base-docs/subsystems/flutter/list.md` for unchecked `- [ ]` entries and read the linked dated doc (`<YYYY-MM-DD>/<slug>.md`). Complete and verify the adaptation from those self-contained docs without reading sibling repos' source, then mark the item `- [x]` in `list.md`.
+  - **Outgoing changes**: Whenever changes here alter OIDC client requirements (client ID, redirect URIs, scopes, callback strategy), web static-hosting / SPA path-fallback requirements, or API/CORS expectations affecting another subsystem (`keycloak`, `deploy`, `server`), write a self-contained change note at `../knowledge-base-docs/subsystems/<target>/<YYYY-MM-DD>/<slug>.md` and add an unchecked `- [ ]` entry under `## <YYYY-MM-DD>` in `../knowledge-base-docs/subsystems/<target>/list.md` for every affected target.
+  - **Boundary**: Describe only this repository's own changes, external contracts, compatibility, and verification steps in enough detail for consumers to adapt without reading this repo's source. Keep sibling repositories' source unread and leave their internal implementation changes to them.

@@ -35,7 +35,11 @@ flutter_markdown_plus for rendering (**flutter_markdown is discontinued**).
   logic lives in this client.
 - UI copy is Chinese-first; LLM answers render verbatim.
 - MVP platforms only: web, windows, android — no ios/macos/linux dirs.
-- Backend contract lives in the backend repo: `knowledge-base-server/.trellis/spec/backend/`.
+- Cross-repo architecture and incoming backend/IdP/deploy contracts live in
+  `../knowledge-base-docs/` (`architecture.md` and
+  `subsystems/flutter/list.md`); adapt from those self-contained handoff docs
+  instead of reading sibling repos' source. Repo-local `docs/` is for
+  Flutter-only documentation (see `../guides/cross-workspace-docs-guide.md`).
 
 ---
 

@@ -70,4 +70,5 @@ Repository tests may fake `Dio` via a mock adapter rather than a live server.
 - [ ] Loading / empty / error branches all render
 - [ ] Wide and compact layouts both checked
 - [ ] Any backend contract change is reflected in DTOs and the type-safety spec
+- [ ] Cross-workspace docs synced per `.trellis/spec/guides/cross-workspace-docs-guide.md` (adapted items checked `- [x]` in `../knowledge-base-docs/subsystems/flutter/list.md`; outgoing contract changes published to affected target subsystems)
 - [ ] No user document content in logs
