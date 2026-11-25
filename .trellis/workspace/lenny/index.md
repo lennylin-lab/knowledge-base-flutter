@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 32
-- **Last Active**: 2026-09-20
+- **Total Sessions**: 33
+- **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~738 | Active |
+| `journal-1.md` | ~777 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 33 | 2026-11-25 | 对接文档 description 字段收尾（server 0012） | `36e11a1`, `3d1aa45`, `e2c51d3`, `fe93abe` | `main` |
 | 32 | 2026-09-20 | 续写流式草稿对接修复（issue #4） | `3f3d934`, `21f23b4` | `main` |
 | 31 | 2026-09-20 | 摘要/联想增量事件对接（issue #7） | `296276d`, `af78597` | `main` |
 | 30 | 2026-09-20 | 草稿生成中实时 Markdown 渲染 | `20f0f5c`, `d07ce2d` | `main` |

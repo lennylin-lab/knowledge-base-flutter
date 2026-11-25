@@ -736,3 +736,42 @@ Implemented issue 6 and its backend follow-up. Base: custom markdown inline synt
 ### Status
 
 [OK] **Completed**
+
+
+## Session 33: 对接文档 description 字段收尾（server 0012）
+<!-- trellis-session: v=2 fp=6142b6f6048c2f22 -->
+
+**Date**: 2026-11-25
+**Task**: 对接文档 description 字段收尾（server 0012）
+**Branch**: `main`
+
+### Summary
+
+description 功能代码已于 09-25 落地（36e11a1 DTO/详情/列表 + 3d1aa45 新建模板），本次会话补完 Trellis 收尾：PRD 从模板补全为需求与验收条款，2.2 全量质量检查（578 测试全绿；analyze 无 error/warning，仅新版 Flutter SDK 的全仓 material.dart 弃用 info），type-safety spec 记录 defaultValue 缺键兜底与 front-matter 字段策略，任务归档。
+
+### Main Changes
+
+- PRD 补全 description 契约、详情/列表展示位置、测试要求与验收标准
+- type-safety spec：记录 @JsonKey(defaultValue) 缺键兜底模式，补充 DocumentRead/DocumentReadDetail/DocumentInResult.description 映射与 title/tags/description 的 front-matter 派生策略
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `36e11a1` | feat(documents): surface the front-matter description (server 0012) |
+| `3d1aa45` | feat(documents): create-mode front-matter template gains description |
+| `e2c51d3` | docs(spec): record description DTO fallback and front-matter fields |
+| `fe93abe` | chore(task): complete 09-25-document-description PRD and activate |
+
+### Testing
+
+- [OK] flutter test：578 项全绿（2026-11-25）
+- [OK] flutter analyze：无 error/warning；53 条 info 均为新版 Flutter SDK 将 package:flutter/material.dart 标记弃用的全仓提示，与本任务无关
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 单独评估 Flutter SDK 漂移：已安装 SDK 为 3.47+，全仓 material.dart 弃用 info 53 条，pubspec.lock 存在未提交的 vector_math/dart 约束变化
