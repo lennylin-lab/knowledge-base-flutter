@@ -85,7 +85,7 @@ idle → run_started (keep run_id, mode)
   run starts (the server persists the same turns; history messages carry no
   sources).
 
-### Progress events (wire contract, `docs/chat-api.md` §4.3–4.6)
+### Progress events (wire contract, `../knowledge-base-docs/subsystems/flutter/2026-09-20/chat-api.md` §4.3–4.6)
 
 Scope: cross-layer contract — payload shapes are mirrored 1:1 by freezed DTOs
 in `shared/models/chat.dart`.
