@@ -22,13 +22,13 @@
 |---|---|---|
 | `DocumentCreate` | `DocumentCreate` | `content` required (min 1), `title` nullable |
 | `DocumentUpdate` | `DocumentUpdate` | both fields optional; ≥1 required server-side |
-| `DocumentRead` | `DocumentRead` | list item; no `content` |
-| `DocumentReadDetail` | `DocumentReadDetail` | extends read + `content` |
+| `DocumentRead` | `DocumentRead` | list item; no `content`; `description` = front-matter-derived one-line blurb, `""` when the key is absent (pre-0012 backend) |
+| `DocumentReadDetail` | `DocumentReadDetail` | extends read + `content`; same `description` semantics (`toDocumentRead()` carries it through) |
 | `DocumentPage` | `DocumentPage` | `items` + `nextCursor` (nullable = end) |
 | `SearchResponse` / `SearchHit` | same names | `esRank` and `vectorRank` both nullable (`int \| None` per backend `SearchHit` — a per-leg rank is absent when that leg missed the chunk) |
 | `SummaryResult` / `AssociationItem` / `AssociationsResult` | same names (backend `schemas/agents.py`) | all fields required; `latency_ms` is float on the wire → Dart `double` (decode via `(as num).toDouble()` so integral JSON values work); served by `POST /documents/{id}/summary` and `POST /documents/{id}/associations` — **SSE streams** (see state-management.md), result payloads flat = the old JSON bodies |
 | agent stream events (`agents_stream.dart`, backend `schemas/agent_stream.py`) | `AgentRunStarted` / `SummaryProgress` / `AgentSummaryDeltaEvent` / `AgentSummaryEvent` / `AgentAssociationItemEvent` / `AgentAssociationsEvent` / `AgentDraftDeltaEvent` / `AgentDraftEvent` / `AgentDoneEvent` / `AgentErrorEvent` | sealed union; result events wrap the existing result DTOs; `kind`/`phase` stay raw wire strings (no enum sentinel — unknown phase → generic UI hint); `AgentErrorEvent.statusCode` is off-wire only (`includeIfNull: false`); `AgentSummaryDeltaEvent{runId, text}` carries verbatim plain-text summary fragments (concatenation == the final `summary`; none on cache hits) and `AgentAssociationItemEvent{runId, position, documentId, title, tags, reason, signal}` mirrors `AssociationItem` 1:1 (final-state, 1-based `position`, wire order == final-list order; an `item` getter rebuilds the shared DTO for zero-adaptation tile rendering) — both non-terminal |
-| operations (`operation.dart`, backend `schemas/operation.py`) | `OperationState` / `DraftContent` / `OperationCreate` / `OperationReadDetail` / `OperationTransition` / `ApplyRequest` / `RevisionRead` / `ApplyResult` (+`DocumentInResult` reusing `IndexStatus`) | `inspect`/`list`/`resume`/`apply` are sync JSON; **`draft` streams SSE** (see state-management.md); timestamps/`base_document_version` stay **verbatim String** (server compares it exactly for the 409 optimistic-concurrency check); unknown `OperationState` → `failed`; `OperationTransition`/`ApplyRequest` omit unset keys (`includeIfNull: false`) so no-body POSTs stay bodyless |
+| operations (`operation.dart`, backend `schemas/operation.py`) | `OperationState` / `DraftContent` / `OperationCreate` / `OperationReadDetail` / `OperationTransition` / `ApplyRequest` / `RevisionRead` / `ApplyResult` (+`DocumentInResult` reusing `IndexStatus`, with the same `description` default-to-`""` rule as `DocumentRead`) | `inspect`/`list`/`resume`/`apply` are sync JSON; **`draft` streams SSE** (see state-management.md); timestamps/`base_document_version` stay **verbatim String** (server compares it exactly for the 409 optimistic-concurrency check); unknown `OperationState` → `failed`; `OperationTransition`/`ApplyRequest` omit unset keys (`includeIfNull: false`) so no-body POSTs stay bodyless |
 | draft stream result (`operations_repository.dart`) | `OperationDraftResult{operationId, state, draft}` | folded from the `draft` SSE event (backend `OperationDraftEvent`, flat; `state` literal `"completed"` on the wire → unknown wire values map to `completed` = reviewable); never synthesize a fake `OperationReadDetail` from it — required timestamps would be lies |
 | chat SSE payloads | `RunStarted`, `SourcesEvent`, `AnswerDelta`, `ChatDone`, `ChatErrorEvent` | |
 | error envelope | `ApiErrorEnvelope` / `ApiError` | `code`, `message`, `details` map |
@@ -45,6 +45,13 @@
   setting already applies, and a local override risks diverging from it.
   Reach for `@JsonKey` only when the global rename cannot express the mapping,
   e.g. `@JsonKey(unknownEnumValue: ...)` for defensive enum parsing.
+- A field the **current** backend guarantees non-null but older server
+  responses may omit: keep it `required` and non-nullable with
+  `@JsonKey(defaultValue: …)`, so codegen reads `json['x'] as String? ?? ''`.
+  Do not make it nullable just to tolerate the missing key — that leaks null
+  checks into every UI consumer. Precedent: `DocumentRead` /
+  `DocumentReadDetail` / `DocumentInResult.description` (server 0012;
+  pre-0012 responses omit the key, so it decodes to `""`).
 - Wire enums are **strings**, never ints:
   - `index_status`: `pending` | `done` | `failed`
   - `mode`: `hybrid` | `bm25`
@@ -69,6 +76,10 @@
 - IDs are `String` (UUID) — never parse to int.
 - Timestamps stay `String` (ISO8601) on DTOs; format for display in the UI
   layer via `DateFormat` (intl), never mutate the DTO.
+- Document `title` / `tags` / `description` are **front-matter-derived** on
+  the backend: the editor edits the Markdown source (the create template
+  seeds `title`, `tags: []`, `description`), and there is no dedicated
+  description input. The optional title field is only an explicit override.
 - Sealed classes / pattern matching (`switch`) for SSE event types and
   `AsyncValue` guards.
 
